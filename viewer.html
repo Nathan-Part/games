@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>commando_1.glb — visualiseur</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #1b1f24; font-family: system-ui, sans-serif; }
+  #app { display: block; width: 100vw; height: 100vh; }
+  #hud {
+    position: fixed; top: 14px; left: 14px; color: #cfd6dd;
+    background: rgba(0,0,0,.4); padding: 10px 14px; border-radius: 10px;
+    font-size: 13px; line-height: 1.5; border: 1px solid rgba(255,255,255,.08);
+  }
+  #hud b { color: #ff7a45; }
+  #msg { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: #cfd6dd; font-size: 13px; background: rgba(0,0,0,.4); padding: 8px 14px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<canvas id="app"></canvas>
+<div id="hud"><b>commando_1.glb</b><br />Souris : tourner • Molette : zoom</div>
+<div id="msg">Chargement…</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const canvas = document.getElementById('app');
+const msg = document.getElementById('msg');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9aa3ab);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.01, 100);
+camera.position.set(0, 0.5, 3);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444a52, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(4, 6, 5); scene.add(key);
+const fill = new THREE.DirectionalLight(0xff8a5c, 0.6); fill.position.set(-5, 2, -4); scene.add(fill);
+
+const ground = new THREE.Mesh(new THREE.CircleGeometry(6, 48),
+  new THREE.MeshStandardMaterial({ color: 0x7f8890, roughness: 1 }));
+ground.rotation.x = -Math.PI/2; scene.add(ground);
+
+new GLTFLoader().load('commando_1.glb', (gltf) => {
+  const model = gltf.scene;
+  model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material.side = THREE.DoubleSide; } });
+
+  // recentre + met à l'échelle pour tenir dans la vue
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const scale = 2.2 / Math.max(size.x, size.y, size.z);
+  model.scale.setScalar(scale);
+  model.position.sub(center.multiplyScalar(scale));
+  model.position.y += (size.y * scale) / 2;
+  ground.position.y = 0;
+  scene.add(model);
+
+  controls.target.set(0, (size.y * scale) / 2, 0);
+  camera.position.set(0, (size.y * scale) / 2, 3.2);
+  msg.textContent = 'Modèle chargé ✓ — fais-le tourner';
+  setTimeout(() => msg.style.display = 'none', 2500);
+}, undefined, (err) => {
+  msg.textContent = 'Erreur de chargement du .glb : ' + err;
+});
+
+function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); }
+loop();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

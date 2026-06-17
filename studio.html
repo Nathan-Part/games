@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Studio 3D — visualiseur &amp; contrôle de squelette</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#1b1f24;color:#e6ebf0;font-family:system-ui,sans-serif}
+  #app{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+
+  #topbar{position:fixed;top:14px;left:14px;display:flex;gap:8px;align-items:center;z-index:5}
+  .btn{background:rgba(255,255,255,.06);color:#e6ebf0;border:1px solid rgba(255,255,255,.14);
+       padding:8px 13px;border-radius:9px;font-size:13px;cursor:pointer;transition:.15s}
+  .btn:hover{background:#ff7a45;color:#111;border-color:#ff7a45}
+  .btn.active{background:#ff7a45;color:#111;border-color:#ff7a45}
+  #fileName{font-size:13px;color:#aab3bd;padding:8px 4px;max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  #help{position:fixed;bottom:14px;left:14px;z-index:5;font-size:12.5px;line-height:1.6;
+        background:rgba(0,0,0,.4);padding:10px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.08);
+        backdrop-filter:blur(6px);max-width:360px}
+  #help b{color:#ff7a45}
+  #help.disabled{opacity:.4}
+
+  #panel{position:fixed;top:14px;right:14px;width:268px;z-index:5;display:flex;flex-direction:column;gap:12px;
+         max-height:calc(100vh - 28px);overflow:auto}
+  .card{background:rgba(20,24,28,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:13px;
+        backdrop-filter:blur(8px)}
+  .card h3{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8b95a0;margin-bottom:9px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td{padding:4px 0}
+  td.k{color:#aab3bd}
+  td.v{text-align:right;font-weight:600}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700;font-size:12px}
+  .pill.yes{background:rgba(54,211,116,.16);color:#36d374;border:1px solid rgba(54,211,116,.4)}
+  .pill.no{background:rgba(255,86,86,.16);color:#ff6a6a;border:1px solid rgba(255,86,86,.4)}
+
+  .muted{color:#7c858f;font-size:12.5px}
+  .group{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;margin-bottom:8px}
+  .group .main{width:100%;text-align:left;font-weight:600}
+  .variants{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .variants .btn{flex:1 1 30%;padding:4px 6px;font-size:11.5px}
+
+  .row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .row label{font-size:12px;color:#aab3bd;min-width:54px}
+  select,input[type=range]{flex:1;background:#11151a;color:#e6ebf0;border:1px solid rgba(255,255,255,.14);
+        border-radius:7px;padding:5px;font-size:12.5px;min-width:0}
+  .seg{display:flex;gap:4px;flex:1}
+  .seg .btn{padding:5px 9px;font-size:12px;flex:1}
+
+  #drop{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;
+        pointer-events:none;opacity:0;transition:.15s;background:rgba(255,122,69,.08)}
+  #drop .inner{border:2px dashed #ff7a45;border-radius:18px;padding:40px 60px;font-size:18px;color:#ffd9c7;
+        background:rgba(0,0,0,.4)}
+  #drop.show{opacity:1}
+
+  #hint{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;pointer-events:none}
+  #hint .inner{text-align:center;color:#7c858f}
+  #hint .big{font-size:18px;color:#aab3bd;margin-bottom:6px}
+
+  #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9;
+        background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.12);padding:9px 16px;border-radius:9px;
+        font-size:13px;opacity:0;transition:.2s;pointer-events:none}
+  #toast.show{opacity:1}
+  input[type=file]{display:none}
+
+  #gallery{position:fixed;inset:0;z-index:20;background:rgba(15,18,22,.93);backdrop-filter:blur(5px);
+    display:none;flex-direction:column;padding:18px}
+  #gallery.show{display:flex}
+  .gbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .gbar b{font-size:16px}
+  .ggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;overflow:auto;align-content:start}
+  .gcard{background:rgba(30,35,41,.92);border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .gcard img{width:100%;height:135px;object-fit:cover;background:#11151a;display:block}
+  .gcard .nm{padding:8px 10px 2px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gcard .dt{padding:0 10px 8px;font-size:11px;color:#7c858f}
+  .gcard .ga{display:flex;gap:6px;padding:0 10px 10px}
+  .gcard .ga .btn{flex:1;padding:6px;font-size:12px}
+  .gempty{color:#7c858f;padding:24px;font-size:14px}
+</style>
+</head>
+<body>
+<canvas id="app"></canvas>
+
+<div id="topbar">
+  <button class="btn" id="btn-import">⬆ Importer</button>
+  <button class="btn" id="btn-example">Exemple</button>
+  <button class="btn" id="btn-reframe">⊡ Recadrer</button>
+  <button class="btn" id="btn-save">💾 Sauver</button>
+  <button class="btn" id="btn-gallery">📁 Mes modèles</button>
+  <span id="fileName">Aucun modèle</span>
+  <input type="file" id="file" accept=".glb,.gltf,.fbx" />
+</div>
+
+<div id="help" class="disabled">
+  <b>Contrôle des membres</b> (squelette requis)<br/>
+  <b>→</b> bras droit · <b>←</b> bras gauche · <b>↑</b> les deux bras<br/>
+  <b>A</b> jambe gauche · <b>E</b> jambe droite · <b>↓</b> tête<br/>
+  (maintenir) · clic-gauche : tourner · clic-droit : déplacer · molette : zoom
+</div>
+
+<div id="panel">
+  <div class="card">
+    <h3>État du modèle</h3>
+    <table>
+      <tr><td class="k">Squelette</td><td class="v"><span id="t-skel" class="pill no">❌ Non</span></td></tr>
+      <tr><td class="k">Os</td><td class="v" id="t-bones">—</td></tr>
+      <tr><td class="k">Animations</td><td class="v" id="t-anims">—</td></tr>
+      <tr><td class="k">Meshes</td><td class="v" id="t-meshes">—</td></tr>
+      <tr><td class="k">Format</td><td class="v" id="t-format">—</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Mouvements</h3>
+    <button class="btn" id="btn-addanim" style="width:100%;margin-bottom:8px;display:none">➕ Ajouter une animation</button>
+    <div id="moves"><span class="muted">Charge un modèle animé.</span></div>
+    <div class="row"><button class="btn" id="btn-stop" style="flex:1">⏹ Stop / pose repos</button></div>
+    <div class="row"><label>Vitesse</label><input type="range" id="speed" min="0" max="2" step="0.05" value="1" /></div>
+    <input type="file" id="fileAnim" accept=".glb,.gltf,.fbx" multiple />
+  </div>
+
+  <div class="card" id="advcard" style="display:none">
+    <h3>Pose manuelle avancée</h3>
+    <div class="row"><label>Os</label><select id="boneSel"></select></div>
+    <div class="row"><label>Axe</label>
+      <div class="seg">
+        <button class="btn axis active" data-axis="x">X</button>
+        <button class="btn axis" data-axis="y">Y</button>
+        <button class="btn axis" data-axis="z">Z</button>
+      </div>
+    </div>
+    <div class="row"><label>Angle</label><input type="range" id="boneAngle" min="-180" max="180" step="1" value="0" /></div>
+  </div>
+
+  <div class="card">
+    <h3>Affichage</h3>
+    <div class="row" style="margin-top:0">
+      <button class="btn" id="btn-rotate" style="flex:1">Rotation auto</button>
+      <button class="btn" id="btn-wire" style="flex:1">Filaire</button>
+    </div>
+  </div>
+</div>
+
+<div id="hint"><div class="inner"><div class="big">Glisse un modèle 3D ici</div><div>.glb · .gltf · .fbx — ou bouton « Importer »</div></div></div>
+<div id="drop"><div class="inner">Dépose le fichier pour l'afficher</div></div>
+
+<div id="gallery">
+  <div class="gbar"><b>📁 Mes modèles sauvegardés</b><button class="btn" id="gallery-close">✕ Fermer</button></div>
+  <div id="gallery-grid" class="ggrid"></div>
+</div>
+
+<div id="toast"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// ---------- Renderer / scène ----------
+const canvas = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9aa3ab);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.05, 500);
+camera.position.set(2, 2, 4);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.screenSpacePanning = true;
+controls.zoomToCursor = true;
+controls.target.set(0, 1, 0);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x49535d, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 2.0);
+key.position.set(6, 10, 7); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.5; key.shadow.camera.far = 50;
+key.shadow.camera.left = -6; key.shadow.camera.right = 6;
+key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
+key.shadow.bias = -0.0002;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xff8a5c, 0.5);
+rim.position.set(-7, 5, -6); scene.add(rim);
+
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(50, 64),
+  new THREE.MeshStandardMaterial({ color:0x7f8890, roughness:1 }));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+const holder = new THREE.Group(); scene.add(holder);
+
+// ---------- Loaders ----------
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/');
+const gltfLoader = new GLTFLoader(); gltfLoader.setDRACOLoader(draco);
+const fbxLoader = new FBXLoader();
+
+// ---------- État ----------
+let currentRoot = null;
+let mixer = null;
+let activeAction = null;
+let sourceClips = [];          // AnimationClips disponibles (intégrés + ajoutés)
+let bones = [];
+const boneMap = new Map();
+let materials = [];
+let hasSkeleton = false;
+let meshCount = 0, fileFormat = '—';
+let mode = 'manual';           // 'manual' | 'anim'
+let autoRotate = false;
+let wire = false;
+let speed = 1;
+let lastSphere = new THREE.Sphere(new THREE.Vector3(0,1,0), 1.5);
+let currentFile=null, currentBytes=null, currentName='', currentExt='';
+
+const limbConf = {
+  armR:{ axis:'z', up: 1.0, cur:0, tgt:0 },
+  armL:{ axis:'z', up:-1.0, cur:0, tgt:0 },
+  legR:{ axis:'x', up: 0.8, cur:0, tgt:0 },
+  legL:{ axis:'x', up: 0.8, cur:0, tgt:0 },
+  head:{ axis:'x', up: 0.4, cur:0, tgt:0 },
+};
+const limbs = {};
+let custom = { bone:null, axis:'x', angle:0 };
+
+// ---------- DOM ----------
+const $ = id => document.getElementById(id);
+const elFileName=$('fileName'), elHelp=$('help'), elHint=$('hint'), elDrop=$('drop'), elToast=$('toast');
+const elSkel=$('t-skel'), elBones=$('t-bones'), elAnims=$('t-anims'), elMeshes=$('t-meshes'), elFormat=$('t-format');
+const elMoves=$('moves'), elAdv=$('advcard'), elBoneSel=$('boneSel'), elBoneAngle=$('boneAngle');
+
+let toastT;
+function toast(msg){ elToast.textContent=msg; elToast.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>elToast.classList.remove('show'),2800); }
+
+// ---------- Nettoyage ----------
+function clearModel(){
+  if(mixer){ mixer.stopAllAction(); mixer=null; }
+  activeAction=null; sourceClips=[]; bones=[]; boneMap.clear(); materials=[]; hasSkeleton=false;
+  for(const k in limbs) delete limbs[k];
+  for(const k in limbConf){ limbConf[k].cur=0; limbConf[k].tgt=0; }
+  custom={ bone:null, axis:'x', angle:0 };
+  jumpPoses=null; punchPoses=null;
+  holder.rotation.set(0,0,0); holder.position.set(0,0,0);
+  if(currentRoot){
+    holder.remove(currentRoot);
+    currentRoot.traverse(o=>{
+      if(o.geometry) o.geometry.dispose();
+      if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{
+        for(const key in m){ const v=m[key]; if(v && v.isTexture) v.dispose(); }
+        m.dispose();
+      }); }
+    });
+    currentRoot=null;
+  }
+}
+
+// ---------- Cadrage robuste (vraie boîte des sommets déformés) ----------
+const _vb=new THREE.Vector3();
+function computeVisualBox(root){
+  const box=new THREE.Box3(); let any=false;
+  root.updateMatrixWorld(true);
+  root.traverse(o=>{
+    if(o.isSkinnedMesh && o.geometry && o.geometry.attributes.position && o.getVertexPosition){
+      const pos=o.geometry.attributes.position;
+      const step=Math.max(1, Math.floor(pos.count/2500));
+      for(let i=0;i<pos.count;i+=step){
+        o.getVertexPosition(i,_vb); o.localToWorld(_vb);
+        box.expandByPoint(_vb); any=true;
+      }
+    } else if(o.isMesh && o.geometry){
+      o.geometry.computeBoundingBox();
+      if(o.geometry.boundingBox){ box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)); any=true; }
+    }
+  });
+  return any?box:null;
+}
+function fitModel(root){
+  root.position.set(0,0,0); root.scale.setScalar(1); root.rotation.set(0,0,0);
+  let box=computeVisualBox(root);
+  if(!box) return;
+  let size=box.getSize(new THREE.Vector3());
+  const maxDim=Math.max(size.x,size.y,size.z)||1;
+  const s=1.8/maxDim;
+  root.scale.setScalar(s);
+
+  box=computeVisualBox(root);
+  const center=box.getCenter(new THREE.Vector3());
+  root.position.x -= center.x; root.position.z -= center.z; root.position.y -= box.min.y;
+
+  box=computeVisualBox(root);
+  box.getBoundingSphere(lastSphere);
+  frameCamera(lastSphere);
+}
+function frameCamera(sphere){
+  const r=Math.max(sphere.radius,0.1);
+  const fov=camera.fov*Math.PI/180;
+  const dist=(r/Math.sin(fov/2))*1.1;
+  controls.target.copy(sphere.center);
+  const dir=new THREE.Vector3(0.55,0.22,1).normalize();
+  camera.position.copy(sphere.center).addScaledVector(dir, dist);
+  camera.near=Math.max(r/100,0.01);
+  camera.far=dist*10+200;
+  camera.updateProjectionMatrix();
+  controls.minDistance=r*0.5;
+  controls.maxDistance=dist*6;
+  controls.update();
+}
+
+// ---------- Analyse squelette ----------
+function analyze(root){
+  const bset=new Set(); let meshes=0;
+  root.traverse(o=>{
+    if(o.isSkinnedMesh){ meshes++; o.skeleton.bones.forEach(b=>bset.add(b)); }
+    else if(o.isMesh){ meshes++; }
+    if(o.isBone) bset.add(o);
+  });
+  return { bones:[...bset], meshes };
+}
+
+// ---------- Repérage des os (pour le clavier) ----------
+function side(n,s){
+  if(s==='r') return /right/.test(n) || /(^|[_.\- ])r([_.\- ]|$)/.test(n);
+  if(s==='l') return /left/.test(n)  || /(^|[_.\- ])l([_.\- ]|$)/.test(n);
+  return true;
+}
+function pickBone(list, s, groups, excludes){
+  for(let g=0; g<groups.length; g++){
+    for(const b of list){
+      const n=b.name.toLowerCase().replace(/^.*:/,'');
+      if(excludes && excludes.some(e=>n.includes(e))) continue;
+      if(!side(n,s)) continue;
+      if(groups[g].some(k=>n.includes(k))) return b;
+    }
+  }
+  return null;
+}
+function mapLimbs(list){
+  limbs.head = pickBone(list,null,[['head']],['headtop','head_end','_end','nub','front']);
+  limbs.armR = pickBone(list,'r',[['upperarm'],['arm'],['shoulder']],['forearm','lowerarm','hand','finger','thumb']);
+  limbs.armL = pickBone(list,'l',[['upperarm'],['arm'],['shoulder']],['forearm','lowerarm','hand','finger','thumb']);
+  limbs.legR = pickBone(list,'r',[['upleg','upperleg','thigh'],['leg']],['lowerleg','foreleg','foot','toe']);
+  limbs.legL = pickBone(list,'l',[['upleg','upperleg','thigh'],['leg']],['lowerleg','foreleg','foot','toe']);
+}
+
+// ---------- Tableau ----------
+function updateTable(){
+  elSkel.className='pill '+(hasSkeleton?'yes':'no');
+  elSkel.textContent=hasSkeleton?'✅ Oui':'❌ Non';
+  elBones.textContent=bones.length;
+  elAnims.textContent=sourceClips.length;
+  elMeshes.textContent=meshCount;
+  elFormat.textContent=fileFormat;
+}
+
+// ====================================================================
+//  Mouvements : basés sur les VRAIES animations + variantes dérivées
+// ====================================================================
+function prettyClip(name){
+  if(!name) return 'Animation';
+  const parts=name.split('|').map(s=>s.trim()).filter(s=>s && !/^armature$/i.test(s) && !/baselayer/i.test(s));
+  let s=(parts[0]||name).replace(/[_]+/g,' ').trim();
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+// Clone un clip en rapprochant (amp<1) ou éloignant (amp>1) chaque pose de la pose de repos
+function ampClip(clip, amp){
+  const tracks=clip.tracks.map(tr=>{
+    const dot=tr.name.lastIndexOf('.');
+    const node=tr.name.slice(0,dot), prop=tr.name.slice(dot+1);
+    const bone=boneMap.get(node);
+    if(prop==='quaternion' && bone && bone.userData.rest){
+      const base=bone.userData.rest, v=Float32Array.from(tr.values);
+      const q=new THREE.Quaternion(), o=new THREE.Quaternion();
+      for(let i=0;i<v.length;i+=4){ q.set(v[i],v[i+1],v[i+2],v[i+3]); o.copy(base).slerp(q,amp);
+        v[i]=o.x; v[i+1]=o.y; v[i+2]=o.z; v[i+3]=o.w; }
+      return new THREE.QuaternionKeyframeTrack(tr.name, Float32Array.from(tr.times), v);
+    }
+    if(prop==='position' && bone && bone.userData.restPos){
+      const rp=bone.userData.restPos, v=Float32Array.from(tr.values);
+      for(let i=0;i<v.length;i+=3){ v[i]=rp.x+(v[i]-rp.x)*amp; v[i+1]=rp.y+(v[i+1]-rp.y)*amp; v[i+2]=rp.z+(v[i+2]-rp.z)*amp; }
+      return new THREE.VectorKeyframeTrack(tr.name, Float32Array.from(tr.times), v);
+    }
+    return tr.clone();
+  });
+  return new THREE.AnimationClip(clip.name+'__amp'+amp, clip.duration, tracks);
+}
+function clipVariants(clip){
+  const n=prettyClip(clip.name);
+  const list=[ {label:'▶ '+n, clip, timeScale:1, reverse:false} ];
+  if(hasSkeleton){
+    list.push({label:'Lent',    clip, timeScale:0.5, reverse:false});
+    list.push({label:'Arrière', clip, timeScale:1,   reverse:true});
+    list.push({label:'Idle',    clip:ampClip(clip,0.28), timeScale:0.7, reverse:false});
+    list.push({label:'Ample',   clip:ampClip(clip,1.25), timeScale:1,   reverse:false});
+  }
+  return list;
+}
+let moveButtons=[];
+function buildMovements(){
+  elMoves.innerHTML=''; moveButtons=[];
+  $('btn-addanim').style.display = hasSkeleton ? '' : 'none';
+  if(!sourceClips.length){
+    elMoves.innerHTML='<span class="muted">Aucune animation. Importe un .glb animé (Meshy), ou ajoute-en une.</span>';
+    return;
+  }
+  if(hasSkeleton){
+    const jb=document.createElement('button');
+    jb.className='btn main'; jb.style.marginBottom='8px';
+    jb.textContent='🦘 Saut (généré)';
+    jb.onclick=()=>startJump(jb);
+    elMoves.appendChild(jb); moveButtons.push(jb);
+    const pb=document.createElement('button');
+    pb.className='btn main'; pb.style.marginBottom='8px';
+    pb.textContent='🥊 Coup de poing (généré)';
+    pb.onclick=()=>startPunch(pb);
+    elMoves.appendChild(pb); moveButtons.push(pb);
+  }
+  sourceClips.forEach(clip=>{
+    const variants=clipVariants(clip);
+    const group=document.createElement('div'); group.className='group';
+    const main=document.createElement('button');
+    main.className='btn main'; main.textContent=variants[0].label;
+    main.onclick=()=>playVariant(variants[0], main);
+    group.appendChild(main); moveButtons.push(main);
+    if(variants.length>1){
+      const row=document.createElement('div'); row.className='variants';
+      variants.slice(1).forEach(v=>{
+        const b=document.createElement('button'); b.className='btn'; b.textContent=v.label;
+        b.onclick=()=>playVariant(v,b); row.appendChild(b); moveButtons.push(b);
+      });
+      group.appendChild(row);
+    }
+    elMoves.appendChild(group);
+  });
+}
+function clearActive(){ moveButtons.forEach(b=>b.classList.remove('active')); }
+function playVariant(v, btn){
+  if(!mixer || !v.clip) return;
+  setMode('anim');
+  const a=mixer.clipAction(v.clip);
+  if(activeAction && activeAction!==a) activeAction.fadeOut(0.2);
+  a.reset();
+  a.setLoop(THREE.LoopRepeat, Infinity);
+  a.clampWhenFinished=false;
+  a.timeScale = v.reverse ? -Math.abs(v.timeScale) : v.timeScale;
+  a.time = v.reverse ? Math.max(0, v.clip.duration-0.001) : 0;
+  a.setEffectiveWeight(1).fadeIn(0.2).play();
+  activeAction=a;
+  clearActive(); if(btn) btn.classList.add('active');
+}
+function stopAll(){
+  if(mixer) mixer.stopAllAction();
+  activeAction=null; restoreRest(); setMode('manual'); clearActive();
+}
+function setMode(m){ mode=m; if(m!=='jump') holder.position.y=0; }
+
+// ---------- Saut généré : 2 vraies poses (debout/accroupi) + envol vertical ----------
+const _jq=new THREE.Quaternion();
+let jumpPoses=null, jumpT=0;
+const JT=[0,0.22,0.40,0.60,0.80,1.0], JC=[0,1,0,0.12,1,0], JL=[0,0,0.4,1,0,0];
+function lerpKeys(times,vals,t){
+  if(t<=times[0]) return vals[0];
+  for(let i=1;i<times.length;i++){ if(t<=times[i]){ const a=(t-times[i-1])/(times[i]-times[i-1]); return vals[i-1]+(vals[i]-vals[i-1])*a; } }
+  return vals[vals.length-1];
+}
+function angleFromRest(r,x,y,z,w){ let d=Math.abs(r.x*x+r.y*y+r.z*z+r.w*w); if(d>1)d=1; return 2*Math.acos(d); }
+function isArmName(n){ return /arm|hand|shoulder|fore|elbow|finger|thumb|clav|wrist/.test(n); }
+function isLegName(n){ return /leg|thigh|shin|calf|knee|foot|toe|ankle/.test(n); }
+function chooseCrouchClip(){
+  if(!sourceClips.length) return null;
+  return sourceClips.find(c=>/run|sprint|jump|saut/i.test(c.name||'')) || sourceClips[0];
+}
+function sampleClipPose(clip,t){
+  const map=new Map();
+  for(const tr of clip.tracks){
+    if(!tr.name.endsWith('.quaternion')) continue;
+    const node=tr.name.slice(0,tr.name.lastIndexOf('.'));
+    const bone=boneMap.get(node); if(!bone) continue;
+    const v=tr.createInterpolant().evaluate(t);
+    map.set(bone, new THREE.Quaternion(v[0],v[1],v[2],v[3]));
+  }
+  return map;
+}
+// instant le plus accroupi (bassin bas / jambes fléchies) et le plus tendu
+function findPoseTimes(clip){
+  const hips=bones.find(b=>/hip|pelvis|root/i.test(b.name))||bones[0];
+  const posTr=hips && clip.tracks.find(tr=>tr.name===hips.name+'.position');
+  if(posTr){
+    let lo=1e9,hi=-1e9,tLo=0,tHi=0;
+    for(let i=0;i<posTr.times.length;i++){ const y=posTr.values[i*3+1];
+      if(y<lo){lo=y;tLo=posTr.times[i];} if(y>hi){hi=y;tHi=posTr.times[i];} }
+    if(hi-lo>1e-6) return {tStand:tHi,tCrouch:tLo};
+  }
+  const legs=bones.filter(b=>isLegName(b.name.toLowerCase()));
+  const use=legs.length?legs:bones, interps=new Map();
+  for(const tr of clip.tracks){ if(!tr.name.endsWith('.quaternion'))continue;
+    const node=tr.name.slice(0,tr.name.lastIndexOf('.')); const bone=boneMap.get(node);
+    if(bone&&use.includes(bone)&&bone.userData.rest) interps.set(bone,tr.createInterpolant()); }
+  let best=-1,worst=1e9,tLo=0,tHi=0,N=48;
+  for(let k=0;k<N;k++){ const t=clip.duration*k/(N-1); let s=0;
+    interps.forEach((ip,bone)=>{ const v=ip.evaluate(t); s+=angleFromRest(bone.userData.rest,v[0],v[1],v[2],v[3]); });
+    if(s>best){best=s;tLo=t;} if(s<worst){worst=s;tHi=t;} }
+  return {tStand:tHi,tCrouch:tLo};
+}
+function learnJumpPoses(){
+  const clip=chooseCrouchClip(); if(!clip) return null;
+  const {tStand,tCrouch}=findPoseTimes(clip);
+  const standS=sampleClipPose(clip,tStand), crouchS=sampleClipPose(clip,tCrouch);
+  const standMap=new Map(), crouchMap=new Map();
+  crouchS.forEach((cq,bone)=>{
+    crouchMap.set(bone,cq);
+    // debout : jambes/buste droits (repos), bras issus de l'anim (évite la T-pose en l'air)
+    const arm=isArmName(bone.name.toLowerCase());
+    standMap.set(bone, arm ? (standS.get(bone)||bone.userData.rest.clone()) : bone.userData.rest.clone());
+  });
+  return {standMap,crouchMap};
+}
+function startJump(btn){
+  if(!hasSkeleton) return;
+  if(!jumpPoses) jumpPoses=learnJumpPoses();
+  if(!jumpPoses){ toast('Pas d\'animation à analyser pour le saut.'); return; }
+  if(mixer) mixer.stopAllAction(); activeAction=null;
+  jumpT=0; setMode('jump'); clearActive(); if(btn) btn.classList.add('active');
+}
+function updateJump(dt){
+  jumpT += dt*Math.max(0.0001,speed);
+  const cyc=1.4, p=(jumpT % cyc)/cyc;
+  const c=lerpKeys(JT,JC,p), lf=lerpKeys(JT,JL,p);
+  restoreRest();
+  if(jumpPoses) jumpPoses.crouchMap.forEach((cq,bone)=>{
+    const sq=jumpPoses.standMap.get(bone)||bone.userData.rest;
+    _jq.copy(sq).slerp(cq,c); bone.quaternion.copy(_jq);
+  });
+  holder.position.y = lf * lastSphere.radius * 0.7;
+}
+
+// ---------- Coup de poing généré : pose "bras en avant" apprise du rig ----------
+let punchPoses=null, punchT=0;
+const PUNCH_FLIP=false;                 // passer à true si le coup part vers l'arrière
+const PT=[0,0.16,0.30,0.62,1.0], PA=[0,1,0.12,0,0];
+function rightHandBone(){
+  return bones.find(b=>{const n=b.name.toLowerCase(); return /hand|wrist/.test(n)&&side(n,'r');})
+      || bones.find(b=>{const n=b.name.toLowerCase(); return /fore|elbow|lowerarm/.test(n)&&side(n,'r');})
+      || limbs.armR;
+}
+function learnPunchPoses(){
+  const clip=chooseCrouchClip(); if(!clip||!currentRoot) return null;
+  const hand=rightHandBone(); if(!hand) return null;
+  const hips=bones.find(b=>/hip|pelvis|root/i.test(b.name))||bones[0];
+  // FK : on rejoue le clip pour trouver l'instant où la main droite est la plus en avant
+  const saved=bones.map(b=>b.quaternion.clone());
+  const N=40, samples=[], hp=new THREE.Vector3(), hd=new THREE.Vector3();
+  for(let k=0;k<N;k++){ const t=clip.duration*k/(N-1); const pose=sampleClipPose(clip,t);
+    bones.forEach(b=>{ const q=pose.get(b); if(q) b.quaternion.copy(q); else if(b.userData.rest) b.quaternion.copy(b.userData.rest); });
+    currentRoot.updateMatrixWorld(true);
+    hips.getWorldPosition(hp); hand.getWorldPosition(hd);
+    samples.push({t, x:hd.x-hp.x, z:hd.z-hp.z});
+  }
+  bones.forEach((b,i)=>b.quaternion.copy(saved[i])); currentRoot.updateMatrixWorld(true);
+  // axe horizontal principal du balancement de la main
+  let mx=0,mz=0; samples.forEach(s=>{mx+=s.x;mz+=s.z;}); mx/=N; mz/=N;
+  let sxx=0,szz=0,sxz=0; samples.forEach(s=>{const dx=s.x-mx,dz=s.z-mz; sxx+=dx*dx;szz+=dz*dz;sxz+=dx*dz;});
+  const ang=0.5*Math.atan2(2*sxz, sxx-szz), fx=Math.cos(ang), fz=Math.sin(ang);
+  let pmax=-1e9,pmin=1e9,tF=clip.duration*0.5,tB=0;
+  samples.forEach(s=>{const pr=s.x*fx+s.z*fz; if(pr>pmax){pmax=pr;tF=s.t;} if(pr<pmin){pmin=pr;tB=s.t;}});
+  if(PUNCH_FLIP){ const tmp=tF; tF=tB; tB=tmp; }
+  const ex=sampleClipPose(clip,tF), gd=sampleClipPose(clip,tB);
+  const extend=new Map(), guard=new Map();
+  bones.forEach(b=>{ const n=b.name.toLowerCase();
+    if(isLegName(n) || /hip|pelvis|root/.test(n)) return;     // jambes/bassin : debout
+    const e=ex.get(b), g=gd.get(b); if(!e&&!g) return;
+    const isLeft=isArmName(n)&&side(n,'l');
+    guard.set(b, g||b.userData.rest);
+    extend.set(b, isLeft ? (g||b.userData.rest) : (e||b.userData.rest));   // bras gauche en garde statique
+  });
+  return {extend, guard};
+}
+function startPunch(btn){
+  if(!hasSkeleton) return;
+  if(!punchPoses) punchPoses=learnPunchPoses();
+  if(!punchPoses){ toast('Pas d\'animation à analyser pour le coup de poing.'); return; }
+  if(mixer) mixer.stopAllAction(); activeAction=null;
+  punchT=0; setMode('punch'); clearActive(); if(btn) btn.classList.add('active');
+}
+function updatePunch(dt){
+  punchT += dt*Math.max(0.0001,speed);
+  const cyc=1.1, p=(punchT % cyc)/cyc, a=lerpKeys(PT,PA,p);
+  restoreRest();
+  if(punchPoses) punchPoses.extend.forEach((eq,bone)=>{
+    const gq=punchPoses.guard.get(bone)||bone.userData.rest;
+    _jq.copy(gq).slerp(eq,a); bone.quaternion.copy(_jq);
+  });
+}
+
+// ---------- Pose clavier ----------
+const _v=new THREE.Vector3(), _q=new THREE.Quaternion();
+function axisVec(a){ return _v.set(a==='x'?1:0, a==='y'?1:0, a==='z'?1:0); }
+function restoreRest(){ bones.forEach(b=>{ if(b.userData.rest){ b.quaternion.copy(b.userData.rest); if(b.userData.restPos) b.position.copy(b.userData.restPos); } }); }
+function applyManualPose(){
+  for(const name in limbConf){
+    const b=limbs[name]; if(!b || !b.userData.rest) continue;
+    const c=limbConf[name];
+    _q.setFromAxisAngle(axisVec(c.axis), c.cur);
+    b.quaternion.copy(b.userData.rest).multiply(_q);
+  }
+  if(custom.bone && custom.bone.userData.rest){
+    _q.setFromAxisAngle(axisVec(custom.axis), custom.angle*Math.PI/180);
+    custom.bone.quaternion.copy(custom.bone.userData.rest).multiply(_q);
+  }
+}
+
+// ---------- Clavier ----------
+const keys={};
+function isLimbKey(k){ return ['ArrowRight','ArrowLeft','ArrowUp','ArrowDown','a','A','e','E'].includes(k); }
+addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
+  if(mode!=='manual' && hasSkeleton && isLimbKey(e.key)) stopAll();
+});
+addEventListener('keyup',e=>{ keys[e.key]=false; });
+function updateTargets(){
+  limbConf.armR.tgt=(keys.ArrowRight||keys.ArrowUp)?limbConf.armR.up:0;
+  limbConf.armL.tgt=(keys.ArrowLeft ||keys.ArrowUp)?limbConf.armL.up:0;
+  limbConf.legL.tgt=(keys.a||keys.A)?limbConf.legL.up:0;
+  limbConf.legR.tgt=(keys.e||keys.E)?limbConf.legR.up:0;
+  limbConf.head.tgt=(keys.ArrowDown)?limbConf.head.up:0;
+}
+
+// ---------- Sélecteur d'os (repli) ----------
+function buildBoneSelector(){
+  elBoneSel.innerHTML='';
+  if(!bones.length) return;
+  const none=document.createElement('option'); none.value=''; none.textContent='— choisir un os —'; elBoneSel.appendChild(none);
+  bones.forEach((b,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=b.name||('os '+i); elBoneSel.appendChild(o); });
+  elBoneAngle.value=0;
+}
+elBoneSel.onchange=()=>{
+  const v=elBoneSel.value;
+  custom.bone = v==='' ? null : bones[+v];
+  custom.angle=0; elBoneAngle.value=0;
+  if(custom.bone && mode!=='manual') stopAll();
+};
+elBoneAngle.oninput=()=>{ custom.angle=+elBoneAngle.value; if(mode!=='manual') stopAll(); };
+document.querySelectorAll('.axis').forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll('.axis').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); custom.axis=btn.dataset.axis;
+});
+
+// ---------- Chargement ----------
+function onLoaded(root, animations, name, format){
+  clearModel();
+  currentRoot=root;
+  root.traverse(o=>{
+    if(o.isMesh){
+      o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false;
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m){ m.side=THREE.DoubleSide; materials.push(m); } });
+    }
+  });
+  holder.add(root);
+  fitModel(root);
+
+  const info=analyze(root);
+  bones=info.bones; meshCount=info.meshes; fileFormat=format.toUpperCase();
+  hasSkeleton=bones.length>0;
+  bones.forEach(b=>{ b.userData.rest=b.quaternion.clone(); b.userData.restPos=b.position.clone(); boneMap.set(b.name,b); });
+
+  sourceClips=(animations||[]).slice();
+  if(hasSkeleton || sourceClips.length){ mixer=new THREE.AnimationMixer(root); mixer.timeScale=speed; }
+  if(hasSkeleton) mapLimbs(bones);
+
+  wire=false; $('btn-wire').classList.remove('active');
+  updateTable();
+  buildMovements();
+  buildBoneSelector();
+
+  elFileName.textContent=name;
+  elHint.style.display='none';
+  elHelp.classList.toggle('disabled', !hasSkeleton);
+  elAdv.style.display = hasSkeleton ? '' : 'none';
+  setMode('manual');
+  toast(hasSkeleton ? 'Modèle chargé ✓ — squelette détecté' : 'Modèle chargé ✓ — pas de squelette');
+}
+
+function readModel(file, cb){
+  const ext=file.name.split('.').pop().toLowerCase();
+  const url=URL.createObjectURL(file);
+  const done=()=>URL.revokeObjectURL(url);
+  if(ext==='glb' || ext==='gltf'){
+    gltfLoader.load(url, g=>{ cb(g.scene, g.animations, ext); done(); },
+      undefined, e=>{ done(); toast('Erreur de chargement : '+(e.message||e)); });
+  } else if(ext==='fbx'){
+    fbxLoader.load(url, o=>{ cb(o, o.animations, ext); done(); },
+      undefined, e=>{ done(); toast('Erreur de chargement : '+(e.message||e)); });
+  } else { done(); toast('Format non supporté : .'+ext); }
+}
+function loadFile(file){
+  currentFile=file; currentBytes=null; currentName=file.name; currentExt=file.name.split('.').pop().toLowerCase();
+  toast('Chargement de '+file.name+'…');
+  readModel(file,(root,anims,ext)=>onLoaded(root,anims,file.name,ext));
+}
+
+// Ajoute les clips d'un autre fichier au squelette courant (même rig → compatible)
+function addAnimationFile(file){
+  if(!hasSkeleton || !mixer){ toast('Charge d\'abord un modèle avec squelette.'); return; }
+  toast('Ajout de '+file.name+'…');
+  readModel(file,(root,anims)=>{
+    const a=anims||[];
+    if(!a.length){ toast('Aucune animation dans ce fichier.'); return; }
+    a.forEach(c=>sourceClips.push(c));
+    jumpPoses=null; punchPoses=null;   // réapprendre depuis les clips ajoutés (ex. Running)
+    updateTable(); buildMovements();
+    toast(a.length+' animation(s) ajoutée(s) ✓');
+  });
+}
+
+// ---------- UI ----------
+$('btn-import').onclick=()=>$('file').click();
+$('file').onchange=e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); e.target.value=''; };
+$('btn-addanim').onclick=()=>$('fileAnim').click();
+$('fileAnim').onchange=e=>{ [...e.target.files].forEach(f=>addAnimationFile(f)); e.target.value=''; };
+$('btn-example').onclick=async()=>{
+  toast('Chargement de l\'exemple…');
+  try{
+    const buf=await (await fetch('commando_1.glb')).arrayBuffer();
+    currentFile=null; currentBytes=buf; currentName='commando_1.glb'; currentExt='glb';
+    const url=URL.createObjectURL(new Blob([buf]));
+    gltfLoader.load(url, g=>{ onLoaded(g.scene,g.animations,'commando_1.glb','glb'); URL.revokeObjectURL(url); },
+      undefined, ()=>{ URL.revokeObjectURL(url); toast('Exemple illisible'); });
+  }catch(e){ toast('Exemple introuvable (lance la page via un serveur local)'); }
+};
+$('btn-reframe').onclick=()=>{ if(currentRoot) fitModel(currentRoot); };
+$('btn-stop').onclick=stopAll;
+$('speed').oninput=e=>{ speed=+e.target.value; if(mixer) mixer.timeScale=speed; };
+$('btn-rotate').onclick=e=>{ autoRotate=!autoRotate; e.target.classList.toggle('active',autoRotate); };
+$('btn-wire').onclick=e=>{ wire=!wire; materials.forEach(m=>m.wireframe=wire); e.target.classList.toggle('active',wire); };
+
+// ---------- Sauvegarde des modèles (IndexedDB) ----------
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('studio3d',1);
+  r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains('models')) r.result.createObjectStore('models',{keyPath:'id'}); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function dbPut(rec){ return idb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('models','readwrite'); tx.objectStore('models').put(rec); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
+function dbAll(){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').getAll(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error); })); }
+function dbDel(id){ return idb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('models','readwrite'); tx.objectStore('models').delete(id); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
+
+function makeThumb(){
+  try{ renderer.render(scene,camera);
+    const c=document.createElement('canvas'); c.width=240; c.height=160;
+    c.getContext('2d').drawImage(renderer.domElement,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',0.6);
+  }catch(e){ return ''; }
+}
+async function saveCurrent(){
+  if(!currentRoot){ toast('Aucun modèle à sauver'); return; }
+  let bytes=currentBytes;
+  try{ if(!bytes && currentFile) bytes=await currentFile.arrayBuffer(); }catch(e){}
+  if(!bytes){ toast('Ce modèle ne peut pas être sauvegardé'); return; }
+  const rec={ id:Date.now(), name:currentName||'modèle', format:currentExt||'glb', bytes, thumb:makeThumb(), date:new Date().toLocaleString('fr-FR') };
+  try{ await dbPut(rec); toast('💾 Modèle sauvegardé'); }
+  catch(e){ toast('Échec de la sauvegarde : '+(e.message||e)); }
+}
+async function openGallery(){
+  const grid=$('gallery-grid'); grid.innerHTML='<span class="gempty">Chargement…</span>';
+  $('gallery').classList.add('show');
+  let list=[]; try{ list=await dbAll(); }catch(e){}
+  list.sort((a,b)=>b.id-a.id);
+  if(!list.length){ grid.innerHTML='<span class="gempty">Aucun modèle sauvegardé. Charge un modèle puis clique « 💾 Sauver ».</span>'; return; }
+  grid.innerHTML='';
+  list.forEach(rec=>{
+    const c=document.createElement('div'); c.className='gcard';
+    const img=document.createElement('img'); img.src=rec.thumb||''; img.alt='';
+    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=rec.name;
+    const dt=document.createElement('div'); dt.className='dt'; dt.textContent=(rec.format||'').toUpperCase()+' · '+(rec.date||'');
+    const ga=document.createElement('div'); ga.className='ga';
+    const ob=document.createElement('button'); ob.className='btn'; ob.textContent='Ouvrir'; ob.onclick=()=>openSaved(rec);
+    const de=document.createElement('button'); de.className='btn'; de.textContent='🗑'; de.style.flex='0 0 auto';
+    de.onclick=async()=>{ await dbDel(rec.id); openGallery(); };
+    ga.append(ob,de); c.append(img,nm,dt,ga); grid.appendChild(c);
+  });
+}
+function closeGallery(){ $('gallery').classList.remove('show'); }
+function openSaved(rec){
+  closeGallery(); toast('Ouverture de '+rec.name+'…');
+  const url=URL.createObjectURL(new Blob([rec.bytes])); const done=()=>URL.revokeObjectURL(url);
+  currentFile=null; currentBytes=rec.bytes; currentName=rec.name; currentExt=rec.format;
+  if(rec.format==='glb'||rec.format==='gltf') gltfLoader.load(url,g=>{ onLoaded(g.scene,g.animations,rec.name,rec.format); done(); },undefined,e=>{ done(); toast('Erreur d\'ouverture'); });
+  else fbxLoader.load(url,o=>{ onLoaded(o,o.animations,rec.name,rec.format); done(); },undefined,e=>{ done(); toast('Erreur d\'ouverture'); });
+}
+$('btn-save').onclick=saveCurrent;
+$('btn-gallery').onclick=openGallery;
+$('gallery-close').onclick=closeGallery;
+
+let dragN=0;
+addEventListener('dragenter',e=>{ e.preventDefault(); dragN++; elDrop.classList.add('show'); });
+addEventListener('dragover',e=>{ e.preventDefault(); });
+addEventListener('dragleave',e=>{ e.preventDefault(); if(--dragN<=0){ dragN=0; elDrop.classList.remove('show'); } });
+addEventListener('drop',e=>{ e.preventDefault(); dragN=0; elDrop.classList.remove('show');
+  const f=e.dataTransfer.files && e.dataTransfer.files[0]; if(f) loadFile(f); });
+
+// ---------- Boucle ----------
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  if(mode==='anim' && mixer){
+    mixer.update(dt);
+  } else if(mode==='jump' && hasSkeleton){
+    updateJump(dt);
+  } else if(mode==='punch' && hasSkeleton){
+    updatePunch(dt);
+  } else if(hasSkeleton){
+    updateTargets();
+    for(const k in limbConf){ const c=limbConf[k]; c.cur += (c.tgt-c.cur)*Math.min(1,dt*10); }
+    applyManualPose();
+  }
+  if(autoRotate && currentRoot) holder.rotation.y += dt*0.5;
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
