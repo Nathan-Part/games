@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Studio — Personnages & Animations</title>
+<style>
+  :root {
+    --bg: #0b0d12; --panel: rgba(20, 24, 33, 0.85); --border: rgba(120, 150, 220, 0.18);
+    --accent: #5b8cff; --accent-2: #b56bff; --text: #e8ecf4; --muted: #8a93a6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #panel {
+    position: fixed; top: 16px; left: 16px; width: 250px;
+    max-height: calc(100vh - 32px); display: flex; flex-direction: column;
+    background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); z-index: 10;
+  }
+  h1 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  h1 .dot { width: 9px; height: 9px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 12px var(--accent); }
+  .sub { font-size: 11.5px; color: var(--muted); margin: 4px 0 14px; line-height: 1.5; }
+  .section-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+
+  #list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; padding-right: 4px; }
+  #list::-webkit-scrollbar { width: 6px; }
+  #list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .anim-btn { text-align: left; background: rgba(255,255,255,0.03); color: var(--text);
+    border: 1px solid transparent; border-radius: 10px; padding: 9px 12px; font-size: 13px;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 9px; }
+  .anim-btn:hover { background: rgba(91,140,255,0.12); border-color: var(--border); }
+  .anim-btn.active { background: linear-gradient(135deg, rgba(91,140,255,0.25), rgba(181,107,255,0.2));
+    border-color: var(--accent); font-weight: 600; }
+  .anim-btn .icon { font-size: 14px; opacity: 0.85; width: 18px; text-align: center; }
+
+  #bodies {
+    position: fixed; top: 16px; right: 16px; width: 180px;
+    max-height: calc(100vh - 32px); overflow-y: auto;
+    background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 14px; z-index: 10;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .body-btn { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+    background: rgba(255,255,255,0.03); color: var(--text); border: 1px solid transparent;
+    border-radius: 12px; padding: 10px; font-size: 13.5px; cursor: pointer; transition: all 0.15s;
+    font-weight: 600; margin-top: 8px; }
+  .body-btn:hover { background: rgba(91,140,255,0.12); border-color: var(--border); }
+  .body-btn.active { background: linear-gradient(135deg, rgba(91,140,255,0.28), rgba(181,107,255,0.22));
+    border-color: var(--accent); }
+  .body-btn .thumb { width: 34px; height: 34px; border-radius: 8px; object-fit: cover;
+    background: rgba(255,255,255,0.06); flex: 0 0 auto; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; }
+  .body-btn img.thumb { object-fit: cover; }
+
+  #controls { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 14px; background: var(--panel);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; z-index: 10; font-size: 12.5px; }
+  #controls label { color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  #controls input[type=range] { width: 110px; accent-color: var(--accent); }
+  .now { color: var(--text); font-weight: 600; min-width: 160px; }
+
+  #overlay { position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; background: var(--bg);
+    z-index: 50; transition: opacity 0.4s; text-align: center; padding: 24px; }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  .spinner { width: 44px; height: 44px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #overlay .msg { color: var(--muted); font-size: 13.5px; max-width: 480px; line-height: 1.6; }
+  .err-title { color: #ff6b6b; font-weight: 700; font-size: 16px; }
+  code { background: rgba(255,255,255,0.08); padding: 2px 7px; border-radius: 6px; font-size: 12.5px; color: #ffd479; }
+  .hint { position: fixed; bottom: 16px; right: 16px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+    font-size: 11px; color: var(--muted); z-index: 10; max-width: 200px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="panel">
+  <h1><span class="dot"></span> Animations</h1>
+  <div class="sub">Découvertes dans <code>/animation</code>. Cliquez pour les appliquer au personnage choisi.</div>
+  <div class="section-label">Liste</div>
+  <div id="list"></div>
+</div>
+
+<div id="bodies">
+  <div class="section-label" style="margin:0 0 4px">Personnages</div>
+  <div id="bodies-list"></div>
+</div>
+
+<div id="controls">
+  <span class="now" id="now">—</span>
+  <label>Vitesse <input type="range" id="speed" min="0" max="2" step="0.05" value="1" /></label>
+</div>
+
+<div class="hint">🖱️ Glisse pour tourner · molette pour zoomer.<br>Persos auto-détectés dans <code>/perso/*</code>.</div>
+
+<div id="overlay">
+  <div class="spinner" id="spinner"></div>
+  <div class="msg" id="overlay-msg">Découverte des dossiers…</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ====== Configuration de l'architecture (dossiers) ======
+const ANIM_DIR  = 'animation/';   // bibliothèque de clips partagés
+const PERSO_DIR = 'perso/';       // un sous-dossier par personnage, 1 mesh .glb dedans
+const ROOT_BONE = 'Hips';
+
+// jolis libellés / icônes dérivés du nom de fichier d'animation
+const ICONS = [
+  [/walk|march/i, '🚶'], [/run|course|sprint/i, '🏃'], [/dance|danse/i, '💃'],
+  [/box|punch|combo|attack|attaque/i, '🥊'], [/skill|comp/i, '✨'], [/alert/i, '⚠️'],
+  [/agree|gesture|approuv/i, '👍'], [/idle|wait/i, '🧍'],
+];
+const iconFor = s => (ICONS.find(([re]) => re.test(s)) || [null, '▶'])[1];
+function animKeyFromFile(fname) {
+  const base = decodeURIComponent(fname).replace(/\.glb$/i, '');
+  const m = base.match(/_Animation_(.+?)_withSkin$/i) || base.match(/_Animation_(.+)$/i);
+  return (m ? m[1] : base);
+}
+const prettyLabel = k => k.replace(/[_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+
+// ====== Découverte par listing de dossier (serveur HTTP) ======
+async function listDir(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Listing indisponible pour ' + url + ' (HTTP ' + res.status + ')');
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return [...doc.querySelectorAll('a')]
+    .map(a => a.getAttribute('href'))
+    .filter(h => h && !h.startsWith('/') && !h.startsWith('?') && !h.includes('://') && h !== '../');
+}
+const isGlb = h => /\.glb$/i.test(h);
+const isImg = h => /\.(png|jpe?g|webp|gif)$/i.test(h);
+
+// ====== Scène ======
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0d12);
+scene.fog = new THREE.Fog(0x0b0d12, 10, 30);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(2.5, 2, 4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 1, 0);
+
+scene.add(new THREE.HemisphereLight(0x9bb6ff, 0x1a1d26, 0.8));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+keyLight.position.set(4, 8, 5); keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048); keyLight.shadow.camera.far = 30; scene.add(keyLight);
+const rim = new THREE.DirectionalLight(0xb56bff, 1.2); rim.position.set(-5, 4, -5); scene.add(rim);
+
+const ground = new THREE.Mesh(new THREE.CircleGeometry(8, 64),
+  new THREE.MeshStandardMaterial({ color: 0x12151d, roughness: 0.9, metalness: 0.1 }));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(16, 32, 0x2a3550, 0x1a1f2e); grid.position.y = 0.001; scene.add(grid);
+
+// ====== État ======
+const loader = new GLTFLoader();
+let anims = [];           // [{ key, label, icon, clip }]
+let characters = [];      // [{ id, label, meshUrl, thumbUrl }]
+const retargetCache = {}; // "char:anim" -> AnimationClip
+
+// squelette source partagé (le rig sur lequel les clips ont été créés)
+let sourceModel = null, sourceBoneByName = {}, sourceRest = null, sourceRestWorld = null;
+// corps actuellement affiché
+let mixer = null, model = null, currentAction = null;
+let currentChar = null, currentAnim = null;
+let targetRest = null, targetRestWorld = null, targetBoneOrder = null;
+
+const overlay = document.getElementById('overlay');
+const overlayMsg = document.getElementById('overlay-msg');
+const spinner = document.getElementById('spinner');
+const listEl = document.getElementById('list');
+const bodiesEl = document.getElementById('bodies-list');
+const nowEl = document.getElementById('now');
+const speedEl = document.getElementById('speed');
+
+function showError(msg) {
+  spinner.style.display = 'none'; overlay.classList.remove('hidden');
+  overlayMsg.innerHTML = `<div class="err-title">⚠️ ${msg}</div>
+    <p style="margin-top:12px">Cette page doit être ouverte via un serveur local qui liste les dossiers
+    (pas en <code>file://</code>). Depuis le dossier <code>games</code> :</p>
+    <p style="margin-top:6px"><code>python -m http.server 8123</code></p>
+    <p style="margin-top:6px">puis <code>http://localhost:8123/app.html</code></p>`;
+}
+
+// ====== Capture des poses de repos ======
+function captureRest(root) {
+  const map = {};
+  root.traverse(o => { if (o.isBone) map[o.name] = { q: o.quaternion.clone(), p: o.position.clone() }; });
+  return map;
+}
+function captureRestWorld(root) {
+  root.updateMatrixWorld(true);
+  const map = {}; const q = new THREE.Quaternion();
+  root.traverse(o => { if (o.isBone) { o.getWorldQuaternion(q); map[o.name] = q.clone(); } });
+  return map;
+}
+function boneOrder(root) {
+  const list = [];
+  root.traverse(o => { if (o.isBone) list.push({ name: o.name, parent: (o.parent && o.parent.isBone) ? o.parent.name : null }); });
+  return list;
+}
+
+// ====== Retargeting en espace-monde (insensible aux différences d'axes locaux) ======
+function retargetClipWorld(raw) {
+  const dur = raw.duration;
+  const n = Math.max(2, Math.round(dur * 30) + 1);
+  const srcMixer = new THREE.AnimationMixer(sourceModel);
+  srcMixer.clipAction(raw).play();
+
+  const samples = {}; for (const b of targetBoneOrder) samples[b.name] = [];
+  const times = [];
+  const qWsrc = new THREE.Quaternion(), tmp = new THREE.Quaternion();
+  const tgtWorld = {};
+
+  for (let f = 0; f < n; f++) {
+    const t = (f / (n - 1)) * dur;
+    times.push(t);
+    srcMixer.setTime(t);
+    sourceModel.updateMatrixWorld(true);
+    for (const b of targetBoneOrder) {
+      const sBone = sourceBoneByName[b.name];
+      const sRW = sourceRestWorld[b.name], tRW = targetRestWorld[b.name];
+      if (!sBone || !sRW || !tRW) { samples[b.name].push(null); continue; }
+      sBone.getWorldQuaternion(qWsrc);
+      tmp.copy(qWsrc).multiply(sRW.clone().invert()).multiply(tRW);     // qWsrc · sRW⁻¹ · tRW
+      tgtWorld[b.name] = tmp.clone();
+      const localQ = b.parent && tgtWorld[b.parent]
+        ? tgtWorld[b.parent].clone().invert().multiply(tmp)
+        : tmp.clone();
+      samples[b.name].push(localQ);
+    }
+  }
+  srcMixer.stopAllAction();
+
+  const tracks = [];
+  const timesArr = Float32Array.from(times);
+  for (const name in samples) {
+    const arr = samples[name];
+    if (!arr.length || arr.some(q => !q)) continue;
+    const vals = new Float32Array(arr.length * 4);
+    for (let i = 0; i < arr.length; i++) { const q = arr[i]; vals[i*4]=q.x; vals[i*4+1]=q.y; vals[i*4+2]=q.z; vals[i*4+3]=q.w; }
+    tracks.push(new THREE.QuaternionKeyframeTrack(name + '.quaternion', timesArr, vals));
+  }
+  // bassin : seulement le rebond vertical, recentré X/Z (anim sur place)
+  const hp = raw.tracks.find(tt => tt.name === ROOT_BONE + '.position');
+  const sP = sourceRest[ROOT_BONE]?.p, tP = targetRest[ROOT_BONE]?.p;
+  if (hp && sP && tP) {
+    const ratio = sP.y ? tP.y / sP.y : 1;
+    const vals = Float32Array.from(hp.values);
+    for (let i = 0; i < vals.length; i += 3) { vals[i] = tP.x; vals[i+1] = tP.y + (vals[i+1] - sP.y) * ratio; vals[i+2] = tP.z; }
+    tracks.push(new THREE.VectorKeyframeTrack(ROOT_BONE + '.position', Array.from(hp.times), vals));
+  }
+  return new THREE.AnimationClip(raw.name, raw.duration, tracks);
+}
+
+function clipForCurrentBody(key) {
+  const cacheKey = currentChar + ':' + key;
+  if (retargetCache[cacheKey]) return retargetCache[cacheKey];
+  const a = anims.find(x => x.key === key);
+  if (!a || !sourceModel || !targetBoneOrder) return a ? a.clip : null;
+  const c = retargetClipWorld(a.clip);
+  retargetCache[cacheKey] = c;
+  return c;
+}
+
+// ====== Chargement ======
+async function discover() {
+  // 1) Animations
+  const animFiles = (await listDir(ANIM_DIR)).filter(isGlb);
+  if (!animFiles.length) throw new Error('Aucune animation .glb dans /' + ANIM_DIR);
+  // 2) Personnages (sous-dossiers de /perso)
+  const persoDirs = (await listDir(PERSO_DIR)).filter(h => h.endsWith('/'));
+  characters = [];
+  for (const d of persoDirs) {
+    const files = await listDir(PERSO_DIR + d);
+    const glb = files.find(isGlb);
+    if (!glb) continue;
+    const img = files.find(isImg);
+    const id = decodeURIComponent(d.replace(/\/$/, ''));
+    characters.push({
+      id, label: prettyLabel(id),
+      meshUrl: PERSO_DIR + d + glb,
+      thumbUrl: img ? PERSO_DIR + d + img : null,
+    });
+  }
+  if (!characters.length) throw new Error('Aucun personnage (dossier avec un .glb) dans /' + PERSO_DIR);
+  return animFiles;
+}
+
+async function loadAnims(animFiles) {
+  anims = [];
+  for (const f of animFiles) {
+    try {
+      const g = await loader.loadAsync(ANIM_DIR + f);
+      const clip = g.animations[0];
+      if (!clip) continue;
+      const key = animKeyFromFile(f);
+      clip.name = key;
+      anims.push({ key, label: prettyLabel(key), icon: iconFor(f), clip });
+      // 1er fichier = squelette source partagé (les clips sont créés sur ce rig)
+      if (!sourceModel) {
+        sourceModel = g.scene;
+        sourceRest = captureRest(g.scene);
+        sourceRestWorld = captureRestWorld(g.scene);
+        g.scene.traverse(o => { if (o.isBone) sourceBoneByName[o.name] = o; });
+      }
+    } catch (e) { console.warn('anim KO', f, e); }
+  }
+  anims.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+async function loadBody(char) {
+  const gltf = await loader.loadAsync(char.meshUrl);
+  const newModel = gltf.scene;
+  newModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+
+  targetRest = captureRest(newModel);
+  targetRestWorld = captureRestWorld(newModel);
+  targetBoneOrder = boneOrder(newModel);
+
+  const box = new THREE.Box3().setFromObject(newModel);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const s = 1.8 / (size.y || 1);
+  newModel.scale.setScalar(s);
+  newModel.position.sub(center.multiplyScalar(s));
+  newModel.position.y += (size.y * s) / 2;
+
+  if (model) scene.remove(model);
+  model = newModel; scene.add(model);
+  mixer = new THREE.AnimationMixer(model);
+  currentAction = null;
+  currentChar = char.id;
+  if (!currentAnim) currentAnim = anims[0]?.key;
+  play(currentAnim, true);
+  refreshUI();
+}
+
+function play(key, force = false) {
+  const clip = clipForCurrentBody(key);
+  if (!clip || !mixer) return;
+  const next = mixer.clipAction(clip);
+  next.reset();
+  next.setEffectiveTimeScale(parseFloat(speedEl.value));
+  next.play();
+  if (currentAction && currentAction !== next && !force) currentAction.crossFadeTo(next, 0.3, false);
+  currentAction = next;
+  currentAnim = key;
+
+  const a = anims.find(x => x.key === key);
+  const ch = characters.find(c => c.id === currentChar);
+  nowEl.textContent = `▶ ${ch ? ch.label : ''} — ${a ? a.label : key}`;
+  document.querySelectorAll('.anim-btn').forEach(b => b.classList.toggle('active', b.dataset.key === key));
+}
+
+function refreshUI() {
+  // personnages (droite)
+  bodiesEl.innerHTML = '';
+  for (const c of characters) {
+    const b = document.createElement('button');
+    b.className = 'body-btn' + (c.id === currentChar ? ' active' : '');
+    b.dataset.char = c.id;
+    const thumb = c.thumbUrl
+      ? `<img class="thumb" src="${c.thumbUrl}" alt="">`
+      : `<span class="thumb">🧍</span>`;
+    b.innerHTML = `${thumb}<span>${c.label}</span>`;
+    b.onclick = () => {
+      if (c.id === currentChar) return;
+      showLoading('Chargement de ' + c.label + '…');
+      loadBody(c).then(hideLoading).catch(e => showError(e.message));
+    };
+    bodiesEl.appendChild(b);
+  }
+  // animations (gauche)
+  listEl.innerHTML = '';
+  for (const a of anims) {
+    const btn = document.createElement('button');
+    btn.className = 'anim-btn' + (a.key === currentAnim ? ' active' : '');
+    btn.dataset.key = a.key;
+    btn.innerHTML = `<span class="icon">${a.icon}</span> ${a.label}`;
+    btn.onclick = () => play(a.key);
+    listEl.appendChild(btn);
+  }
+}
+
+function showLoading(msg) { overlayMsg.textContent = msg; spinner.style.display = ''; overlay.classList.remove('hidden'); }
+function hideLoading() { overlay.classList.add('hidden'); }
+
+speedEl.oninput = () => { if (currentAction) currentAction.setEffectiveTimeScale(parseFloat(speedEl.value)); };
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  if (mixer) mixer.update(clock.getDelta());
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+(async function init() {
+  try {
+    showLoading('Découverte des dossiers…');
+    const animFiles = await discover();
+    showLoading(`Chargement de ${animFiles.length} animations…`);
+    await loadAnims(animFiles);
+    showLoading('Chargement du personnage…');
+    await loadBody(characters[0]);
+    hideLoading();
+  } catch (e) { console.error(e); showError(e.message || String(e)); }
+})();
+</script>
+</body>
+</html>

@@ -189,8 +189,9 @@ const rawClips = {};              // animKey -> clip original (Sentinel)
 const retargetCache = {};         // "body:anim" -> clip retargeté
 let mixer = null, model = null, currentAction = null;
 let currentBody = 'sentinel', currentAnim = 'Walking';
-let sourceRest = null;            // { os: {q:Quaternion, p:Vector3} } pose de repos du Sentinel
-let targetRest = null;            // idem pour le corps actuellement affiché
+let sourceModel = null, sourceBoneByName = {};
+let sourceRest = null, sourceRestWorld = null;   // pose de repos Sentinel (local + monde)
+let targetRest = null, targetRestWorld = null, targetBoneOrder = null;
 
 const overlay = document.getElementById('overlay');
 const overlayMsg = document.getElementById('overlay-msg');
@@ -207,8 +208,7 @@ function showError(e) {
     <p style="margin-top:8px; font-size:12px; opacity:.8">${e?.message || e}</p>`;
 }
 
-// Mémorise la pose de repos (rotation + position locales de chaque os) d'un modèle,
-// AVANT toute animation. C'est la référence du retargeting.
+// Pose de repos LOCALE (rotation + position de chaque os), avant toute animation.
 function captureRest(root) {
   const map = {};
   root.traverse(o => {
@@ -216,53 +216,92 @@ function captureRest(root) {
   });
   return map;
 }
+// Pose de repos en ESPACE-MONDE (orientation absolue de chaque os).
+function captureRestWorld(root) {
+  root.updateMatrixWorld(true);
+  const map = {}; const q = new THREE.Quaternion();
+  root.traverse(o => { if (o.isBone) { o.getWorldQuaternion(q); map[o.name] = q.clone(); } });
+  return map;
+}
+// Liste des os en ordre parent-d'abord (DFS), avec le nom du parent-os.
+function boneOrder(root) {
+  const list = [];
+  root.traverse(o => {
+    if (o.isBone) list.push({ name: o.name, parent: (o.parent && o.parent.isBone) ? o.parent.name : null });
+  });
+  return list;
+}
 
-// === LE CŒUR DU FIX : retargeting par DELTA ===
-// Les deux squelettes ont les mêmes os mais des poses de repos différentes (rotations
-// ET longueurs). On ne peut donc PAS copier les rotations en absolu (ça tord le Cyborg).
-// Pour chaque os on transfère la rotation du Sentinel RELATIVEMENT à son repos, puis on
-// la re-base sur le repos du corps cible :  q = reposCible · reposSource⁻¹ · qAnimée
-// La position n'est gardée que pour le bassin (delta mis à l'échelle du corps).
-function retargetClip(clip) {
-  const tracks = [];
-  const tmp = new THREE.Quaternion();
-  const hS = sourceRest[ROOT_BONE], hT = targetRest[ROOT_BONE];
-  const ratio = (hS && hT && hS.p.y) ? (hT.p.y / hS.p.y) : 1;
-  for (const t of clip.tracks) {
-    const dot = t.name.lastIndexOf('.');
-    const bone = t.name.slice(0, dot);
-    const prop = t.name.slice(dot + 1);
-    const sR = sourceRest[bone], tR = targetRest[bone];
-    if (prop === 'quaternion') {
-      if (!sR || !tR) { tracks.push(t.clone()); continue; }
-      const sInv = sR.q.clone().invert();
-      const vals = Float32Array.from(t.values);
-      for (let i = 0; i < vals.length; i += 4) {
-        tmp.set(vals[i], vals[i+1], vals[i+2], vals[i+3]);
-        tmp.premultiply(sInv).premultiply(tR.q);   // tR.q · sInv · qAnimée
-        vals[i]=tmp.x; vals[i+1]=tmp.y; vals[i+2]=tmp.z; vals[i+3]=tmp.w;
-      }
-      tracks.push(new THREE.QuaternionKeyframeTrack(t.name, Array.from(t.times), vals));
-    } else if (prop === 'position' && bone === ROOT_BONE && sR && tR) {
-      const vals = Float32Array.from(t.values);
-      for (let i = 0; i < vals.length; i += 3) {
-        vals[i]   = tR.p.x + (vals[i]   - sR.p.x) * ratio;
-        vals[i+1] = tR.p.y + (vals[i+1] - sR.p.y) * ratio;
-        vals[i+2] = tR.p.z + (vals[i+2] - sR.p.z) * ratio;
-      }
-      tracks.push(new THREE.VectorKeyframeTrack(t.name, Array.from(t.times), vals));
+// === RETARGETING EN ESPACE-MONDE ===
+// Les deux squelettes sont en T-pose debout : leurs os ont donc la même orientation
+// dans le MONDE au repos, même si leurs rotations LOCALES diffèrent (axes locaux
+// différents par os). On échantillonne l'anim sur le Sentinel, on lit l'orientation
+// monde de chaque os, on transfère son écart par rapport au repos monde, puis on
+// reconvertit en local sur le Cyborg. C'est insensible aux différences d'axes locaux,
+// donc plus de torsion ni de basculement du corps.
+function retargetClipWorld(raw) {
+  const dur = raw.duration;
+  const n = Math.max(2, Math.round(dur * 30) + 1);          // ~30 images/s
+  const srcMixer = new THREE.AnimationMixer(sourceModel);
+  srcMixer.clipAction(raw).play();
+
+  const samples = {};                                       // os -> [Quaternion local par image]
+  for (const b of targetBoneOrder) samples[b.name] = [];
+  const times = [];
+  const qWsrc = new THREE.Quaternion(), tmp = new THREE.Quaternion();
+  const tgtWorld = {};
+
+  for (let f = 0; f < n; f++) {
+    const t = (f / (n - 1)) * dur;
+    times.push(t);
+    srcMixer.setTime(t);
+    sourceModel.updateMatrixWorld(true);
+    for (const b of targetBoneOrder) {
+      const sBone = sourceBoneByName[b.name];
+      const sRW = sourceRestWorld[b.name], tRW = targetRestWorld[b.name];
+      if (!sBone || !sRW || !tRW) { samples[b.name].push(null); continue; }
+      sBone.getWorldQuaternion(qWsrc);
+      // orientation monde voulue = (écart monde du Sentinel) appliqué au repos monde du Cyborg
+      tmp.copy(qWsrc).multiply(sRW.clone().invert()).multiply(tRW);   // qWsrc · sRW⁻¹ · tRW
+      tgtWorld[b.name] = tmp.clone();
+      const localQ = b.parent && tgtWorld[b.parent]
+        ? tgtWorld[b.parent].clone().invert().multiply(tmp)           // local = parentMonde⁻¹ · monde
+        : tmp.clone();                                                // racine : parent = identité
+      samples[b.name].push(localQ);
     }
-    // autres .position et tous les .scale : ignorés
   }
-  return new THREE.AnimationClip(clip.name, clip.duration, tracks);
+  srcMixer.stopAllAction();
+
+  const tracks = [];
+  const timesArr = Float32Array.from(times);
+  for (const name in samples) {
+    const arr = samples[name];
+    if (!arr.length || arr.some(q => !q)) continue;
+    const vals = new Float32Array(arr.length * 4);
+    for (let i = 0; i < arr.length; i++) { const q = arr[i]; vals[i*4]=q.x; vals[i*4+1]=q.y; vals[i*4+2]=q.z; vals[i*4+3]=q.w; }
+    tracks.push(new THREE.QuaternionKeyframeTrack(name + '.quaternion', timesArr, vals));
+  }
+
+  // Bassin : on garde seulement le rebond vertical, recentré en X/Z (anim sur place).
+  const hp = raw.tracks.find(tt => tt.name === ROOT_BONE + '.position');
+  const sP = sourceRest[ROOT_BONE]?.p, tP = targetRest[ROOT_BONE]?.p;
+  if (hp && sP && tP) {
+    const ratio = sP.y ? tP.y / sP.y : 1;
+    const vals = Float32Array.from(hp.values);
+    for (let i = 0; i < vals.length; i += 3) {
+      vals[i] = tP.x; vals[i+1] = tP.y + (vals[i+1] - sP.y) * ratio; vals[i+2] = tP.z;
+    }
+    tracks.push(new THREE.VectorKeyframeTrack(ROOT_BONE + '.position', Array.from(hp.times), vals));
+  }
+  return new THREE.AnimationClip(raw.name, raw.duration, tracks);
 }
 
 function clipForCurrentBody(animKey) {
   const cacheKey = currentBody + ':' + animKey;
   if (retargetCache[cacheKey]) return retargetCache[cacheKey];
   const raw = rawClips[animKey];
-  if (!raw || !sourceRest || !targetRest) return raw || null;
-  const c = retargetClip(raw);
+  if (!raw || !sourceModel || !targetBoneOrder) return raw || null;
+  const c = retargetClipWorld(raw);
   retargetCache[cacheKey] = c;
   return c;
 }
@@ -272,8 +311,13 @@ async function loadClips() {
     try {
       const g = await loader.loadAsync(ANIM_SOURCE.dir + ANIM_SOURCE.prefix + k + SUFFIX);
       if (g.animations[0]) { g.animations[0].name = k; rawClips[k] = g.animations[0]; }
-      // référence : pose de repos du squelette Sentinel (depuis n'importe quel fichier)
-      if (sourceRest === null) sourceRest = captureRest(g.scene);
+      // référence : squelette Sentinel au repos (gardé pour échantillonner les anims)
+      if (sourceModel === null) {
+        sourceModel = g.scene;
+        sourceRest = captureRest(g.scene);
+        sourceRestWorld = captureRestWorld(g.scene);
+        g.scene.traverse(o => { if (o.isBone) sourceBoneByName[o.name] = o; });
+      }
     } catch (e) { console.warn('clip manquant', k, e); }
   }));
 }
@@ -284,8 +328,10 @@ async function loadBody(bodyKey) {
   const newModel = gltf.scene;
   newModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
-  // pose de repos de CE corps (avant toute animation)
+  // pose de repos de CE corps (local + monde + hiérarchie), avant toute animation
   targetRest = captureRest(newModel);
+  targetRestWorld = captureRestWorld(newModel);
+  targetBoneOrder = boneOrder(newModel);
 
   const box = new THREE.Box3().setFromObject(newModel);
   const size = box.getSize(new THREE.Vector3());
