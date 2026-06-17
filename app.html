@@ -102,7 +102,7 @@
   <label>Vitesse <input type="range" id="speed" min="0" max="2" step="0.05" value="1" /></label>
 </div>
 
-<div class="hint">🖱️ Glisse pour tourner · molette pour zoomer.<br>Persos auto-détectés dans <code>/perso/*</code>.</div>
+<div class="hint">🖱️ Glisse pour tourner · molette pour zoomer.<br>Persos = galerie sauvegardée (remplie auto depuis <code>/perso</code>).</div>
 
 <div id="overlay">
   <div class="spinner" id="spinner"></div>
@@ -296,27 +296,46 @@ function clipForCurrentBody(key) {
 }
 
 // ====== Chargement ======
-async function discover() {
-  // 1) Animations
+async function discoverAnims() {
   const animFiles = (await listDir(ANIM_DIR)).filter(isGlb);
   if (!animFiles.length) throw new Error('Aucune animation .glb dans /' + ANIM_DIR);
-  // 2) Personnages (sous-dossiers de /perso)
-  const persoDirs = (await listDir(PERSO_DIR)).filter(h => h.endsWith('/'));
-  characters = [];
-  for (const d of persoDirs) {
-    const files = await listDir(PERSO_DIR + d);
-    const glb = files.find(isGlb);
-    if (!glb) continue;
-    const img = files.find(isImg);
-    const id = decodeURIComponent(d.replace(/\/$/, ''));
-    characters.push({
-      id, label: prettyLabel(id),
-      meshUrl: PERSO_DIR + d + glb,
-      thumbUrl: img ? PERSO_DIR + d + img : null,
-    });
-  }
-  if (!characters.length) throw new Error('Aucun personnage (dossier avec un .glb) dans /' + PERSO_DIR);
   return animFiles;
+}
+
+// ---- Galerie partagée (IndexedDB 'studio3d', la même que studio.html) ----
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('studio3d',1);
+  r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains('models')) r.result.createObjectStore('models',{keyPath:'id'}); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function dbAll(){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').getAll(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error); })); }
+function dbGet(id){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').get(id); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>rej(rq.error); })); }
+function dbPut(rec){ return idb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('models','readwrite'); tx.objectStore('models').put(rec); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
+async function urlToDataURL(url){ try{ const blob=await (await fetch(url)).blob();
+  return await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.onerror=()=>r(''); fr.readAsDataURL(blob); }); }catch(e){ return ''; } }
+
+// Ajoute les persos de /perso à la galerie partagée (idempotent : seulement si absents)
+async function seedPersosToGallery() {
+  let dirs;
+  try { dirs = (await listDir(PERSO_DIR)).filter(h => h.endsWith('/')); } catch (e) { return; }
+  for (const d of dirs) {
+    const pid = decodeURIComponent(d.replace(/\/$/, ''));
+    const id = 'perso:' + pid;
+    if (await dbGet(id)) continue;
+    let files; try { files = await listDir(PERSO_DIR + d); } catch (e) { continue; }
+    const glb = files.find(isGlb); if (!glb) continue;
+    const img = files.find(isImg);
+    try {
+      const bytes = await (await fetch(PERSO_DIR + d + glb)).arrayBuffer();
+      const thumb = img ? await urlToDataURL(PERSO_DIR + d + img) : '';
+      await dbPut({ id, name: prettyLabel(pid), format: 'glb', bytes, thumb, ts: 0, source: 'perso', date: 'dossier /perso' });
+    } catch (e) { console.warn('seed perso KO', d, e); }
+  }
+}
+
+// Personnages = enregistrements de la galerie (perso auto-ajoutés + tes sauvegardes studio)
+async function loadCharactersFromGallery() {
+  const recs = await dbAll();
+  recs.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return recs.map(r => ({ id: String(r.id), label: r.name || 'modèle', thumbUrl: r.thumb || null, bytes: r.bytes }));
 }
 
 async function loadAnims(animFiles) {
@@ -342,7 +361,9 @@ async function loadAnims(animFiles) {
 }
 
 async function loadBody(char) {
-  const gltf = await loader.loadAsync(char.meshUrl);
+  const url = URL.createObjectURL(new Blob([char.bytes]));
+  const gltf = await loader.loadAsync(url);
+  URL.revokeObjectURL(url);
   const newModel = gltf.scene;
   newModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
@@ -435,10 +456,14 @@ addEventListener('resize', () => {
 
 (async function init() {
   try {
-    showLoading('Découverte des dossiers…');
-    const animFiles = await discover();
+    showLoading('Découverte des animations…');
+    const animFiles = await discoverAnims();
     showLoading(`Chargement de ${animFiles.length} animations…`);
     await loadAnims(animFiles);
+    showLoading('Chargement de la galerie…');
+    await seedPersosToGallery();
+    characters = await loadCharactersFromGallery();
+    if (!characters.length) throw new Error('Aucun personnage sauvegardé (ajoute-en via studio.html, ou vérifie /perso).');
     showLoading('Chargement du personnage…');
     await loadBody(characters[0]);
     hideLoading();

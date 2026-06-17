@@ -77,6 +77,21 @@
   .gcard .ga{display:flex;gap:6px;padding:0 10px 10px}
   .gcard .ga .btn{flex:1;padding:6px;font-size:12px}
   .gempty{color:#7c858f;padding:24px;font-size:14px}
+
+  /* Sidebar gauche : personnages + bibliothèque d'animations */
+  #lib{position:fixed;left:14px;top:58px;bottom:130px;width:240px;z-index:5;
+       display:flex;flex-direction:column;gap:10px;overflow:auto}
+  #lib::-webkit-scrollbar{width:6px}
+  #lib::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:3px}
+  #lib .scroll{display:flex;flex-direction:column}
+  .lib-btn{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+    background:rgba(255,255,255,.05);color:#e6ebf0;border:1px solid transparent;border-radius:9px;
+    padding:7px 10px;font-size:12.5px;cursor:pointer;transition:.15s;margin-top:5px}
+  .lib-btn:hover{background:rgba(255,122,69,.16);border-color:rgba(255,122,69,.4)}
+  .lib-btn.active{background:#ff7a45;color:#111;border-color:#ff7a45;font-weight:600}
+  .lib-btn .thumb{width:28px;height:28px;border-radius:6px;object-fit:cover;flex:0 0 auto;
+    background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:15px}
+  .lib-btn .ic{width:16px;text-align:center;opacity:.85}
 </style>
 </head>
 <body>
@@ -84,7 +99,6 @@
 
 <div id="topbar">
   <button class="btn" id="btn-import">⬆ Importer</button>
-  <button class="btn" id="btn-example">Exemple</button>
   <button class="btn" id="btn-reframe">⊡ Recadrer</button>
   <button class="btn" id="btn-save">💾 Sauver</button>
   <button class="btn" id="btn-gallery">📁 Mes modèles</button>
@@ -97,6 +111,13 @@
   <b>→</b> bras droit · <b>←</b> bras gauche · <b>↑</b> les deux bras<br/>
   <b>A</b> jambe gauche · <b>E</b> jambe droite · <b>↓</b> tête<br/>
   (maintenir) · clic-gauche : tourner · clic-droit : déplacer · molette : zoom
+</div>
+
+<div id="lib">
+  <div class="card">
+    <h3>Bibliothèque d'animations</h3>
+    <div id="lib-anims" class="scroll"></div>
+  </div>
 </div>
 
 <div id="panel">
@@ -112,25 +133,9 @@
   </div>
 
   <div class="card">
-    <h3>Mouvements</h3>
-    <button class="btn" id="btn-addanim" style="width:100%;margin-bottom:8px;display:none">➕ Ajouter une animation</button>
-    <div id="moves"><span class="muted">Charge un modèle animé.</span></div>
-    <div class="row"><button class="btn" id="btn-stop" style="flex:1">⏹ Stop / pose repos</button></div>
+    <h3>Lecture</h3>
+    <div class="row" style="margin-top:0"><button class="btn" id="btn-stop" style="flex:1">⏹ Stop / pose repos</button></div>
     <div class="row"><label>Vitesse</label><input type="range" id="speed" min="0" max="2" step="0.05" value="1" /></div>
-    <input type="file" id="fileAnim" accept=".glb,.gltf,.fbx" multiple />
-  </div>
-
-  <div class="card" id="advcard" style="display:none">
-    <h3>Pose manuelle avancée</h3>
-    <div class="row"><label>Os</label><select id="boneSel"></select></div>
-    <div class="row"><label>Axe</label>
-      <div class="seg">
-        <button class="btn axis active" data-axis="x">X</button>
-        <button class="btn axis" data-axis="y">Y</button>
-        <button class="btn axis" data-axis="z">Z</button>
-      </div>
-    </div>
-    <div class="row"><label>Angle</label><input type="range" id="boneAngle" min="-180" max="180" step="1" value="0" /></div>
   </div>
 
   <div class="card">
@@ -647,25 +652,6 @@ function updateTargets(){
 }
 
 // ---------- Sélecteur d'os (repli) ----------
-function buildBoneSelector(){
-  elBoneSel.innerHTML='';
-  if(!bones.length) return;
-  const none=document.createElement('option'); none.value=''; none.textContent='— choisir un os —'; elBoneSel.appendChild(none);
-  bones.forEach((b,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=b.name||('os '+i); elBoneSel.appendChild(o); });
-  elBoneAngle.value=0;
-}
-elBoneSel.onchange=()=>{
-  const v=elBoneSel.value;
-  custom.bone = v==='' ? null : bones[+v];
-  custom.angle=0; elBoneAngle.value=0;
-  if(custom.bone && mode!=='manual') stopAll();
-};
-elBoneAngle.oninput=()=>{ custom.angle=+elBoneAngle.value; if(mode!=='manual') stopAll(); };
-document.querySelectorAll('.axis').forEach(btn=>btn.onclick=()=>{
-  document.querySelectorAll('.axis').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active'); custom.axis=btn.dataset.axis;
-});
-
 // ---------- Chargement ----------
 function onLoaded(root, animations, name, format){
   clearModel();
@@ -684,19 +670,21 @@ function onLoaded(root, animations, name, format){
   hasSkeleton=bones.length>0;
   bones.forEach(b=>{ b.userData.rest=b.quaternion.clone(); b.userData.restPos=b.position.clone(); boneMap.set(b.name,b); });
 
+  // pose de repos en espace-monde + ordre des os (pour le retargeting de la bibliothèque)
+  curRestWorld = hasSkeleton ? captureRestWorld(root) : null;
+  curOrder = hasSkeleton ? boneOrderOf(root) : null;
+  modelToken++; for(const ck in libCache) delete libCache[ck];
+
   sourceClips=(animations||[]).slice();
   if(hasSkeleton || sourceClips.length){ mixer=new THREE.AnimationMixer(root); mixer.timeScale=speed; }
   if(hasSkeleton) mapLimbs(bones);
 
   wire=false; $('btn-wire').classList.remove('active');
   updateTable();
-  buildMovements();
-  buildBoneSelector();
 
   elFileName.textContent=name;
   elHint.style.display='none';
   elHelp.classList.toggle('disabled', !hasSkeleton);
-  elAdv.style.display = hasSkeleton ? '' : 'none';
   setMode('manual');
   toast(hasSkeleton ? 'Modèle chargé ✓ — squelette détecté' : 'Modèle chargé ✓ — pas de squelette');
 }
@@ -736,18 +724,6 @@ function addAnimationFile(file){
 // ---------- UI ----------
 $('btn-import').onclick=()=>$('file').click();
 $('file').onchange=e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); e.target.value=''; };
-$('btn-addanim').onclick=()=>$('fileAnim').click();
-$('fileAnim').onchange=e=>{ [...e.target.files].forEach(f=>addAnimationFile(f)); e.target.value=''; };
-$('btn-example').onclick=async()=>{
-  toast('Chargement de l\'exemple…');
-  try{
-    const buf=await (await fetch('commando_1.glb')).arrayBuffer();
-    currentFile=null; currentBytes=buf; currentName='commando_1.glb'; currentExt='glb';
-    const url=URL.createObjectURL(new Blob([buf]));
-    gltfLoader.load(url, g=>{ onLoaded(g.scene,g.animations,'commando_1.glb','glb'); URL.revokeObjectURL(url); },
-      undefined, ()=>{ URL.revokeObjectURL(url); toast('Exemple illisible'); });
-  }catch(e){ toast('Exemple introuvable (lance la page via un serveur local)'); }
-};
 $('btn-reframe').onclick=()=>{ if(currentRoot) fitModel(currentRoot); };
 $('btn-stop').onclick=stopAll;
 $('speed').oninput=e=>{ speed=+e.target.value; if(mixer) mixer.timeScale=speed; };
@@ -761,6 +737,26 @@ function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('studio3d
 function dbPut(rec){ return idb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('models','readwrite'); tx.objectStore('models').put(rec); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
 function dbAll(){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').getAll(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error); })); }
 function dbDel(id){ return idb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('models','readwrite'); tx.objectStore('models').delete(id); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
+function dbGet(id){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').get(id); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>rej(rq.error); })); }
+async function urlToDataURL(url){ try{ const blob=await (await fetch(url)).blob();
+  return await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.onerror=()=>r(''); fr.readAsDataURL(blob); }); }catch(e){ return ''; } }
+// Remplit « Mes modèles » avec les persos de /perso (idempotent : seulement si absents)
+async function seedPersosToGallery(){
+  let dirs;
+  try{ dirs=(await listDir(PERSO_DIR)).filter(h=>h.endsWith('/')); }catch(e){ return; }
+  for(const d of dirs){
+    const pid=decodeURIComponent(d.replace(/\/$/,'')); const id='perso:'+pid;
+    if(await dbGet(id)) continue;
+    let files; try{ files=await listDir(PERSO_DIR+d); }catch(e){ continue; }
+    const glb=files.find(isGlbF); if(!glb) continue;
+    const img=files.find(isImgF);
+    try{
+      const bytes=await (await fetch(PERSO_DIR+d+glb)).arrayBuffer();
+      const thumb=img?await urlToDataURL(PERSO_DIR+d+img):'';
+      await dbPut({ id, name:libPretty(pid), format:'glb', bytes, thumb, ts:0, source:'perso', date:'dossier /perso' });
+    }catch(e){ console.warn('seed perso KO',d,e); }
+  }
+}
 
 function makeThumb(){
   try{ renderer.render(scene,camera);
@@ -774,15 +770,16 @@ async function saveCurrent(){
   let bytes=currentBytes;
   try{ if(!bytes && currentFile) bytes=await currentFile.arrayBuffer(); }catch(e){}
   if(!bytes){ toast('Ce modèle ne peut pas être sauvegardé'); return; }
-  const rec={ id:Date.now(), name:currentName||'modèle', format:currentExt||'glb', bytes, thumb:makeThumb(), date:new Date().toLocaleString('fr-FR') };
+  const rec={ id:Date.now(), ts:Date.now(), name:currentName||'modèle', format:currentExt||'glb', bytes, thumb:makeThumb(), date:new Date().toLocaleString('fr-FR') };
   try{ await dbPut(rec); toast('💾 Modèle sauvegardé'); }
   catch(e){ toast('Échec de la sauvegarde : '+(e.message||e)); }
 }
 async function openGallery(){
   const grid=$('gallery-grid'); grid.innerHTML='<span class="gempty">Chargement…</span>';
   $('gallery').classList.add('show');
+  try{ await seedPersosToGallery(); }catch(e){}
   let list=[]; try{ list=await dbAll(); }catch(e){}
-  list.sort((a,b)=>b.id-a.id);
+  list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!list.length){ grid.innerHTML='<span class="gempty">Aucun modèle sauvegardé. Charge un modèle puis clique « 💾 Sauver ».</span>'; return; }
   grid.innerHTML='';
   list.forEach(rec=>{
@@ -815,6 +812,107 @@ addEventListener('dragover',e=>{ e.preventDefault(); });
 addEventListener('dragleave',e=>{ e.preventDefault(); if(--dragN<=0){ dragN=0; elDrop.classList.remove('show'); } });
 addEventListener('drop',e=>{ e.preventDefault(); dragN=0; elDrop.classList.remove('show');
   const f=e.dataTransfer.files && e.dataTransfer.files[0]; if(f) loadFile(f); });
+
+// ================= Bibliothèque partagée (/animation) + personnages (/perso) =================
+// Les clips s'appliquent à N'IMPORTE QUEL modèle chargé, via retargeting espace-monde (cf. app.html).
+const ANIM_DIR='animation/', PERSO_DIR='perso/', LIB_ROOT='Hips';
+const LIB_ICONS=[[/walk|march/i,'🚶'],[/run|course|sprint/i,'🏃'],[/dance|danse/i,'💃'],
+  [/box|punch|combo|attack|attaque/i,'🥊'],[/skill|comp/i,'✨'],[/alert/i,'⚠️'],
+  [/agree|gesture|approuv/i,'👍'],[/idle|wait/i,'🧍']];
+const libIcon=s=>(LIB_ICONS.find(([re])=>re.test(s))||[null,'▶'])[1];
+function libKeyFromFile(f){ const b=decodeURIComponent(f).replace(/\.glb$/i,'');
+  const m=b.match(/_Animation_(.+?)_withSkin$/i)||b.match(/_Animation_(.+)$/i); return m?m[1]:b; }
+const libPretty=k=>k.replace(/[_]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase()).trim();
+
+async function listDir(url){
+  const res=await fetch(url); if(!res.ok) throw new Error('listing '+url);
+  const doc=new DOMParser().parseFromString(await res.text(),'text/html');
+  return [...doc.querySelectorAll('a')].map(a=>a.getAttribute('href'))
+    .filter(h=>h && !h.startsWith('/') && !h.startsWith('?') && !h.includes('://') && h!=='../');
+}
+const isGlbF=h=>/\.glb$/i.test(h), isImgF=h=>/\.(png|jpe?g|webp|gif)$/i.test(h);
+
+function captureRestLocal(root){ const m={}; root.traverse(o=>{ if(o.isBone) m[o.name]={q:o.quaternion.clone(),p:o.position.clone()}; }); return m; }
+function captureRestWorld(root){ root.updateMatrixWorld(true); const m={}, q=new THREE.Quaternion();
+  root.traverse(o=>{ if(o.isBone){ o.getWorldQuaternion(q); m[o.name]=q.clone(); } }); return m; }
+function boneOrderOf(root){ const l=[]; root.traverse(o=>{ if(o.isBone) l.push({name:o.name,parent:(o.parent&&o.parent.isBone)?o.parent.name:null}); }); return l; }
+
+let libClips={}, libAnims=[], libPersos=[];
+let libSource=null, libSrcBone={}, libRestSrc=null, libRestSrcWorld=null;
+let curRestWorld=null, curOrder=null, modelToken=0;
+const libCache={};
+
+function retargetLibClip(rawKey){
+  const raw=libClips[rawKey];
+  if(!raw || !libSource || !curOrder) return null;
+  const dur=raw.duration, n=Math.max(2, Math.round(dur*30)+1);
+  const sm=new THREE.AnimationMixer(libSource); sm.clipAction(raw).play();
+  const samp={}; for(const b of curOrder) samp[b.name]=[];
+  const times=[], qW=new THREE.Quaternion(), tmp=new THREE.Quaternion(), tw={};
+  for(let f=0; f<n; f++){ const t=(f/(n-1))*dur; times.push(t);
+    sm.setTime(t); libSource.updateMatrixWorld(true);
+    for(const b of curOrder){
+      const sB=libSrcBone[b.name], sRW=libRestSrcWorld[b.name], tRW=curRestWorld[b.name];
+      if(!sB || !sRW || !tRW){ samp[b.name].push(null); continue; }
+      sB.getWorldQuaternion(qW);
+      tmp.copy(qW).multiply(sRW.clone().invert()).multiply(tRW); tw[b.name]=tmp.clone();
+      const lq = b.parent && tw[b.parent] ? tw[b.parent].clone().invert().multiply(tmp) : tmp.clone();
+      samp[b.name].push(lq);
+    }
+  }
+  sm.stopAllAction();
+  const tracks=[], ta=Float32Array.from(times);
+  for(const nm in samp){ const arr=samp[nm]; if(!arr.length || arr.some(q=>!q)) continue;
+    const v=new Float32Array(arr.length*4);
+    for(let i=0;i<arr.length;i++){ const q=arr[i]; v[i*4]=q.x; v[i*4+1]=q.y; v[i*4+2]=q.z; v[i*4+3]=q.w; }
+    tracks.push(new THREE.QuaternionKeyframeTrack(nm+'.quaternion', ta, v)); }
+  // bassin : rebond vertical seulement, recentré X/Z (anim sur place)
+  const hp=raw.tracks.find(tt=>tt.name===LIB_ROOT+'.position');
+  const tHip=boneMap.get(LIB_ROOT);
+  const sP=libRestSrc[LIB_ROOT] && libRestSrc[LIB_ROOT].p, tP=tHip && tHip.userData.restPos;
+  if(hp && sP && tP){ const ratio=sP.y?tP.y/sP.y:1; const v=Float32Array.from(hp.values);
+    for(let i=0;i<v.length;i+=3){ v[i]=tP.x; v[i+1]=tP.y+(v[i+1]-sP.y)*ratio; v[i+2]=tP.z; }
+    tracks.push(new THREE.VectorKeyframeTrack(LIB_ROOT+'.position', Array.from(hp.times), v)); }
+  return new THREE.AnimationClip('lib_'+rawKey, raw.duration, tracks);
+}
+function libRetargetCached(k){ const ck=modelToken+':'+k; if(libCache[ck]) return libCache[ck];
+  const c=retargetLibClip(k); if(c) libCache[ck]=c; return c; }
+
+function playLibraryAnim(k, btn){
+  if(!currentRoot){ toast('Charge un personnage d\'abord'); return; }
+  if(!hasSkeleton){ toast('Ce modèle n\'a pas de squelette'); return; }
+  const rc=libRetargetCached(k);
+  if(!rc){ toast('Animation incompatible avec ce modèle'); return; }
+  playVariant({label:k, clip:rc, timeScale:1, reverse:false}, null);
+  document.querySelectorAll('.libanim-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+function buildLib(){
+  const ac=$('lib-anims'); ac.innerHTML='';
+  if(!libAnims.length) ac.innerHTML='<span class="muted" style="font-size:11.5px">Aucune animation</span>';
+  libAnims.forEach(a=>{
+    const b=document.createElement('button'); b.className='lib-btn libanim-btn'; b.dataset.key=a.key;
+    b.innerHTML=`<span class="ic">${a.icon}</span><span>${a.label}</span>`;
+    b.onclick=()=>playLibraryAnim(a.key,b); ac.appendChild(b);
+  });
+}
+async function initLibrary(){
+  try{
+    const animFiles=(await listDir(ANIM_DIR)).filter(isGlbF);
+    for(const f of animFiles){
+      try{ const g=await gltfLoader.loadAsync(ANIM_DIR+f); const clip=g.animations[0]; if(!clip) continue;
+        const k=libKeyFromFile(f); clip.name=k; libClips[k]=clip; libAnims.push({key:k,label:libPretty(k),icon:libIcon(f)});
+        if(!libSource){ libSource=g.scene; libRestSrc=captureRestLocal(g.scene); libRestSrcWorld=captureRestWorld(g.scene);
+          g.scene.traverse(o=>{ if(o.isBone) libSrcBone[o.name]=o; }); }
+      }catch(e){ console.warn('lib anim KO',f,e); }
+    }
+    libAnims.sort((a,b)=>a.label.localeCompare(b.label));
+    buildLib();
+  }catch(e){ console.warn('bibliothèque indisponible',e);
+    $('lib-anims').innerHTML='<span class="muted" style="font-size:11.5px">Indisponible — lance via un serveur local</span>';
+  }
+}
+initLibrary();
 
 // ---------- Boucle ----------
 const clock=new THREE.Clock();
