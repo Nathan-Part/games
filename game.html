@@ -9,19 +9,22 @@
   html,body{height:100%;overflow:hidden;background:#0b0d12;color:#e8ecf4;font-family:"Segoe UI",system-ui,sans-serif}
   #app{position:fixed;inset:0}
   canvas{display:block}
-  #lobby{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
-    background:rgba(8,10,15,.92);backdrop-filter:blur(8px)}
+  #lobby{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;
+    justify-content:space-between;padding:32px 0 40px;pointer-events:none}
   #lobby.hidden{display:none}
-  .lobby-inner{width:min(900px,92vw);max-height:88vh;overflow:auto;text-align:center}
-  .lobby-inner h1{font-size:22px;margin-bottom:18px}
-  #lobby-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
-  .char-card{background:rgba(28,33,43,.9);border:1px solid rgba(120,150,220,.18);border-radius:14px;
-    overflow:hidden;display:flex;flex-direction:column;cursor:pointer;transition:.15s}
-  .char-card:hover{border-color:#5b8cff;transform:translateY(-2px)}
-  .char-card img{width:100%;height:140px;object-fit:cover;background:#11151a}
-  .char-card .nm{padding:10px;font-weight:600}
-  .char-card .play{margin:0 10px 12px;padding:8px;border-radius:9px;border:1px solid #5b8cff;
-    background:linear-gradient(135deg,rgba(91,140,255,.25),rgba(181,107,255,.2));color:#e8ecf4;cursor:pointer}
+  .lobby-title{font-size:24px;font-weight:700;text-shadow:0 2px 14px rgba(0,0,0,.6)}
+  .lobby-bottom{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .select-bar{display:flex;align-items:center;gap:18px;pointer-events:auto;
+    background:rgba(20,24,33,.7);backdrop-filter:blur(10px);border:1px solid rgba(120,150,220,.18);
+    border-radius:16px;padding:10px 16px}
+  .select-bar .nav{width:44px;height:44px;border-radius:50%;font-size:24px;line-height:1;
+    background:rgba(255,255,255,.06);color:#e8ecf4;border:1px solid rgba(120,150,220,.25);cursor:pointer;transition:.15s}
+  .select-bar .nav:hover{background:#5b8cff;color:#0b0d12;border-color:#5b8cff}
+  .char-name{font-size:20px;font-weight:700;min-width:200px;text-align:center}
+  #play-btn{pointer-events:auto;padding:14px 48px;font-size:17px;font-weight:700;border-radius:12px;
+    border:1px solid #5b8cff;background:linear-gradient(135deg,#5b8cff,#b56bff);color:#0b0d12;cursor:pointer;
+    box-shadow:0 10px 30px rgba(91,140,255,.35);transition:.15s}
+  #play-btn:hover{transform:translateY(-2px)}
   #hud{position:fixed;left:16px;bottom:16px;z-index:10;background:rgba(20,24,33,.8);
     border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.5}
   #hud.hidden,#pause.hidden,#overlay.hidden{display:none}
@@ -35,9 +38,14 @@
 <div id="app"></div>
 
 <div id="lobby">
-  <div class="lobby-inner">
-    <h1>Choisis ton perso</h1>
-    <div id="lobby-grid"></div>
+  <div class="lobby-title">Choisis ton perso</div>
+  <div class="lobby-bottom">
+    <div class="select-bar">
+      <button id="prev" class="nav" title="Précédent">‹</button>
+      <div id="char-name" class="char-name">—</div>
+      <button id="next" class="nav" title="Suivant">›</button>
+    </div>
+    <button id="play-btn">Jouer ▶</button>
   </div>
 </div>
 
@@ -139,7 +147,9 @@ const loader = new GLTFLoader();
 
 // ====== État partagé (rempli par les tasks suivantes) ======
 let model = null, mixer = null;
+let velY = 0, grounded = true, groundY = 0;
 const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25;
+const JUMP_SPEED = 6, GRAVITY = 18;
 
 // ====== Map : obstacles + bornes ======
 const PLAYER_R = 0.45;
@@ -339,7 +349,7 @@ function deriveIdle(clip){
 }
 
 const actions = { idle:null, walk:null, run:null };
-async function loadBody(char){
+async function spawnModel(char){
   const url = URL.createObjectURL(new Blob([char.bytes]));
   const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);
   const m = gltf.scene;
@@ -349,9 +359,11 @@ async function loadBody(char){
   const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
   const s = 1.8/(size.y||1); m.scale.setScalar(s);
   m.position.sub(center.multiplyScalar(s)); m.position.y += (size.y*s)/2;
+  m.rotation.y = 0;
+  if(mixer){ mixer.stopAllAction(); mixer = null; }   // lobby : pas d'anim, le modèle tourne sur lui-même
   if(model) scene.remove(model);
   model = m; scene.add(model);
-  mixer = new THREE.AnimationMixer(model);
+  groundY = m.position.y; velY = 0; grounded = true;
 }
 function retargetRole(role){
   const names = anims.map(a => a.key);
@@ -364,20 +376,23 @@ function retargetRole(role){
   return retargetClipWorld(raw);
 }
 
-// ====== Lobby ======
+// ====== Lobby (sélection 3D : on voit le perso, on slide, bouton Jouer) ======
 let characters = [];
-function buildLobby(){
-  const grid = document.getElementById('lobby-grid');
-  grid.innerHTML = '';
-  for (let i=0;i<characters.length;i++){
-    const c = characters[i];
-    const card = document.createElement('div'); card.className='char-card';
-    card.innerHTML = `${c.thumbUrl?`<img src="${c.thumbUrl}" alt="">`:`<div style="height:140px;display:flex;align-items:center;justify-content:center;font-size:42px">🧍</div>`}
-      <div class="nm">${c.label}</div><button class="play">Jouer ▶</button>`;
-    card.querySelector('.play').onclick = () => startGame(i);
-    grid.appendChild(card);
-  }
+let lobbyIndex = 0;
+
+function setLobbyCamera(){
+  camera.position.set(0, 1.5, 4.2);
+  camera.lookAt(0, 1.0, 0);
 }
+async function previewCharacter(index){
+  const n = characters.length; if(!n) return;
+  lobbyIndex = ((index % n) + n) % n;
+  const c = characters[lobbyIndex];
+  document.getElementById('char-name').textContent = c.label;   // maj immédiate du nom
+  await spawnModel(c);                                          // affiche le modèle (turntable)
+}
+function cycleCharacter(dir){ if(G.phase==='lobby') previewCharacter(lobbyIndex + dir); }
+
 async function initLobby(){
   try {
     if(window.__FORCE_LIST_FAIL__) throw new Error('forced');
@@ -385,30 +400,46 @@ async function initLobby(){
     characters = await loadCharactersFromGallery();
     if(!characters.length){ showOverlay('Aucun personnage. Ajoute-en via studio.html ou vérifie /perso.'); return; }
     G.characters = characters.map(c => ({ id:c.id, label:c.label }));
-    buildLobby();
+    setLobbyCamera();
+    await previewCharacter(0);
     G.phase = 'lobby';
   } catch (e) {
     console.warn('init KO', e);
     showOverlay('Impossible de lister les dossiers du jeu.');
   }
 }
-async function startGame(index){
-  const char = characters[index]; if(!char) return;
+async function startGame(){
+  if(G.phase==='loading' || G.phase==='playing') return;
+  const char = characters[lobbyIndex]; if(!char) return;
   G.phase = 'loading';
   document.getElementById('lobby').classList.add('hidden');
+  if(!model) await spawnModel(char);                            // sécurité (normalement déjà affiché)
   if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
-  await loadBody(char);
+  model.rotation.y = 0;
+  mixer = new THREE.AnimationMixer(model);                      // mixer de jeu sur le modèle déjà chargé
   actions.idle = mixer.clipAction(retargetRole('idle'));
   const wc = retargetRole('walk'); actions.walk = wc ? mixer.clipAction(wc) : null;
   const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
   G.clips = Object.keys(actions).filter(k=>actions[k]);
-  actions.idle.play();
+  curLoco = 'idle'; actions.idle.play();
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
   G.phase = 'playing';
 }
-G.debug.start = async (index=0) => { await startGame(index); };
+G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
+
+// boutons + clavier du lobby (slide gauche/droite, Entrée/Espace = jouer)
+document.getElementById('prev').onclick = () => cycleCharacter(-1);
+document.getElementById('next').onclick = () => cycleCharacter(1);
+document.getElementById('play-btn').onclick = () => startGame();
+addEventListener('keydown', e => {
+  if(G.phase!=='lobby') return;
+  if(e.code==='ArrowLeft' || e.code==='KeyA') cycleCharacter(-1);
+  else if(e.code==='ArrowRight' || e.code==='KeyD') cycleCharacter(1);
+  else if(e.code==='Enter' || e.code==='Space'){ e.preventDefault(); startGame(); }
+});
+
 initLobby();
 
 // ====== Entrées clavier (event.code => ZQSD sur AZERTY) ======
@@ -416,12 +447,14 @@ const input = { forward:false, back:false, left:false, right:false, sprint:false
 const CODE = { KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
                KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
 addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e.preventDefault(); }
-  if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=true; });
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=true;
+  if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); } });
 addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
   if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=false; });
 G.debug.setInput = (s={}) => { input.forward=!!s.forward; input.back=!!s.back;
   input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint; };
 G.debug.setYaw = (r) => { camYaw = r; };
+G.debug.jump = () => { if(G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; } };
 
 // ====== Caméra 3e personne (pointer lock + repli) ======
 const canvasEl = renderer.domElement;
@@ -454,7 +487,7 @@ function setLoco(state){
 function updateController(dt){
   if(G.phase!=='playing' || !model) return;
   const f = (input.forward?1:0) - (input.back?1:0);
-  const s = (input.right?1:0) - (input.left?1:0);
+  const s = (input.left?1:0) - (input.right?1:0); // +s = droite écran (corrige l'inversion gauche/droite)
   let speed = 0;
   if(f||s){
     const dir = cameraRelative({forward:f, strafe:s}, camYaw);
@@ -476,13 +509,19 @@ function updateController(dt){
     const o = pushOutCircleAABB(model.position.x, model.position.z, PLAYER_R, b);
     model.position.x = o.x; model.position.z = o.z;
   }
+  // saut (vertical, gravité)
+  if(!grounded){
+    velY -= GRAVITY*dt;
+    model.position.y += velY*dt;
+    if(model.position.y <= groundY){ model.position.y = groundY; velY = 0; grounded = true; }
+  }
   setLoco(locomotionState(speed, input.sprint));
 }
 
 // ====== UI : HUD, pause, overlay ======
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
-  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · Shift : courir<br>Souris : caméra · Échap : pause`;
+  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · Shift : courir · Espace : sauter<br>Souris : caméra · Échap : pause`;
 }
 function showOverlay(msg){
   document.getElementById('overlay').classList.remove('hidden');
@@ -499,8 +538,8 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  updateController(dt);
-  updateCamera(dt);
+  if(G.phase==='playing'){ updateController(dt); updateCamera(dt); }
+  else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);
 }

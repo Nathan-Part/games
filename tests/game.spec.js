@@ -50,15 +50,19 @@ test('helpers purs : caméra-relatif, état, clip, collision', async ({ page }) 
   expect(keep.x).toBeCloseTo(5, 5); expect(keep.z).toBeCloseTo(5, 5);
 });
 
-test('le lobby liste les persos seedés depuis /perso', async ({ page }) => {
+test('le lobby montre un perso en 3D et permet de slider', async ({ page }) => {
   await page.goto('/game.html');
-  await page.waitForFunction(() => window.__game?.characters?.length >= 2, null, { timeout: 20000 });
+  await page.waitForFunction(() => window.__game?.characters?.length >= 2 && window.__game.phase === 'lobby', null, { timeout: 20000 });
   const labels = await page.evaluate(() => __game.characters.map(c => c.label).join('|').toLowerCase());
   expect(labels).toContain('guard');
   expect(labels).toContain('robot');
-  expect(await page.evaluate(() => __game.phase)).toBe('lobby');
   await expect(page.locator('#lobby')).toBeVisible();
-  await expect(page.locator('#lobby .char-card')).toHaveCount(await page.evaluate(() => __game.characters.length));
+  await expect(page.locator('#play-btn')).toBeVisible();
+  const name0 = (await page.locator('#char-name').textContent()).trim();
+  expect(name0.length).toBeGreaterThan(0);
+  // slider vers le perso suivant change le nom affiché
+  await page.locator('#next').click();
+  await expect.poll(async () => (await page.locator('#char-name').textContent()).trim()).not.toBe(name0);
 });
 
 test('démarrer charge le perso, le retargette et joue idle', async ({ page }) => {
@@ -152,4 +156,24 @@ test('overlay d’erreur si listing indisponible', async ({ page }) => {
   await page.goto('/game.html');
   await expect(page.locator('#overlay')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('#overlay')).toContainText('serveur local');
+});
+
+test('gauche et droite vont dans des sens opposés (inversion corrigée)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setYaw(0); __game.debug.setPos(0, 0); });
+  // DROITE => doit aller vers -X (droite écran)
+  await page.evaluate(() => __game.debug.setInput({ right:true }));
+  await page.waitForFunction(() => window.__game.position().x < -0.1, null, { timeout:5000 });
+  await page.evaluate(() => __game.debug.setInput({}));
+  // GAUCHE depuis l'origine => doit aller vers +X
+  await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.setInput({ left:true }); });
+  await page.waitForFunction(() => window.__game.position().x > 0.1, null, { timeout:5000 });
+});
+
+test('le saut fait décoller puis retomber le perso', async ({ page }) => {
+  await startPlaying(page);
+  const y0 = await page.evaluate(() => __game.position().y);
+  await page.evaluate(() => __game.debug.jump());
+  await page.waitForFunction(y => window.__game.position().y > y + 0.2, y0, { timeout:3000 });   // décolle
+  await page.waitForFunction(y => Math.abs(window.__game.position().y - y) < 0.05, y0, { timeout:5000 }); // retombe
 });
