@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jeu — Tranche 1</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#0b0d12;color:#e8ecf4;font-family:"Segoe UI",system-ui,sans-serif}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  #lobby{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+    background:rgba(8,10,15,.92);backdrop-filter:blur(8px)}
+  #lobby.hidden{display:none}
+  .lobby-inner{width:min(900px,92vw);max-height:88vh;overflow:auto;text-align:center}
+  .lobby-inner h1{font-size:22px;margin-bottom:18px}
+  #lobby-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+  .char-card{background:rgba(28,33,43,.9);border:1px solid rgba(120,150,220,.18);border-radius:14px;
+    overflow:hidden;display:flex;flex-direction:column;cursor:pointer;transition:.15s}
+  .char-card:hover{border-color:#5b8cff;transform:translateY(-2px)}
+  .char-card img{width:100%;height:140px;object-fit:cover;background:#11151a}
+  .char-card .nm{padding:10px;font-weight:600}
+  .char-card .play{margin:0 10px 12px;padding:8px;border-radius:9px;border:1px solid #5b8cff;
+    background:linear-gradient(135deg,rgba(91,140,255,.25),rgba(181,107,255,.2));color:#e8ecf4;cursor:pointer}
+  #hud{position:fixed;left:16px;bottom:16px;z-index:10;background:rgba(20,24,33,.8);
+    border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.5}
+  #hud.hidden,#pause.hidden,#overlay.hidden{display:none}
+  #pause,#overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+    background:rgba(8,10,15,.8);backdrop-filter:blur(6px);text-align:center;padding:24px}
+  #overlay-msg{max-width:520px;line-height:1.6}
+  #overlay code{background:rgba(255,255,255,.08);padding:2px 7px;border-radius:6px;color:#ffd479}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="lobby">
+  <div class="lobby-inner">
+    <h1>Choisis ton perso</h1>
+    <div id="lobby-grid"></div>
+  </div>
+</div>
+
+<div id="hud" class="hidden"></div>
+<div id="pause" class="hidden"><div>⏸ En pause — clique pour reprendre</div></div>
+<div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ====== API debug (contrat figé) ======
+const G = window.__game = {
+  booted:false, phase:'lobby', characters:[], character:null,
+  locomotion:'idle', clips:[],
+  position(){ return model ? worldPos(model) : {x:0,y:0,z:0}; },
+  camera(){ return {x:camera.position.x,y:camera.position.y,z:camera.position.z, yaw:camYaw, pitch:camPitch, dist:CAM_DIST}; },
+  debug:{},
+};
+function worldPos(o){ const v=new THREE.Vector3(); o.getWorldPosition(v); return {x:v.x,y:v.y,z:v.z}; }
+
+// ====== Helpers purs (sans three.js) ======
+function cameraRelative(input, yaw){
+  const f = input.forward||0, s = input.strafe||0;
+  const sin = Math.sin(yaw), cos = Math.cos(yaw);
+  // avant = (sin,cos) ; droite = (cos,-sin)
+  return { x: sin*f + cos*s, z: cos*f - sin*s };
+}
+const WALK_EPS = 0.05;
+function locomotionState(speed, sprint){
+  if (speed < WALK_EPS) return 'idle';
+  return sprint ? 'run' : 'walk';
+}
+const ROLE_RE = { idle:/alert|idle|wait/i, walk:/walk|march/i, run:/run|sprint|course/i };
+function resolveClipRole(role, names){
+  const re = ROLE_RE[role]; if (!re) return null;
+  return names.find(n => re.test(n)) || null;
+}
+function pushOutCircleAABB(px, pz, r, box){
+  const cx = Math.max(box.minX, Math.min(px, box.maxX));
+  const cz = Math.max(box.minZ, Math.min(pz, box.maxZ));
+  const dx = px - cx, dz = pz - cz;
+  const d2 = dx*dx + dz*dz;
+  if (d2 >= r*r) return { x:px, z:pz };           // pas de pénétration
+  if (d2 > 1e-12){                                 // dehors en distance, on pousse le long de la normale
+    const d = Math.sqrt(d2); const nx = dx/d, nz = dz/d;
+    return { x: cx + nx*r, z: cz + nz*r };
+  }
+  // centre dans la boîte : pousser sur l'axe de moindre pénétration
+  const pen = [
+    { v: px - box.minX + r, x: box.minX - r, z: pz }, // vers -X
+    { v: box.maxX - px + r, x: box.maxX + r, z: pz }, // vers +X
+    { v: pz - box.minZ + r, x: px, z: box.minZ - r }, // vers -Z
+    { v: box.maxZ - pz + r, x: px, z: box.maxZ + r }, // vers +Z
+  ].sort((a,b)=>a.v-b.v)[0];
+  return { x: pen.x, z: pen.z };
+}
+Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB });
+
+// ====== Moteur ======
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0d12);
+scene.fog = new THREE.Fog(0x0b0d12, 18, 60);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(0, 3, -6);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0x9bb6ff, 0x1a1d26, 0.9));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+keyLight.position.set(8, 14, 6); keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048,2048); keyLight.shadow.camera.far = 60;
+keyLight.shadow.camera.left=-20; keyLight.shadow.camera.right=20;
+keyLight.shadow.camera.top=20; keyLight.shadow.camera.bottom=-20;
+scene.add(keyLight);
+
+const MAP_HALF = 24;
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(MAP_HALF*2, MAP_HALF*2),
+  new THREE.MeshStandardMaterial({ color:0x12151d, roughness:0.95 }));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+scene.add(new THREE.GridHelper(MAP_HALF*2, MAP_HALF, 0x2a3550, 0x1a1f2e));
+
+const loader = new GLTFLoader();
+
+// ====== État partagé (rempli par les tasks suivantes) ======
+let model = null, mixer = null;
+const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25;
+
+// ====== Map : obstacles + bornes ======
+const PLAYER_R = 0.45;
+const obstacles = [];
+function addBox(cx, cz, w, d, h){
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color:0x2a3550, roughness:0.8 }));
+  mesh.position.set(cx, h/2, cz); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+  obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 });
+}
+addBox(-5, 6, 2, 2, 1.5); addBox(7, -4, 3, 1, 2); addBox(0, 12, 2, 2, 1.5);
+G.debug.mapHalf = MAP_HALF;
+G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
+G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
+
+// ====== Configuration dossiers (repris de app.html) ======
+const ANIM_DIR = 'animation/', PERSO_DIR = 'perso/', ROOT_BONE = 'Hips';
+
+// jolis libellés / icônes dérivés du nom de fichier d'animation
+const ICONS = [
+  [/walk|march/i, '🚶'], [/run|course|sprint/i, '🏃'], [/dance|danse/i, '💃'],
+  [/box|punch|combo|attack|attaque/i, '🥊'], [/skill|comp/i, '✨'], [/alert/i, '⚠️'],
+  [/agree|gesture|approuv/i, '👍'], [/idle|wait/i, '🧍'],
+];
+const iconFor = s => (ICONS.find(([re]) => re.test(s)) || [null, '▶'])[1];
+function animKeyFromFile(fname) {
+  const base = decodeURIComponent(fname).replace(/\.glb$/i, '');
+  const m = base.match(/_Animation_(.+?)_withSkin$/i) || base.match(/_Animation_(.+)$/i);
+  return (m ? m[1] : base);
+}
+const prettyLabel = k => k.replace(/[_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+
+// ====== Découverte par listing de dossier (serveur HTTP) ======
+async function listDir(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Listing indisponible pour ' + url + ' (HTTP ' + res.status + ')');
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return [...doc.querySelectorAll('a')]
+    .map(a => a.getAttribute('href'))
+    .filter(h => h && !h.startsWith('/') && !h.startsWith('?') && !h.includes('://') && h !== '../');
+}
+const isGlb = h => /\.glb$/i.test(h);
+const isImg = h => /\.(png|jpe?g|webp|gif)$/i.test(h);
+
+// ====== Galerie partagée (IndexedDB 'studio3d', la même que studio.html / app.html) ======
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('studio3d',1);
+  r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains('models')) r.result.createObjectStore('models',{keyPath:'id'}); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function dbAll(){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').getAll(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error); })); }
+function dbGet(id){ return idb().then(db=>new Promise((res,rej)=>{ const rq=db.transaction('models','readonly').objectStore('models').get(id); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>rej(rq.error); })); }
+function dbPut(rec){ return idb().then(db=>new Promise((res,rej)=>{ const tx=db.transaction('models','readwrite'); tx.objectStore('models').put(rec); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
+async function urlToDataURL(url){ try{ const blob=await (await fetch(url)).blob();
+  return await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.onerror=()=>r(''); fr.readAsDataURL(blob); }); }catch(e){ return ''; } }
+
+// Ajoute les persos de /perso à la galerie partagée (idempotent : seulement si absents)
+async function seedPersosToGallery() {
+  let dirs;
+  try { dirs = (await listDir(PERSO_DIR)).filter(h => h.endsWith('/')); } catch (e) { return; }
+  for (const d of dirs) {
+    const pid = decodeURIComponent(d.replace(/\/$/, ''));
+    const id = 'perso:' + pid;
+    if (await dbGet(id)) continue;
+    let files; try { files = await listDir(PERSO_DIR + d); } catch (e) { continue; }
+    const glb = files.find(isGlb); if (!glb) continue;
+    const img = files.find(isImg);
+    try {
+      const bytes = await (await fetch(PERSO_DIR + d + glb)).arrayBuffer();
+      const thumb = img ? await urlToDataURL(PERSO_DIR + d + img) : '';
+      await dbPut({ id, name: prettyLabel(pid), format: 'glb', bytes, thumb, ts: 0, source: 'perso', date: 'dossier /perso' });
+    } catch (e) { console.warn('seed perso KO', d, e); }
+  }
+}
+
+// Personnages = enregistrements de la galerie (perso auto-ajoutés + sauvegardes studio)
+async function loadCharactersFromGallery() {
+  const recs = await dbAll();
+  recs.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return recs.map(r => ({ id: String(r.id), label: r.name || 'modèle', thumbUrl: r.thumb || null, bytes: r.bytes }));
+}
+
+// ====== Animation / retargeting (repris de app.html) ======
+let anims = [];           // [{ key, label, icon, clip }]
+let sourceModel=null, sourceBoneByName={}, sourceRest=null, sourceRestWorld=null;
+let targetRest=null, targetRestWorld=null, targetBoneOrder=null;
+
+function captureRest(root) {
+  const map = {};
+  root.traverse(o => { if (o.isBone) map[o.name] = { q: o.quaternion.clone(), p: o.position.clone() }; });
+  return map;
+}
+function captureRestWorld(root) {
+  root.updateMatrixWorld(true);
+  const map = {}; const q = new THREE.Quaternion();
+  root.traverse(o => { if (o.isBone) { o.getWorldQuaternion(q); map[o.name] = q.clone(); } });
+  return map;
+}
+function boneOrder(root) {
+  const list = [];
+  root.traverse(o => { if (o.isBone) list.push({ name: o.name, parent: (o.parent && o.parent.isBone) ? o.parent.name : null }); });
+  return list;
+}
+
+// Retargeting espace-monde : applique un clip du rig source à n'importe quel rig cible
+function retargetClipWorld(raw) {
+  const dur = raw.duration;
+  const n = Math.max(2, Math.round(dur * 30) + 1);
+  const srcMixer = new THREE.AnimationMixer(sourceModel);
+  srcMixer.clipAction(raw).play();
+
+  const samples = {}; for (const b of targetBoneOrder) samples[b.name] = [];
+  const times = [];
+  const qWsrc = new THREE.Quaternion(), tmp = new THREE.Quaternion();
+  const tgtWorld = {};
+
+  for (let f = 0; f < n; f++) {
+    const t = (f / (n - 1)) * dur;
+    times.push(t);
+    srcMixer.setTime(t);
+    sourceModel.updateMatrixWorld(true);
+    for (const b of targetBoneOrder) {
+      const sBone = sourceBoneByName[b.name];
+      const sRW = sourceRestWorld[b.name], tRW = targetRestWorld[b.name];
+      if (!sBone || !sRW || !tRW) { samples[b.name].push(null); continue; }
+      sBone.getWorldQuaternion(qWsrc);
+      tmp.copy(qWsrc).multiply(sRW.clone().invert()).multiply(tRW);     // qWsrc · sRW⁻¹ · tRW
+      tgtWorld[b.name] = tmp.clone();
+      const localQ = b.parent && tgtWorld[b.parent]
+        ? tgtWorld[b.parent].clone().invert().multiply(tmp)
+        : tmp.clone();
+      samples[b.name].push(localQ);
+    }
+  }
+  srcMixer.stopAllAction();
+
+  const tracks = [];
+  const timesArr = Float32Array.from(times);
+  for (const name in samples) {
+    const arr = samples[name];
+    if (!arr.length || arr.some(q => !q)) continue;
+    const vals = new Float32Array(arr.length * 4);
+    for (let i = 0; i < arr.length; i++) { const q = arr[i]; vals[i*4]=q.x; vals[i*4+1]=q.y; vals[i*4+2]=q.z; vals[i*4+3]=q.w; }
+    tracks.push(new THREE.QuaternionKeyframeTrack(name + '.quaternion', timesArr, vals));
+  }
+  // bassin : seulement le rebond vertical, recentré X/Z (anim sur place)
+  const hp = raw.tracks.find(tt => tt.name === ROOT_BONE + '.position');
+  const sP = sourceRest[ROOT_BONE]?.p, tP = targetRest[ROOT_BONE]?.p;
+  if (hp && sP && tP) {
+    const ratio = sP.y ? tP.y / sP.y : 1;
+    const vals = Float32Array.from(hp.values);
+    for (let i = 0; i < vals.length; i += 3) { vals[i] = tP.x; vals[i+1] = tP.y + (vals[i+1] - sP.y) * ratio; vals[i+2] = tP.z; }
+    tracks.push(new THREE.VectorKeyframeTrack(ROOT_BONE + '.position', Array.from(hp.times), vals));
+  }
+  return new THREE.AnimationClip(raw.name, raw.duration, tracks);
+}
+
+async function loadAnims(animFiles) {
+  anims = [];
+  for (const f of animFiles) {
+    try {
+      const g = await loader.loadAsync(ANIM_DIR + f);
+      const clip = g.animations[0];
+      if (!clip) continue;
+      const key = animKeyFromFile(f);
+      clip.name = key;
+      anims.push({ key, label: prettyLabel(key), icon: iconFor(f), clip });
+      // 1er fichier = squelette source partagé (les clips sont créés sur ce rig)
+      if (!sourceModel) {
+        sourceModel = g.scene;
+        sourceRest = captureRest(g.scene);
+        sourceRestWorld = captureRestWorld(g.scene);
+        g.scene.traverse(o => { if (o.isBone) sourceBoneByName[o.name] = o; });
+      }
+    } catch (e) { console.warn('anim KO', f, e); }
+  }
+  anims.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+// idle dérivé : rapproche chaque pose de la pose de repos cible (repli si pas d'Alert)
+function deriveIdle(clip){
+  const amp = 0.18;
+  const tracks = clip.tracks.map(tr=>{
+    if(!tr.name.endsWith('.quaternion')) return tr.clone();
+    const boneName = tr.name.slice(0, tr.name.lastIndexOf('.'));
+    const rest = targetRest[boneName] && targetRest[boneName].q;
+    if(!rest) return tr.clone();
+    const v = Float32Array.from(tr.values);
+    const q = new THREE.Quaternion(), o = new THREE.Quaternion();
+    for(let i=0;i<v.length;i+=4){
+      q.set(v[i],v[i+1],v[i+2],v[i+3]);
+      o.copy(rest).slerp(q, amp);
+      v[i]=o.x; v[i+1]=o.y; v[i+2]=o.z; v[i+3]=o.w;
+    }
+    return new THREE.QuaternionKeyframeTrack(tr.name, Float32Array.from(tr.times), v);
+  });
+  return new THREE.AnimationClip('idle_derived', clip.duration, tracks);
+}
+
+const actions = { idle:null, walk:null, run:null };
+async function loadBody(char){
+  const url = URL.createObjectURL(new Blob([char.bytes]));
+  const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);
+  const m = gltf.scene;
+  m.traverse(o => { if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+  targetRest = captureRest(m); targetRestWorld = captureRestWorld(m); targetBoneOrder = boneOrder(m);
+  const box = new THREE.Box3().setFromObject(m);
+  const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
+  const s = 1.8/(size.y||1); m.scale.setScalar(s);
+  m.position.sub(center.multiplyScalar(s)); m.position.y += (size.y*s)/2;
+  if(model) scene.remove(model);
+  model = m; scene.add(model);
+  mixer = new THREE.AnimationMixer(model);
+}
+function retargetRole(role){
+  const names = anims.map(a => a.key);
+  const key = resolveClipRole(role, names);
+  let raw = key ? anims.find(a=>a.key===key)?.clip : null;
+  if(!raw && role==='run') raw = anims.find(a=>resolveClipRole('walk',[a.key]))?.clip; // run -> walk
+  if(!raw && role==='walk') raw = anims.find(a=>resolveClipRole('run',[a.key]))?.clip;  // walk -> run
+  if(!raw && role==='idle'){ const w = anims.find(a=>resolveClipRole('walk',[a.key]))?.clip; return w?deriveIdle(retargetClipWorld(w)):null; }
+  if(!raw) return null;
+  return retargetClipWorld(raw);
+}
+
+// ====== Lobby ======
+let characters = [];
+function buildLobby(){
+  const grid = document.getElementById('lobby-grid');
+  grid.innerHTML = '';
+  for (let i=0;i<characters.length;i++){
+    const c = characters[i];
+    const card = document.createElement('div'); card.className='char-card';
+    card.innerHTML = `${c.thumbUrl?`<img src="${c.thumbUrl}" alt="">`:`<div style="height:140px;display:flex;align-items:center;justify-content:center;font-size:42px">🧍</div>`}
+      <div class="nm">${c.label}</div><button class="play">Jouer ▶</button>`;
+    card.querySelector('.play').onclick = () => startGame(i);
+    grid.appendChild(card);
+  }
+}
+async function initLobby(){
+  try {
+    if(window.__FORCE_LIST_FAIL__) throw new Error('forced');
+    await seedPersosToGallery();
+    characters = await loadCharactersFromGallery();
+    if(!characters.length){ showOverlay('Aucun personnage. Ajoute-en via studio.html ou vérifie /perso.'); return; }
+    G.characters = characters.map(c => ({ id:c.id, label:c.label }));
+    buildLobby();
+    G.phase = 'lobby';
+  } catch (e) {
+    console.warn('init KO', e);
+    showOverlay('Impossible de lister les dossiers du jeu.');
+  }
+}
+async function startGame(index){
+  const char = characters[index]; if(!char) return;
+  G.phase = 'loading';
+  document.getElementById('lobby').classList.add('hidden');
+  if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
+  await loadBody(char);
+  actions.idle = mixer.clipAction(retargetRole('idle'));
+  const wc = retargetRole('walk'); actions.walk = wc ? mixer.clipAction(wc) : null;
+  const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
+  G.clips = Object.keys(actions).filter(k=>actions[k]);
+  actions.idle.play();
+  G.character = { id:char.id, label:char.label };
+  G.locomotion = 'idle';
+  showHud();
+  G.phase = 'playing';
+}
+G.debug.start = async (index=0) => { await startGame(index); };
+initLobby();
+
+// ====== Entrées clavier (event.code => ZQSD sur AZERTY) ======
+const input = { forward:false, back:false, left:false, right:false, sprint:false };
+const CODE = { KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
+               KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
+addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e.preventDefault(); }
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=true; });
+addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=false; });
+G.debug.setInput = (s={}) => { input.forward=!!s.forward; input.back=!!s.back;
+  input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint; };
+G.debug.setYaw = (r) => { camYaw = r; };
+
+// ====== Caméra 3e personne (pointer lock + repli) ======
+const canvasEl = renderer.domElement;
+canvasEl.addEventListener('click', () => { if(G.phase==='playing') canvasEl.requestPointerLock?.(); });
+addEventListener('mousemove', e => {
+  if(document.pointerLockElement !== canvasEl) return;
+  camYaw  -= e.movementX * 0.0025;
+  camPitch = Math.max(-0.2, Math.min(0.9, camPitch + e.movementY * 0.0025));
+});
+function updateCamera(dt){
+  if(!model) return;
+  const p = model.position;
+  const tx = p.x, ty = p.y + 1.5, tz = p.z;
+  const look = new THREE.Vector3(Math.sin(camYaw)*Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw)*Math.cos(camPitch));
+  const desired = new THREE.Vector3(tx - look.x*CAM_DIST, ty + look.y*CAM_DIST, tz - look.z*CAM_DIST);
+  camera.position.lerp(desired, Math.min(1, dt*8));
+  camera.lookAt(tx, ty, tz);
+}
+
+// ====== Contrôleur + machine d'état locomotion ======
+const WALK_SPEED = 2.4, RUN_SPEED = 5.4, TURN_LERP = 12;
+let curLoco = 'idle';
+function setLoco(state){
+  if(state===curLoco) return;
+  const next = actions[state] || actions.idle;
+  const prev = actions[curLoco];
+  if(next){ next.reset().play(); if(prev && prev!==next) prev.crossFadeTo(next, 0.2, false); }
+  curLoco = state; G.locomotion = state;
+}
+function updateController(dt){
+  if(G.phase!=='playing' || !model) return;
+  const f = (input.forward?1:0) - (input.back?1:0);
+  const s = (input.right?1:0) - (input.left?1:0);
+  let speed = 0;
+  if(f||s){
+    const dir = cameraRelative({forward:f, strafe:s}, camYaw);
+    const len = Math.hypot(dir.x, dir.z) || 1;
+    const vx = dir.x/len, vz = dir.z/len;
+    speed = input.sprint ? RUN_SPEED : WALK_SPEED;
+    model.position.x += vx*speed*dt;
+    model.position.z += vz*speed*dt;
+    const target = Math.atan2(vx, vz);
+    let a = model.rotation.y;
+    let diff = ((target - a + Math.PI)%(Math.PI*2)) - Math.PI;
+    model.rotation.y = a + diff*Math.min(1, dt*TURN_LERP);
+  }
+  // bornes de map
+  model.position.x = Math.max(-MAP_HALF, Math.min(MAP_HALF, model.position.x));
+  model.position.z = Math.max(-MAP_HALF, Math.min(MAP_HALF, model.position.z));
+  // collision obstacles
+  for(const b of obstacles){
+    const o = pushOutCircleAABB(model.position.x, model.position.z, PLAYER_R, b);
+    model.position.x = o.x; model.position.z = o.z;
+  }
+  setLoco(locomotionState(speed, input.sprint));
+}
+
+// ====== UI : HUD, pause, overlay ======
+function showHud(){
+  const h = document.getElementById('hud'); h.classList.remove('hidden');
+  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · Shift : courir<br>Souris : caméra · Échap : pause`;
+}
+function showOverlay(msg){
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('overlay-msg').innerHTML =
+    `⚠️ ${msg}<br><br>Lance via un serveur local :<br><code>python -m http.server 8123</code><br>puis <code>http://localhost:8123/game.html</code>`;
+}
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === renderer.domElement;
+  document.getElementById('pause').classList.toggle('hidden', locked || G.phase!=='playing');
+});
+
+// ====== Boucle ======
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  updateController(dt);
+  updateCamera(dt);
+  if (mixer) mixer.update(dt);
+  renderer.render(scene, camera);
+}
+animate();
+G.booted = true;
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
