@@ -455,6 +455,8 @@ async function startGame(){
   document.getElementById('crosshair').classList.remove('hidden');
   document.getElementById('combat').classList.remove('hidden');
   updateCombatHud();
+  if(!enemyBase) await buildEnemyAssets(char);
+  createEnemies();
   G.phase = 'playing';
 }
 G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
@@ -721,12 +723,84 @@ function enemyDecision(dist, state){
 }
 G.debug.enemyDecision = enemyDecision;
 
+function makeHitbox(){
+  const hb = new THREE.Mesh(
+    new THREE.CylinderGeometry(ENEMY_R, ENEMY_R, 1.8, 8),   // couvre tout le corps [0,1.8]
+    new THREE.MeshBasicMaterial({ visible:false }));        // non rendu mais raycastable (mesh.visible reste true)
+  hb.position.set(0, ENEMY_FOOT_Y + 0.9, 0); scene.add(hb); hb.updateMatrixWorld();
+  return hb;
+}
+function randomSpawn(){
+  // anneau autour du joueur, AU-DELÀ du rayon de détection (apparition en patrouille, pas d'aggro instantané)
+  const a = Math.random()*Math.PI*2, r = DETECT_RADIUS + 3 + Math.random()*6; // [15,21]
+  const px = model ? model.position.x : 0, pz = model ? model.position.z : 0;
+  const x = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, px + Math.cos(a)*r));
+  const z = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, pz + Math.sin(a)*r));
+  return { x, z };
+}
+async function buildEnemyAssets(playerChar){
+  const pick = characters.find(c => c.id !== playerChar.id) || playerChar;   // perso différent si possible
+  const url = URL.createObjectURL(new Blob([pick.bytes]));
+  const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);
+  const inner = gltf.scene;
+  inner.traverse(o => { if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+  // normaliser hauteur 1.8 et centrer (feet à y=0, centré en x/z) — comme le joueur
+  const box = new THREE.Box3().setFromObject(inner);
+  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+  const s = 1.8/(size.y||1); inner.scale.setScalar(s);
+  inner.position.sub(center.multiplyScalar(s)); inner.position.y += (size.y*s)/2;
+  const wrapper = new THREE.Group(); wrapper.add(inner);
+  enemyBase = wrapper;
+  // retarget des 4 rôles contre le rig ennemi (swap temporaire des globals cible)
+  const sr = targetRest, srw = targetRestWorld, so = targetBoneOrder;
+  targetRest = captureRest(inner); targetRestWorld = captureRestWorld(inner); targetBoneOrder = boneOrder(inner);
+  enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack') };
+  targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
+}
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; }
+function createEnemies(){
+  clearEnemies();
+  for(let i=0;i<ENEMY_COUNT;i++){
+    const root = cloneSkeleton(enemyBase);
+    const mats = [];
+    // matériaux clonés par ennemi (flash indépendant) ; gère le cas multi-matériaux (tableau)
+    root.traverse(o => { if(o.isMesh){
+      o.castShadow=true; o.receiveShadow=true;
+      const cloneMat = m => { const c = m.clone(); if(c.emissive) mats.push({ mat:c, base:c.emissive.clone() }); return c; };
+      o.material = Array.isArray(o.material) ? o.material.map(cloneMat) : cloneMat(o.material);
+    } });
+    const mixer = new THREE.AnimationMixer(root);
+    const actions = {};
+    for(const k of ['idle','walk','run','attack']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
+    const hitbox = makeHitbox();
+    const sp = randomSpawn(); root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
+    hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
+    const e = { id:i, root, mixer, actions, hitbox, mats, hp:ENEMY_HP, state:'patrol', alive:true,
+                loco:'idle', target:null, lostFor:0, respawnAt:0, flashUntil:0 };
+    actions.idle?.play();
+    scene.add(root); enemies.push(e);
+  }
+}
+function updateEnemies(dt){
+  if(G.phase!=='playing') return;
+  for(const e of enemies){
+    e.hitbox.position.set(e.root.position.x, e.root.position.y + 0.9, e.root.position.z);
+    e.hitbox.updateMatrixWorld();
+    e.mixer.update(dt);
+  }
+}
+G.debug.enemyCount = () => enemies.length;
+G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
+G.debug.enemyState = (i) => enemies[i]?.state;
+G.debug.enemyHp    = (i) => enemies[i]?.hp;
+G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, z:e.root.position.z } : null; };
+
 // ====== Boucle ======
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateCamera(dt); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateCamera(dt); }
   else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);

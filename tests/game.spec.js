@@ -342,3 +342,14 @@ test('enemyDecision : seuils patrouille/poursuite/attaque', async ({ page }) => 
   expect(await f(12, 'patrol')).toBe('chase');    // pile au rayon (<=)
   expect(await f(1.6,'chase')).toBe('attack');    // pile à portée (<=)
 });
+
+test('3 ennemis apparaissent et sont vivants au démarrage', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() >= 1, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('patrol');
+  const p = await page.evaluate(() => __game.debug.enemyPos(0));
+  expect(Number.isFinite(p.x) && Number.isFinite(p.z)).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(3);
+});
