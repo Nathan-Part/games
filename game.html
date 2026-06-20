@@ -784,6 +784,10 @@ function createEnemies(){
 function updateEnemies(dt){
   if(G.phase!=='playing') return;
   for(const e of enemies){
+    if(!e.target || Math.hypot(e.target.x - e.root.position.x, e.target.z - e.root.position.z) < 0.6) pickPatrol(e);
+    moveToward(e, e.target.x, e.target.z, ENEMY_WALK, dt);
+    clampEnemy(e);
+    setEnemyLoco(e, 'walk');
     e.hitbox.position.set(e.root.position.x, e.root.position.y + 0.9, e.root.position.z);
     e.hitbox.updateMatrixWorld();
     e.mixer.update(dt);
@@ -794,6 +798,45 @@ G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
 G.debug.enemyState = (i) => enemies[i]?.state;
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
 G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, z:e.root.position.z } : null; };
+
+function faceDir(e, vx, vz, dt){
+  const target = Math.atan2(vx, vz);
+  let a = e.root.rotation.y;
+  let diff = ((target - a + Math.PI) % (Math.PI*2)) - Math.PI;
+  e.root.rotation.y = a + diff*Math.min(1, dt*ENEMY_TURN);
+}
+function moveToward(e, tx, tz, spd, dt){
+  const dx = tx - e.root.position.x, dz = tz - e.root.position.z;
+  const len = Math.hypot(dx, dz) || 1;
+  e.root.position.x += (dx/len)*spd*dt;
+  e.root.position.z += (dz/len)*spd*dt;
+  faceDir(e, dx/len, dz/len, dt);
+}
+function pickPatrol(e){
+  e.target = { x:(Math.random()*2-1)*MAP_HALF*0.9, z:(Math.random()*2-1)*MAP_HALF*0.9 };
+}
+function clampEnemy(e){
+  e.root.position.x = Math.max(-MAP_HALF, Math.min(MAP_HALF, e.root.position.x));
+  e.root.position.z = Math.max(-MAP_HALF, Math.min(MAP_HALF, e.root.position.z));
+  for(const b of obstacles){
+    const o = pushOutCircleAABB(e.root.position.x, e.root.position.z, ENEMY_R, b);
+    e.root.position.x = o.x; e.root.position.z = o.z;
+  }
+}
+function setEnemyLoco(e, state){
+  if(e.loco === state) return;
+  const next = e.actions[state] || e.actions.idle;
+  const prev = e.actions[e.loco];
+  if(next){ next.reset().play(); if(prev && prev!==next) prev.crossFadeTo(next, 0.2, false); }
+  e.loco = state;
+}
+G.debug.spawnEnemyAt = (x, z) => {
+  const e = enemies[0]; if(!e) return null;
+  e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0,0,0);
+  e.hp = ENEMY_HP; e.alive = true; e.state='patrol'; e.loco='idle'; e.lostFor=0; e.target=null;
+  e.hitbox.position.set(x, ENEMY_FOOT_Y+0.9, z); e.hitbox.updateMatrixWorld();
+  return e.id;
+};
 
 // ====== Boucle ======
 const clock = new THREE.Clock();

@@ -353,3 +353,15 @@ test('3 ennemis apparaissent et sont vivants au démarrage', async ({ page }) =>
   expect(Number.isFinite(p.x) && Number.isFinite(p.z)).toBe(true);
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(3);
 });
+
+test('un ennemi loin du joueur patrouille (sa position change) et reste dans les bornes', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.spawnEnemyAt(20, 20)); // bien au-delà du rayon de détection
+  const p0 = await page.evaluate(() => __game.debug.enemyPos(0));
+  await page.waitForTimeout(1200);
+  const p1 = await page.evaluate(() => __game.debug.enemyPos(0));
+  expect(Math.hypot(p1.x-p0.x, p1.z-p0.z)).toBeGreaterThan(0.3);   // il a bougé
+  expect(Math.abs(p1.x)).toBeLessThanOrEqual(24.01);              // dans les bornes (MAP_HALF=24)
+  expect(Math.abs(p1.z)).toBeLessThanOrEqual(24.01);
+});
