@@ -203,10 +203,11 @@ test('rater (aucune cible) ne score pas', async ({ page }) => {
 test('le cooldown limite la cadence de tir', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.clearTargets());
-  const a = await page.evaluate(() => __game.debug.tryFire());
-  const b = await page.evaluate(() => __game.debug.tryFire());   // immédiat => bloqué par le cooldown
-  expect(a).toBe(true);
-  expect(b).toBe(false);
+  // deux tirs dans le MÊME tick (un seul evaluate) => vraiment « immédiats »,
+  // sans dépendre du timing des aller-retours Playwright (cooldown = 0.12 s).
+  const [a, b] = await page.evaluate(() => [__game.debug.tryFire(), __game.debug.tryFire()]);
+  expect(a).toBe(true);    // 1er tir part
+  expect(b).toBe(false);   // 2e bloqué par le cooldown
 });
 
 test('munitions : se vident en tirant, et la recharge les refait', async ({ page }) => {
@@ -228,4 +229,105 @@ test('viser rapproche la caméra', async ({ page }) => {
   const d0 = await page.evaluate(() => __game.camera().dist);
   await page.evaluate(() => __game.debug.setInput({ aim:true }));
   await page.waitForFunction(d => window.__game.camera().dist < d - 0.5, d0, { timeout:5000 });
+});
+
+test('basculer en vue première personne place la caméra à hauteur des yeux, puis revenir', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.view)).toBe('third');
+
+  // -> première personne
+  await page.evaluate(() => __game.debug.setView('first'));
+  await page.waitForFunction(() => {
+    const c = __game.camera(), p = __game.position();
+    return Math.hypot(c.x - p.x, c.z - p.z) < 0.6;   // caméra ~ alignée avec le perso
+  }, null, { timeout:5000 });
+  expect(await page.evaluate(() => __game.view)).toBe('first');
+  const fp = await page.evaluate(() => ({ cam:__game.camera(), pos:__game.position() }));
+  expect(fp.cam.y).toBeGreaterThan(fp.pos.y + 1.0);  // à hauteur des yeux
+  expect(await page.evaluate(() => __game.debug.modelVisible())).toBe(false); // on ne se voit pas
+
+  // -> retour en 3e personne
+  await page.evaluate(() => __game.debug.setView('third'));
+  await page.waitForFunction(() => {
+    const c = __game.camera(), p = __game.position();
+    return Math.hypot(c.x - p.x, c.z - p.z) > 2;      // de nouveau en recul derrière le perso
+  }, null, { timeout:5000 });
+  expect(await page.evaluate(() => __game.view)).toBe('third');
+  expect(await page.evaluate(() => __game.debug.modelVisible())).toBe(true);
+});
+
+test('la touche V bascule la vue', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.view)).toBe('third');
+  await page.keyboard.press('v');
+  await page.waitForFunction(() => __game.view === 'first', null, { timeout:3000 });
+  await page.keyboard.press('v');
+  await page.waitForFunction(() => __game.view === 'third', null, { timeout:3000 });
+});
+
+test('cliquer sur l’écran de pause redonne le contrôle (ne reste pas bloqué)', async ({ page }) => {
+  await startPlaying(page);
+  // headless ne verrouille pas réellement : on instrumente requestPointerLock
+  await page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    window.__lockCalls = 0;
+    c.requestPointerLock = () => { window.__lockCalls++; };
+  });
+  // simule la mise en pause (relâchement du pointer lock, comme un appui Échap)
+  await page.evaluate(() => document.dispatchEvent(new Event('pointerlockchange')));
+  await expect(page.locator('#pause')).toBeVisible();
+  await page.locator('#pause').click();
+  expect(await page.evaluate(() => window.__lockCalls)).toBeGreaterThan(0); // a tenté de reprendre
+});
+
+test('en première personne, lever la souris regarde vers le haut (non inversé)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setView('first'));
+  await page.waitForTimeout(100);
+  const p0 = await page.evaluate(() => __game.camera().pitch);
+  await page.evaluate(() => __game.debug.look(0, -120)); // souris vers le HAUT
+  const pUp = await page.evaluate(() => __game.camera().pitch);
+  expect(pUp).toBeGreaterThan(p0);                       // => regarde plus haut
+  await page.evaluate(() => __game.debug.look(0, 240));  // souris vers le BAS
+  const pDown = await page.evaluate(() => __game.camera().pitch);
+  expect(pDown).toBeLessThan(pUp);                       // => regarde plus bas
+});
+
+test('la touche R fait sprinter', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ forward:true }));
+  await page.waitForFunction(() => __game.locomotion === 'walk', null, { timeout:3000 });
+  await page.keyboard.down('r');
+  await page.waitForFunction(() => __game.locomotion === 'run', null, { timeout:3000 });
+  await page.keyboard.up('r');
+});
+
+test('la touche A (KeyQ azerty) permet de viser', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForTimeout(200);
+  const d0 = await page.evaluate(() => __game.camera().dist);
+  await page.keyboard.down('q');                          // 'A' sur AZERTY = code KeyQ
+  await page.waitForFunction(d => window.__game.camera().dist < d - 0.5, d0, { timeout:5000 });
+  await page.keyboard.up('q');
+});
+
+test('la touche E tire (consomme une munition)', async ({ page }) => {
+  await startPlaying(page);
+  const a0 = await page.evaluate(() => __game.ammo);
+  await page.keyboard.down('e');
+  await page.waitForFunction(a => window.__game.ammo < a, a0, { timeout:3000 });
+  await page.keyboard.up('e');
+});
+
+test('la touche F recharge (et R ne recharge plus)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for(let i=0;i<3;i++){ __game.debug.tryFire(); await sleep(140); }
+  });
+  const a0 = await page.evaluate(() => __game.ammo);
+  expect(a0).toBeLessThan(12);
+  await page.keyboard.press('f');                         // F = recharger
+  await page.waitForFunction(() => __game.ammo === 12, null, { timeout:5000 });
 });

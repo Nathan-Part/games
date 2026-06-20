@@ -82,7 +82,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // ====== API debug (contrat figé) ======
 const G = window.__game = {
   booted:false, phase:'lobby', characters:[], character:null,
-  locomotion:'idle', clips:[],
+  locomotion:'idle', clips:[], view:'third',
   position(){ return model ? worldPos(model) : {x:0,y:0,z:0}; },
   camera(){ return {x:camera.position.x,y:camera.position.y,z:camera.position.z, yaw:camYaw, pitch:camPitch, dist:camDist}; },
   debug:{},
@@ -165,6 +165,14 @@ let model = null, mixer = null;
 let velY = 0, grounded = true, groundY = 0;
 const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
+const EYE_HEIGHT = 1.62;                       // hauteur des yeux (vue 1re personne)
+let view = 'third';                            // 'third' | 'first'
+function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } // on ne se voit pas en FPS
+function setView(v){
+  view = (v === 'first') ? 'first' : 'third';
+  G.view = view; applyViewVisibility(); clampPitch();   // recale le pitch dans la plage du mode
+}
+function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
 // ====== Map : obstacles + bornes ======
 const PLAYER_R = 0.45;
@@ -437,6 +445,7 @@ async function startGame(){
   const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
   G.clips = Object.keys(actions).filter(k=>actions[k]);
   curLoco = 'idle'; actions.idle.play();
+  setView('third');                                            // chaque partie démarre en 3e personne (perso visible)
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
@@ -467,35 +476,71 @@ const input = { forward:false, back:false, left:false, right:false, sprint:false
 const CODE = { KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
                KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
 addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e.preventDefault(); }
-  if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=true;
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyR') input.sprint=true; // R ou Shift = courir
+  if(e.code==='KeyQ') input.aim=true;                                                 // A (AZERTY) = viser
+  if(e.code==='KeyE') input.fire=true;                                                // E = tirer
   if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
-  if(e.code==='KeyR' && G.phase==='playing') reload(); });
+  if(e.code==='KeyF' && G.phase==='playing') reload();                                // F = recharger
+  if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); } });
 addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
-  if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=false; });
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyR') input.sprint=false;
+  if(e.code==='KeyQ') input.aim=false;
+  if(e.code==='KeyE') input.fire=false; });
 G.debug.setInput = (s={}) => { input.forward=!!s.forward; input.back=!!s.back;
   input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint;
   input.fire=!!s.fire; input.aim=!!s.aim; };
 G.debug.setYaw = (r) => { camYaw = r; };
+G.debug.setView = (v) => setView(v);
+G.debug.toggleView = () => toggleView();
+G.debug.modelVisible = () => !!(model && model.visible);
 G.debug.jump = () => { if(G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; } };
 
 // ====== Caméra 3e personne (pointer lock + repli) ======
 const canvasEl = renderer.domElement;
 canvasEl.addEventListener('click', () => { if(G.phase==='playing') canvasEl.requestPointerLock?.(); });
+// L'overlay de pause recouvre le canvas : il doit lui-même reprendre la main au clic.
+document.getElementById('pause').addEventListener('click', () => {
+  if(G.phase==='playing') canvasEl.requestPointerLock?.();
+});
 canvasEl.addEventListener('mousedown', e => {
   if(G.phase!=='playing' || document.pointerLockElement!==canvasEl) return;
   if(e.button===0) input.fire = true; else if(e.button===2) input.aim = true;
 });
 addEventListener('mouseup', e => { if(e.button===0) input.fire = false; else if(e.button===2) input.aim = false; });
 canvasEl.addEventListener('contextmenu', e => e.preventDefault());
+const PITCH_3RD_MIN = -0.2, PITCH_3RD_MAX = 0.9;   // orbite 3e personne (regard surtout vers le bas)
+const PITCH_1ST_MIN = -1.35, PITCH_1ST_MAX = 1.35; // 1re personne : haut ET bas (quasi vertical)
+function clampPitch(){
+  const lo = view === 'first' ? PITCH_1ST_MIN : PITCH_3RD_MIN;
+  const hi = view === 'first' ? PITCH_1ST_MAX : PITCH_3RD_MAX;
+  camPitch = Math.max(lo, Math.min(hi, camPitch));
+}
+function applyLook(dx, dy){
+  camYaw -= dx * 0.0025;
+  // 1re personne : souris vers le haut (dy<0) => regarder vers le haut (pitch ↑) — non inversé.
+  // 3e personne : on conserve l'orbite existante.
+  camPitch += (view === 'first' ? -dy : dy) * 0.0025;
+  clampPitch();
+}
 addEventListener('mousemove', e => {
   if(document.pointerLockElement !== canvasEl) return;
-  camYaw  -= e.movementX * 0.0025;
-  camPitch = Math.max(-0.2, Math.min(0.9, camPitch + e.movementY * 0.0025));
+  applyLook(e.movementX, e.movementY);
 });
+G.debug.look = (dx, dy) => applyLook(dx, dy);
 const AIM_DIST = 3.0, SHOULDER = 0.6;
 let shake = 0;
 function updateCamera(dt){
   if(!model) return;
+  if(view === 'first'){
+    const p = model.position;
+    const eye = p.y + EYE_HEIGHT;
+    camDist += (0 - camDist) * Math.min(1, dt*10);   // dist ~0 (cohérence du contrat caméra)
+    camera.position.set(p.x, eye, p.z);
+    if(shake > 0){ const k = shake*0.06; camera.position.x += (Math.random()-0.5)*k; camera.position.y += (Math.random()-0.5)*k; shake = Math.max(0, shake - dt*6); }
+    const look = new THREE.Vector3(Math.sin(camYaw)*Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw)*Math.cos(camPitch));
+    camera.lookAt(camera.position.x + look.x, camera.position.y + look.y, camera.position.z + look.z);
+    return;
+  }
   const targetDist = input.aim ? AIM_DIST : CAM_DIST;
   camDist += (targetDist - camDist) * Math.min(1, dt*10);
   const p = model.position;
@@ -559,7 +604,7 @@ function updateController(dt){
 // ====== UI : HUD, pause, overlay ======
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
-  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · Shift : courir · Espace : sauter<br>Souris : caméra · Échap : pause`;
+  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger<br>Souris : caméra · V : vue 1re/3e · Échap : pause`;
 }
 function showOverlay(msg){
   document.getElementById('overlay').classList.remove('hidden');
@@ -583,6 +628,7 @@ function spawnTarget(x, y, z){
     new THREE.CylinderGeometry(0.35, 0.35, 1.4, 16),
     new THREE.MeshStandardMaterial({ color:0xff4d4d, emissive:0x551111, roughness:0.5 }));
   mesh.position.set(x, y, z); mesh.castShadow = true; scene.add(mesh);
+  mesh.updateMatrixWorld();   // matrice monde prête immédiatement (raycast dès le 1er tir)
   const t = { id: targets.length, mesh, alive:true, respawnAt:0 };
   targets.push(t); return t;
 }
