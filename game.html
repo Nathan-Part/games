@@ -78,6 +78,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 // ====== API debug (contrat figé) ======
 const G = window.__game = {
@@ -101,7 +102,7 @@ function locomotionState(speed, sprint){
   if (speed < WALK_EPS) return 'idle';
   return sprint ? 'run' : 'walk';
 }
-const ROLE_RE = { idle:/alert|idle|wait/i, walk:/walk|march/i, run:/run|sprint|course/i };
+const ROLE_RE = { idle:/alert|idle|wait/i, walk:/walk|march/i, run:/run|sprint|course/i, attack:/attack|combat|punch|hit|skill/i };
 function resolveClipRole(role, names){
   const re = ROLE_RE[role]; if (!re) return null;
   return names.find(n => re.test(n)) || null;
@@ -701,6 +702,24 @@ G.debug.spawnTargetInFront = (dist=8) => {
   const p = _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(dist));
   return spawnTarget(p.x, p.y, p.z).id;
 };
+
+// ====== Ennemis / IA ======
+const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE_TIME = 3.0,
+      ATTACK_RANGE = 1.6, ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 3,
+      ENEMY_R = 0.45, ENEMY_RESPAWN = 3.0, ENEMY_FLASH = 0.08, ENEMY_TURN = 8;
+const ENEMY_FOOT_Y = 0;                       // pieds au sol (modèle ennemi centré dans un groupe)
+const FLASH_COLOR = new THREE.Color(0xff2222);
+const enemies = [];      // { id, root, mixer, actions, hitbox, mats, hp, state, alive, loco, target, lostFor, respawnAt, flashUntil }
+let enemyBase = null;    // groupe centré à cloner
+let enemyClips = null;   // { idle, walk, run, attack } (AnimationClip retargetés pour le rig ennemi)
+
+// décision d'état pure (seuils) — testée isolément
+function enemyDecision(dist, state){
+  if(dist <= ATTACK_RANGE) return 'attack';
+  if(dist <= DETECT_RADIUS) return 'chase';
+  return 'patrol';
+}
+G.debug.enemyDecision = enemyDecision;
 
 // ====== Boucle ======
 const clock = new THREE.Clock();

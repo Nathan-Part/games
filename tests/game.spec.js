@@ -331,3 +331,14 @@ test('la touche F recharge (et R ne recharge plus)', async ({ page }) => {
   await page.keyboard.press('f');                         // F = recharger
   await page.waitForFunction(() => __game.ammo === 12, null, { timeout:5000 });
 });
+
+test('enemyDecision : seuils patrouille/poursuite/attaque', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const f = (d, s) => page.evaluate(([d,s]) => __game.debug.enemyDecision(d,s), [d, s]);
+  expect(await f(20, 'patrol')).toBe('patrol');   // loin
+  expect(await f(8,  'patrol')).toBe('chase');    // dans le rayon de détection
+  expect(await f(1,  'chase')).toBe('attack');    // au contact
+  expect(await f(12, 'patrol')).toBe('chase');    // pile au rayon (<=)
+  expect(await f(1.6,'chase')).toBe('attack');    // pile à portée (<=)
+});
