@@ -177,3 +177,55 @@ test('le saut fait décoller puis retomber le perso', async ({ page }) => {
   await page.waitForFunction(y => window.__game.position().y > y + 0.2, y0, { timeout:3000 });   // décolle
   await page.waitForFunction(y => Math.abs(window.__game.position().y - y) < 0.05, y0, { timeout:5000 }); // retombe
 });
+
+test('tirer sur une cible devant => score +1 et la cible disparaît', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.clearTargets());
+  expect(await page.evaluate(() => __game.debug.targetsAlive())).toBe(0);
+  await page.evaluate(() => __game.debug.spawnTargetInFront(8));
+  expect(await page.evaluate(() => __game.debug.targetsAlive())).toBe(1);
+  const score0 = await page.evaluate(() => __game.score);
+  const fired = await page.evaluate(() => __game.debug.tryFire());
+  expect(fired).toBe(true);
+  expect(await page.evaluate(() => __game.score)).toBe(score0 + 1);
+  expect(await page.evaluate(() => __game.debug.targetsAlive())).toBe(0);
+});
+
+test('rater (aucune cible) ne score pas', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.clearTargets());
+  const score0 = await page.evaluate(() => __game.score);
+  const fired = await page.evaluate(() => __game.debug.tryFire());
+  expect(fired).toBe(true);                                       // un tir part bien
+  expect(await page.evaluate(() => __game.score)).toBe(score0);   // mais aucun hit
+});
+
+test('le cooldown limite la cadence de tir', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.clearTargets());
+  const a = await page.evaluate(() => __game.debug.tryFire());
+  const b = await page.evaluate(() => __game.debug.tryFire());   // immédiat => bloqué par le cooldown
+  expect(a).toBe(true);
+  expect(b).toBe(false);
+});
+
+test('munitions : se vident en tirant, et la recharge les refait', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.clearTargets());
+  await page.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for(let i=0;i<30 && __game.ammo>0;i++){ __game.debug.tryFire(); await sleep(140); } // > cooldown
+  });
+  expect(await page.evaluate(() => __game.ammo)).toBe(0);
+  expect(await page.evaluate(() => __game.debug.tryFire())).toBe(false); // à vide, plus de tir
+  await page.evaluate(() => __game.debug.reload());
+  await page.waitForFunction(() => __game.ammo > 0, null, { timeout:5000 });
+});
+
+test('viser rapproche la caméra', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForTimeout(200);
+  const d0 = await page.evaluate(() => __game.camera().dist);
+  await page.evaluate(() => __game.debug.setInput({ aim:true }));
+  await page.waitForFunction(d => window.__game.camera().dist < d - 0.5, d0, { timeout:5000 });
+});

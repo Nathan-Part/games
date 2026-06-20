@@ -32,6 +32,18 @@
     background:rgba(8,10,15,.8);backdrop-filter:blur(6px);text-align:center;padding:24px}
   #overlay-msg{max-width:520px;line-height:1.6}
   #overlay code{background:rgba(255,255,255,.08);padding:2px 7px;border-radius:6px;color:#ffd479}
+  #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:18px;height:18px;pointer-events:none}
+  #crosshair.hidden{display:none}
+  #crosshair::before,#crosshair::after{content:"";position:absolute;background:#e8f0ff;box-shadow:0 0 3px rgba(0,0,0,.85)}
+  #crosshair::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
+  #crosshair::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
+  #crosshair.aim{width:9px;height:9px}
+  #hitmarker{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:11;color:#ff5b5b;
+    font-size:26px;font-weight:900;opacity:0;transition:opacity .08s;pointer-events:none}
+  #hitmarker.show{opacity:1}
+  #combat{position:fixed;right:16px;bottom:16px;z-index:10;background:rgba(20,24,33,.8);
+    border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:10px 14px;font-size:14px;line-height:1.5;text-align:right}
+  #combat.hidden{display:none}
 </style>
 </head>
 <body>
@@ -52,6 +64,9 @@
 <div id="hud" class="hidden"></div>
 <div id="pause" class="hidden"><div>⏸ En pause — clique pour reprendre</div></div>
 <div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
+<div id="crosshair" class="hidden"></div>
+<div id="hitmarker">✕</div>
+<div id="combat" class="hidden"></div>
 
 <script type="importmap">
 { "imports": {
@@ -69,7 +84,7 @@ const G = window.__game = {
   booted:false, phase:'lobby', characters:[], character:null,
   locomotion:'idle', clips:[],
   position(){ return model ? worldPos(model) : {x:0,y:0,z:0}; },
-  camera(){ return {x:camera.position.x,y:camera.position.y,z:camera.position.z, yaw:camYaw, pitch:camPitch, dist:CAM_DIST}; },
+  camera(){ return {x:camera.position.x,y:camera.position.y,z:camera.position.z, yaw:camYaw, pitch:camPitch, dist:camDist}; },
   debug:{},
 };
 function worldPos(o){ const v=new THREE.Vector3(); o.getWorldPosition(v); return {x:v.x,y:v.y,z:v.z}; }
@@ -148,7 +163,7 @@ const loader = new GLTFLoader();
 // ====== État partagé (rempli par les tasks suivantes) ======
 let model = null, mixer = null;
 let velY = 0, grounded = true, groundY = 0;
-const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25;
+const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
 
 // ====== Map : obstacles + bornes ======
@@ -425,6 +440,11 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
+  score=0; G.score=0; ammo=MAG_SIZE; G.ammo=ammo; reloading=false; lastShot=-1;
+  spawnDefaultTargets();
+  document.getElementById('crosshair').classList.remove('hidden');
+  document.getElementById('combat').classList.remove('hidden');
+  updateCombatHud();
   G.phase = 'playing';
 }
 G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
@@ -443,35 +463,53 @@ addEventListener('keydown', e => {
 initLobby();
 
 // ====== Entrées clavier (event.code => ZQSD sur AZERTY) ======
-const input = { forward:false, back:false, left:false, right:false, sprint:false };
+const input = { forward:false, back:false, left:false, right:false, sprint:false, fire:false, aim:false };
 const CODE = { KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
                KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
 addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e.preventDefault(); }
   if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=true;
-  if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); } });
+  if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
+  if(e.code==='KeyR' && G.phase==='playing') reload(); });
 addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
   if(e.code==='ShiftLeft'||e.code==='ShiftRight') input.sprint=false; });
 G.debug.setInput = (s={}) => { input.forward=!!s.forward; input.back=!!s.back;
-  input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint; };
+  input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint;
+  input.fire=!!s.fire; input.aim=!!s.aim; };
 G.debug.setYaw = (r) => { camYaw = r; };
 G.debug.jump = () => { if(G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; } };
 
 // ====== Caméra 3e personne (pointer lock + repli) ======
 const canvasEl = renderer.domElement;
 canvasEl.addEventListener('click', () => { if(G.phase==='playing') canvasEl.requestPointerLock?.(); });
+canvasEl.addEventListener('mousedown', e => {
+  if(G.phase!=='playing' || document.pointerLockElement!==canvasEl) return;
+  if(e.button===0) input.fire = true; else if(e.button===2) input.aim = true;
+});
+addEventListener('mouseup', e => { if(e.button===0) input.fire = false; else if(e.button===2) input.aim = false; });
+canvasEl.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   if(document.pointerLockElement !== canvasEl) return;
   camYaw  -= e.movementX * 0.0025;
   camPitch = Math.max(-0.2, Math.min(0.9, camPitch + e.movementY * 0.0025));
 });
+const AIM_DIST = 3.0, SHOULDER = 0.6;
+let shake = 0;
 function updateCamera(dt){
   if(!model) return;
+  const targetDist = input.aim ? AIM_DIST : CAM_DIST;
+  camDist += (targetDist - camDist) * Math.min(1, dt*10);
   const p = model.position;
-  const tx = p.x, ty = p.y + 1.5, tz = p.z;
+  const right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+  const sh = input.aim ? SHOULDER : 0;
+  const ty = p.y + 1.5;
   const look = new THREE.Vector3(Math.sin(camYaw)*Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw)*Math.cos(camPitch));
-  const desired = new THREE.Vector3(tx - look.x*CAM_DIST, ty + look.y*CAM_DIST, tz - look.z*CAM_DIST);
+  const desired = new THREE.Vector3(
+    p.x - look.x*camDist + right.x*sh,
+    ty + look.y*camDist,
+    p.z - look.z*camDist + right.z*sh);
   camera.position.lerp(desired, Math.min(1, dt*8));
-  camera.lookAt(tx, ty, tz);
+  if(shake > 0){ const k = shake*0.12; camera.position.x += (Math.random()-0.5)*k; camera.position.y += (Math.random()-0.5)*k; shake = Math.max(0, shake - dt*6); }
+  camera.lookAt(p.x + right.x*sh, ty, p.z + right.z*sh);
 }
 
 // ====== Contrôleur + machine d'état locomotion ======
@@ -533,12 +571,97 @@ document.addEventListener('pointerlockchange', () => {
   document.getElementById('pause').classList.toggle('hidden', locked || G.phase!=='playing');
 });
 
+// ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
+const MAG_SIZE = 12, FIRE_COOLDOWN = 0.12, RELOAD_TIME = 1.2, RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
+let ammo = MAG_SIZE, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
+const targets = [];                 // entités-données : { id, mesh, alive, respawnAt }
+const _ray = new THREE.Raycaster();
+const nowS = () => performance.now() / 1000;
+
+function spawnTarget(x, y, z){
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 0.35, 1.4, 16),
+    new THREE.MeshStandardMaterial({ color:0xff4d4d, emissive:0x551111, roughness:0.5 }));
+  mesh.position.set(x, y, z); mesh.castShadow = true; scene.add(mesh);
+  const t = { id: targets.length, mesh, alive:true, respawnAt:0 };
+  targets.push(t); return t;
+}
+function clearTargets(){ for(const t of targets) scene.remove(t.mesh); targets.length = 0; }
+function spawnDefaultTargets(){
+  clearTargets();
+  spawnTarget(-6, 0.7, 8); spawnTarget(0, 0.7, 14); spawnTarget(6, 0.7, 9);
+  spawnTarget(-9, 0.7, -3); spawnTarget(9, 0.7, 2);
+}
+function hitTarget(t){
+  t.alive = false; t.mesh.visible = false; t.respawnAt = nowS() + RESPAWN_DELAY;
+  score++; G.score = score; flashHitMarker();
+}
+function tryFire(){
+  if(G.phase!=='playing' || reloading || ammo <= 0) return false;
+  if(nowS() - lastShot < FIRE_COOLDOWN) return false;
+  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1;
+  _ray.setFromCamera({ x:0, y:0 }, camera);                 // rayon = centre de l'écran (viseur)
+  const meshes = targets.filter(t => t.alive).map(t => t.mesh);
+  const hits = _ray.intersectObjects(meshes, false);
+  const end = hits.length ? hits[0].point.clone()
+    : _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(SHOT_RANGE));
+  spawnTracer(_ray.ray.origin, end);
+  if(hits.length){ const t = targets.find(t => t.mesh === hits[0].object); if(t) hitTarget(t); }
+  return true;
+}
+function reload(){
+  if(reloading || ammo === MAG_SIZE || G.phase!=='playing') return;
+  reloading = true; reloadAt = nowS() + RELOAD_TIME;
+}
+// juice : trace de balle qui s'efface
+const tracers = [];
+function spawnTracer(from, to){
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xfff1a8, transparent:true, opacity:0.9 }));
+  scene.add(line); tracers.push({ line, life:0.08 });
+}
+function updateTracers(dt){
+  for(let i=tracers.length-1;i>=0;i--){
+    const tr = tracers[i]; tr.life -= dt;
+    tr.line.material.opacity = Math.max(0, tr.life/0.08) * 0.9;
+    if(tr.life<=0){ scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); tracers.splice(i,1); }
+  }
+}
+let hmT = null;
+function flashHitMarker(){
+  const hm = document.getElementById('hitmarker'); hm.classList.add('show');
+  clearTimeout(hmT); hmT = setTimeout(() => hm.classList.remove('show'), 120);
+}
+function updateCombatHud(){
+  document.getElementById('combat').innerHTML =
+    `Score <b>${score}</b><br>${reloading ? 'Recharge…' : '🔫 ' + ammo + ' / ' + MAG_SIZE}`;
+}
+function updateCombat(dt){
+  if(G.phase!=='playing') return;
+  if(reloading && nowS() >= reloadAt){ ammo = MAG_SIZE; reloading = false; G.ammo = ammo; }
+  if(input.fire) tryFire();
+  const t = nowS();
+  for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
+  updateTracers(dt);
+  document.getElementById('crosshair').classList.toggle('aim', input.aim);
+  updateCombatHud();
+}
+G.debug.tryFire = () => tryFire();
+G.debug.reload = () => reload();
+G.debug.clearTargets = () => clearTargets();
+G.debug.targetsAlive = () => targets.filter(t => t.alive).length;
+G.debug.spawnTargetInFront = (dist=8) => {
+  _ray.setFromCamera({ x:0, y:0 }, camera);
+  const p = _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(dist));
+  return spawnTarget(p.x, p.y, p.z).id;
+};
+
 // ====== Boucle ======
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCamera(dt); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateCamera(dt); }
   else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);
