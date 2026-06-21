@@ -47,7 +47,7 @@
   #vignette{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s;
     box-shadow:inset 0 0 140px 40px rgba(200,20,20,.85)}
   #vignette.show{opacity:1}
-  #healthbar{position:fixed;left:16px;bottom:96px;width:240px;height:16px;z-index:10;
+  #healthbar{position:fixed;left:16px;bottom:124px;width:240px;height:16px;z-index:10;
     background:rgba(20,24,33,.8);border:1px solid rgba(120,150,220,.25);border-radius:9px;overflow:hidden}
   #healthbar.hidden{display:none}
   #health-fill{height:100%;width:100%;background:linear-gradient(90deg,#3ad17a,#8fe07a);transition:width .15s}
@@ -789,7 +789,7 @@ G.debug.restart = () => restartGame();
 
 // ====== Ennemis / IA ======
 const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE_TIME = 3.0,
-      ATTACK_RANGE = 1.6, ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
+      ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
       ENEMY_R = 0.45, ENEMY_RESPAWN = 3.0, ENEMY_FLASH = 0.08, ENEMY_TURN = 8,
       SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
 let enemyAccOverride = null;                   // pour les tests (précision forcée)
