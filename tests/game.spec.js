@@ -442,3 +442,15 @@ test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', a
   expect(await page.evaluate(() => __game.health)).toBe(60);
   await page.waitForFunction(() => __game.health > 60, null, { timeout:8000 }); // régén après délai
 });
+
+test('à 0 PV : Game Over, puis Rejouer remet la partie à zéro', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(100));
+  expect(await page.evaluate(() => __game.phase)).toBe('dead');
+  await expect(page.locator('#gameover')).toBeVisible();
+  await page.evaluate(() => __game.debug.restart());
+  expect(await page.evaluate(() => __game.phase)).toBe('playing');
+  expect(await page.evaluate(() => __game.health)).toBe(100);
+  expect(await page.evaluate(() => __game.score)).toBe(0);
+  await expect(page.locator('#gameover')).toBeHidden();
+});

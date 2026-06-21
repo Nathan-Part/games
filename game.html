@@ -762,6 +762,23 @@ function updateHealth(dt){
 G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
 
+function playerDie(){
+  G.phase = 'dead';
+  if(document.pointerLockElement) document.exitPointerLock?.();
+  document.getElementById('go-score').textContent = 'Score : ' + score;
+  document.getElementById('gameover').classList.remove('hidden');
+}
+function restartGame(){
+  document.getElementById('gameover').classList.add('hidden');
+  if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
+  health = MAX_HEALTH; G.health = health; lastDamageAt = -999; updateHealthHud();
+  score = 0; G.score = 0; ammo = MAG_SIZE; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
+  spawnDefaultTargets(); createEnemies();
+  G.phase = 'playing';
+}
+document.getElementById('go-restart').addEventListener('click', restartGame);
+G.debug.restart = () => restartGame();
+
 // ====== Ennemis / IA ======
 const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE_TIME = 3.0,
       ATTACK_RANGE = 1.6, ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
