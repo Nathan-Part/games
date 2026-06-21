@@ -76,6 +76,7 @@
   .gcard .dt{padding:0 10px 8px;font-size:11px;color:#7c858f}
   .gcard .ga{display:flex;gap:6px;padding:0 10px 10px}
   .gcard .ga .btn{flex:1;padding:6px;font-size:12px}
+  .gr-toggle.on{border-color:#3ad17a;color:#bdf5cf;background:rgba(58,209,122,.18)}
   .gempty{color:#7c858f;padding:24px;font-size:14px}
 
   /* Sidebar gauche : personnages + bibliothèque d'animations */
@@ -790,9 +791,12 @@ async function openGallery(){
     const dt=document.createElement('div'); dt.className='dt'; dt.textContent=(rec.format||'').toUpperCase()+' · '+(rec.date||'');
     const ga=document.createElement('div'); ga.className='ga';
     const ob=document.createElement('button'); ob.className='btn'; ob.textContent='Ouvrir'; ob.onclick=()=>openSaved(rec);
+    const gr=document.createElement('button'); gr.className='btn gr-toggle'+(rec.gameReady?' on':'');
+    gr.textContent=rec.gameReady?'🎮 Jouable ✓':'🎮 Jouable'; gr.title='Rendre ce perso jouable dans le jeu';
+    gr.onclick=async()=>{ rec.gameReady=!rec.gameReady; try{ await dbPut(rec); }catch(e){} openGallery(); };
     const de=document.createElement('button'); de.className='btn'; de.textContent='🗑'; de.style.flex='0 0 auto';
     de.onclick=async()=>{ await dbDel(rec.id); openGallery(); };
-    ga.append(ob,de); c.append(img,nm,dt,ga); grid.appendChild(c);
+    ga.append(ob,gr,de); c.append(img,nm,dt,ga); grid.appendChild(c);
   });
 }
 function closeGallery(){ $('gallery').classList.remove('show'); }
@@ -941,6 +945,7 @@ addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
 });
+window.__studioReady = true;   // signal de test
 </script>
 </body>
 </html>

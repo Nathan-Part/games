@@ -481,3 +481,19 @@ test('filterPlayable : ne garde que les persos validés (repli si aucun)', async
   const r2 = await page.evaluate(() => __game.debug.filterPlayable([{id:'b'},{id:'c'}]).map(c=>c.id));
   expect(r2).toEqual(['b','c']); // repli : aucun validé => tous
 });
+
+test('studio : le bouton 🎮 valide un perso pour le jeu (persisté)', async ({ page }) => {
+  await page.goto('/studio.html');
+  await page.waitForFunction(() => window.__studioReady === true, null, { timeout:20000 });
+  await page.click('#btn-gallery');
+  await page.waitForSelector('#gallery-grid .gcard', { timeout:20000 });
+  await page.locator('.gcard', { hasText: 'Guard' }).first().locator('.gr-toggle').click();
+  const ready = await page.evaluate(async () => {
+    const recs = await new Promise((res) => { const rq = indexedDB.open('studio3d',1);
+      rq.onsuccess = () => { const all = rq.result.transaction('models','readonly').objectStore('models').getAll();
+        all.onsuccess = () => res(all.result || []); }; });
+    const g = recs.find(r => (r.name||'').toLowerCase() === 'guard');
+    return g && g.gameReady === true;
+  });
+  expect(ready).toBe(true);
+});
