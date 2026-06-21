@@ -489,8 +489,7 @@ async function startGame(){
   health = MAX_HEALTH; G.health = health; lastDamageAt = -999;
   document.getElementById('healthbar').classList.remove('hidden'); updateHealthHud();
   initAudio();
-  if(!weaponTemplate) weaponTemplate = await loadWeaponTemplate();
-  attachWeaponToHand(weaponTemplate);
+  ensureWeapon();                              // chargement non-bloquant (l'arme apparaît dès qu'elle est prête)
   G.phase = 'playing';
 }
 G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
@@ -1052,7 +1051,7 @@ G.debug.spawnEnemyInFront = (dist=8) => {
 };
 
 // ====== Arme (modèle + attache main + viewmodel) ======
-const WEAPON_DIR = 'armes/';
+const WEAPON_DIR = 'artefact/';
 let weaponSource = 'primitive', weaponTemplate = null, heldWeapon = null, viewModel = null;
 let handBoneName = null, weaponRecoil = 0, cameraInScene = false;
 function buildWeaponMesh(){
@@ -1068,18 +1067,41 @@ function buildWeaponMesh(){
   g.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
   return g;   // +Z = canon vers l'avant, longueur ~0.5
 }
-async function loadWeaponTemplate(){
+async function findWeaponGlb(){
   try {
-    const files = (await listDir(WEAPON_DIR)).filter(isGlb);
-    if(files.length){
-      const g = await loader.loadAsync(WEAPON_DIR + files[0]);
-      const box = new THREE.Box3().setFromObject(g.scene), s = box.getSize(new THREE.Vector3());
-      g.scene.scale.setScalar(0.5 / (Math.max(s.x,s.y,s.z) || 1));
-      g.scene.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
-      weaponSource = 'glb'; return g.scene;
+    const entries = await listDir(WEAPON_DIR);
+    const direct = entries.filter(isGlb); if(direct.length) return WEAPON_DIR + direct[0];
+    for(const d of entries.filter(h => h.endsWith('/'))){
+      try { const sub = (await listDir(WEAPON_DIR + d)).filter(isGlb); if(sub.length) return WEAPON_DIR + d + sub[0]; } catch(e){}
     }
   } catch(e){}
+  return null;
+}
+const WEAPON_LEN = 0.62;   // longueur cible du fusil (m)
+async function loadWeaponTemplate(){
+  const url = await findWeaponGlb();
+  if(url){ try {
+    const g = await loader.loadAsync(url);
+    g.scene.updateMatrixWorld(true);                       // matrices à jour avant la mesure (bbox fiable)
+    const box = new THREE.Box3().setFromObject(g.scene), s = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxd = Math.max(s.x, s.y, s.z) || 1, sc = WEAPON_LEN / maxd;
+    g.scene.scale.setScalar(sc);
+    g.scene.position.sub(center.multiplyScalar(sc));       // recentrer à l'origine
+    g.scene.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+    // axe le plus long = canon ; on le ramène sur +Z (convention du primitive)
+    const wrap = new THREE.Group();
+    if(s.x >= s.y && s.x >= s.z) g.scene.rotation.y = -Math.PI/2;       // +X -> +Z
+    else if(s.y >= s.x && s.y >= s.z) g.scene.rotation.x = Math.PI/2;   // +Y -> +Z
+    wrap.add(g.scene);
+    weaponSource = 'glb'; return wrap;
+  } catch(e){} }
   weaponSource = 'primitive'; return buildWeaponMesh();
+}
+async function ensureWeapon(){
+  if(heldWeapon) return;
+  if(!weaponTemplate) weaponTemplate = await loadWeaponTemplate();
+  if(model && !heldWeapon) attachWeaponToHand(weaponTemplate);
 }
 function attachWeaponToHand(template){
   if(!model || heldWeapon) return;
@@ -1090,9 +1112,9 @@ function attachWeaponToHand(template){
   handBoneName = hand.name;
   heldWeapon = template.clone();
   const ws = new THREE.Vector3(); hand.getWorldScale(ws);
-  heldWeapon.scale.setScalar(1 / (ws.x || 1));
-  heldWeapon.position.set(0.02, 0.0, 0.06);
-  heldWeapon.rotation.set(Math.PI/2, 0, 0);   // réglage initial (affiné par capture)
+  heldWeapon.scale.multiplyScalar(1 / (ws.x || 1));   // garde la normalisation du template
+  heldWeapon.position.set(0.0, 0.02, 0.08);
+  heldWeapon.rotation.set(Math.PI/2, 0, 0);
   hand.add(heldWeapon);
   if(!viewModel) viewModel = buildViewModel(template);
 }

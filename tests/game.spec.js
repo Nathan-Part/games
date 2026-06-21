@@ -557,7 +557,7 @@ test('un ennemi touché se retourne et poursuit le joueur, même hors de portée
 test('arme : modèle construit en code par défaut, tenue à la main droite', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
-  expect(await page.evaluate(() => __game.debug.weapon.source())).toBe('primitive');
+  expect(await page.evaluate(() => __game.debug.weapon.source())).toBe('glb');
   expect(await page.evaluate(() => __game.debug.weapon.handBone())).toBe('RightHand');
 });
 
