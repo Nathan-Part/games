@@ -410,11 +410,13 @@ test('tirer sur un ennemi devant lui inflige des dégâts', async ({ page }) => 
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
   await page.waitForTimeout(120);
   await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
-  const alive0 = await page.evaluate(() => __game.debug.enemyAlive());
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));   // 100
   const fired = await page.evaluate(() => __game.debug.tryFire());
   expect(fired).toBe(true);
-  // tir à hauteur des yeux (~1.62) = tête => 100 dégâts => mort en 1 balle
-  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(alive0 - 1);
+  const hp1 = await page.evaluate(() => __game.debug.enemyHp(0));
+  // tir à hauteur des yeux = tête (60 dégâts) : touché mais PAS tué en 1 balle (bots coriaces)
+  expect(hp1).toBeLessThan(hp0);
+  expect(hp1).toBeGreaterThan(0);
 });
 
 test('l’ennemi fait à peu près la taille du joueur (pas géant) et utilise le modèle enemie', async ({ page }) => {
@@ -431,9 +433,9 @@ test('hitZoneDamage : tête/torse/jambes', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.booted);
   const z = (y) => page.evaluate(yy => __game.debug.hitZoneDamage(yy), y);
-  expect((await z(1.7)).zone).toBe('head');  expect((await z(1.7)).damage).toBe(100);
-  expect((await z(1.0)).zone).toBe('torso'); expect((await z(1.0)).damage).toBe(50);
-  expect((await z(0.3)).zone).toBe('legs');  expect((await z(0.3)).damage).toBe(25);
+  expect((await z(1.7)).zone).toBe('head');  expect((await z(1.7)).damage).toBe(60);
+  expect((await z(1.0)).zone).toBe('torso'); expect((await z(1.0)).damage).toBe(25);
+  expect((await z(0.3)).zone).toBe('legs');  expect((await z(0.3)).damage).toBe(15);
 });
 
 test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', async ({ page }) => {
@@ -441,7 +443,7 @@ test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', a
   expect(await page.evaluate(() => __game.health)).toBe(100);
   await page.evaluate(() => __game.debug.damagePlayer(40));
   expect(await page.evaluate(() => __game.health)).toBe(60);
-  await page.waitForFunction(() => __game.health > 60, null, { timeout:8000 }); // régén après délai
+  await page.waitForFunction(() => __game.health > 60, null, { timeout:12000 }); // régén après le délai (6 s)
 });
 
 test('à 0 PV : Game Over, puis Rejouer remet la partie à zéro', async ({ page }) => {
