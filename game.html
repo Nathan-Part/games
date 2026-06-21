@@ -661,7 +661,8 @@ function tryFire(){
     const obj = hits[0].object;
     const t = targets.find(t => t.mesh === obj);
     if(t) hitTarget(t);
-    else { const e = enemies.find(e => e.hitbox === obj); if(e) damageEnemy(e); }
+    else { const e = enemies.find(e => e.hitbox === obj);
+      if(e){ const relY = hits[0].point.y - e.root.position.y; damageEnemy(e, hitZoneDamage(relY).damage); } }
   }
   return true;
 }
@@ -714,7 +715,7 @@ G.debug.spawnTargetInFront = (dist=8) => {
 
 // ====== Ennemis / IA ======
 const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE_TIME = 3.0,
-      ATTACK_RANGE = 1.6, ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 3,
+      ATTACK_RANGE = 1.6, ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
       ENEMY_R = 0.45, ENEMY_RESPAWN = 3.0, ENEMY_FLASH = 0.08, ENEMY_TURN = 8;
 const ENEMY_FOOT_Y = 0;                       // pieds au sol (modèle ennemi centré dans un groupe)
 const FLASH_COLOR = new THREE.Color(0xff2222);
@@ -729,6 +730,15 @@ function enemyDecision(dist, state){
   return 'patrol';
 }
 G.debug.enemyDecision = enemyDecision;
+
+// dégâts localisés : zone d'impact selon la hauteur relative aux pieds de l'ennemi
+const HEAD_Y = 1.5, LEGS_Y = 0.6, DMG_HEAD = 100, DMG_TORSO = 50, DMG_LEGS = 25;
+function hitZoneDamage(relY){
+  if(relY >= HEAD_Y) return { zone:'head', damage:DMG_HEAD };
+  if(relY <= LEGS_Y) return { zone:'legs', damage:DMG_LEGS };
+  return { zone:'torso', damage:DMG_TORSO };
+}
+G.debug.hitZoneDamage = hitZoneDamage;
 
 function makeHitbox(){
   const hb = new THREE.Mesh(
@@ -896,9 +906,9 @@ G.debug.spawnEnemyAt = (x, z) => {
 function setEnemyEmissive(e, on){
   for(const m of e.mats) m.mat.emissive.copy(on ? FLASH_COLOR : m.base);
 }
-function damageEnemy(e){
+function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
-  e.hp--; setEnemyEmissive(e, true); e.flashUntil = nowS() + ENEMY_FLASH;
+  e.hp -= amount; setEnemyEmissive(e, true); e.flashUntil = nowS() + ENEMY_FLASH;
   if(e.hp <= 0) killEnemy(e);
 }
 function killEnemy(e){
@@ -914,7 +924,7 @@ function respawnEnemy(e){
   e.actions.idle?.reset().play();
   e.hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); e.hitbox.updateMatrixWorld();
 }
-G.debug.damageEnemy = (i) => damageEnemy(enemies[i]);
+G.debug.damageEnemy = (i, amount) => damageEnemy(enemies[i], amount);
 G.debug.setPitch = (p) => { camPitch = p; clampPitch(); };
 G.debug.spawnEnemyInFront = (dist=8) => {
   _ray.setFromCamera({ x:0, y:0 }, camera);

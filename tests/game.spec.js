@@ -387,19 +387,19 @@ test('au contact, l’ennemi passe en attaque et ne traverse pas le joueur', asy
   expect(Math.hypot(p.x-q.x, p.z-q.z)).toBeGreaterThan(0.8); // reste à distance de contact
 });
 
-test('3 touches tuent un ennemi (+1 score) puis il réapparaît', async ({ page }) => {
+test('cumuler des dégâts tue un ennemi (+1 score) puis il réapparaît', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   const s0 = await page.evaluate(() => __game.score);
-  await page.evaluate(() => { __game.debug.damageEnemy(0); __game.debug.damageEnemy(0); });
-  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(1);
-  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(3);   // pas encore mort
-  await page.evaluate(() => __game.debug.damageEnemy(0));                 // 3e touche
-  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);   // mort
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));            // torse
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(50);
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(3);   // pas encore mort (100 PV)
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));            // total 100 => mort
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);
   expect(await page.evaluate(() => __game.score)).toBe(s0 + 1);          // +1 score
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
   await page.waitForFunction(() => __game.debug.enemyAlive() === 3, null, { timeout:6000 }); // respawn
-  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(3);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(100);
 });
 
 test('tirer sur un ennemi devant lui inflige des dégâts', async ({ page }) => {
@@ -409,10 +409,11 @@ test('tirer sur un ennemi devant lui inflige des dégâts', async ({ page }) => 
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
   await page.waitForTimeout(120);
   await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
-  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  const alive0 = await page.evaluate(() => __game.debug.enemyAlive());
   const fired = await page.evaluate(() => __game.debug.tryFire());
   expect(fired).toBe(true);
-  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(hp0 - 1);
+  // tir à hauteur des yeux (~1.62) = tête => 100 dégâts => mort en 1 balle
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(alive0 - 1);
 });
 
 test('l’ennemi fait à peu près la taille du joueur (pas géant) et utilise le modèle enemie', async ({ page }) => {
@@ -423,4 +424,13 @@ test('l’ennemi fait à peu près la taille du joueur (pas géant) et utilise l
   expect(eh).toBeGreaterThan(ph*0.8);   // pas nain
   expect(eh).toBeLessThan(ph*1.25);     // pas géant (avant fix : ~1.8x => échouait)
   expect((await page.evaluate(() => __game.debug.enemyLabel())).toLowerCase()).toContain('enem');
+});
+
+test('hitZoneDamage : tête/torse/jambes', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const z = (y) => page.evaluate(yy => __game.debug.hitZoneDamage(yy), y);
+  expect((await z(1.7)).zone).toBe('head');  expect((await z(1.7)).damage).toBe(100);
+  expect((await z(1.0)).zone).toBe('torso'); expect((await z(1.0)).damage).toBe(50);
+  expect((await z(0.3)).zone).toBe('legs');  expect((await z(0.3)).damage).toBe(25);
 });
