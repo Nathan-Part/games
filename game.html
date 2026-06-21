@@ -34,11 +34,16 @@
   #overlay code{background:rgba(255,255,255,.08);padding:2px 7px;border-radius:6px;color:#ffd479}
   #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:18px;height:18px;pointer-events:none}
   #crosshair.hidden{display:none}
-  #sight{position:fixed;left:50%;top:50%;width:36px;height:36px;transform:translate(-50%,-50%);z-index:11;
-    border:2px solid rgba(120,225,150,.9);border-radius:50%;display:none;pointer-events:none;box-shadow:0 0 6px rgba(0,0,0,.6)}
-  #sight::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;
-    transform:translate(-50%,-50%);background:rgba(120,225,150,.95)}
+  #sight{position:fixed;left:50%;top:50%;width:40px;height:40px;transform:translate(-50%,-50%);z-index:12;
+    border:1.5px solid rgba(120,235,150,.55);border-radius:50%;display:none;pointer-events:none}
+  #sight::before{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;border-radius:50%;
+    transform:translate(-50%,-50%);background:#7dff9e;box-shadow:0 0 6px 1px rgba(120,255,150,.9)}
+  #sight::after{content:"";position:absolute;left:50%;top:-9px;width:1.5px;height:7px;transform:translateX(-50%);
+    background:rgba(120,235,150,.7);box-shadow:0 49px 0 rgba(120,235,150,.7)}
   #sight.show{display:block}
+  #scope{position:fixed;inset:0;z-index:11;pointer-events:none;opacity:0;transition:opacity .12s;
+    background:radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,.45) 62%, rgba(0,0,0,.85) 100%)}
+  #scope.show{opacity:1}
   #crosshair::before,#crosshair::after{content:"";position:absolute;background:#e8f0ff;box-shadow:0 0 3px rgba(0,0,0,.85)}
   #crosshair::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
   #crosshair::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
@@ -84,6 +89,7 @@
 <div id="pause" class="hidden"><div>⏸ En pause — clique pour reprendre</div></div>
 <div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
 <div id="crosshair" class="hidden"></div>
+<div id="scope"></div>
 <div id="sight"></div>
 <div id="hitmarker">✕</div>
 <div id="combat" class="hidden"></div>
@@ -194,7 +200,7 @@ const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
 const EYE_HEIGHT = 1.62;                       // hauteur des yeux (vue 1re personne)
 let view = 'third';                            // 'third' | 'first'
-function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } // on ne se voit pas en FPS
+function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } // masqué en FPS (viewmodel à la place)
 function setView(v){
   view = (v === 'first') ? 'first' : 'third';
   G.view = view; applyViewVisibility(); clampPitch();   // recale le pitch dans la plage du mode
@@ -578,7 +584,7 @@ function updateCamera(dt){
   if(view === 'first'){
     const p = model.position;
     const eye = p.y + EYE_HEIGHT;
-    camDist += (0 - camDist) * Math.min(1, dt*10);   // dist ~0 (cohérence du contrat caméra)
+    camDist += (0 - camDist) * Math.min(1, dt*10);
     camera.position.set(p.x, eye, p.z);
     if(shake > 0){ const k = shake*0.06; camera.position.x += (Math.random()-0.5)*k; camera.position.y += (Math.random()-0.5)*k; shake = Math.max(0, shake - dt*6); }
     const look = new THREE.Vector3(Math.sin(camYaw)*Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw)*Math.cos(camPitch));
@@ -743,6 +749,7 @@ function updateCombat(dt){
   updateTracers(dt);
   const aiming = input.aim && G.phase==='playing';
   document.getElementById('sight').classList.toggle('show', aiming);
+  document.getElementById('scope').classList.toggle('show', aiming);
   document.getElementById('crosshair').style.visibility = aiming ? 'hidden' : 'visible';
   updateCombatHud();
 }
@@ -1088,6 +1095,7 @@ async function findWeaponGlb(){
 }
 const WEAPON_LEN = 0.62;   // longueur cible du fusil (m)
 async function loadWeaponTemplate(){
+  if(window.__FAST_WEAPON__){ weaponSource = 'primitive'; return buildWeaponMesh(); } // tests : évite le GLB 13 Mo
   const url = await findWeaponGlb();
   if(url){ try {
     const g = await loader.loadAsync(url);
@@ -1129,11 +1137,7 @@ function attachWeaponToHand(template){
 }
 function buildViewModel(template){
   const grp = new THREE.Group();
-  const wpn = template.clone(); grp.add(wpn);
-  const skin = new THREE.MeshStandardMaterial({ color:0x8a5a3c, roughness:0.85 });
-  const armR = new THREE.Mesh(new THREE.BoxGeometry(0.055,0.055,0.22), skin); armR.position.set(0.05,-0.075,-0.16);
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.16), skin);  armL.position.set(-0.035,-0.05,0.06);
-  grp.add(armR, armL);
+  const wpn = template.clone(); grp.add(wpn);   // juste l'arme (plus de fausses boîtes-bras)
   grp.traverse(o=>{ if(o.isMesh) o.castShadow = false; });
   if(!cameraInScene){ scene.add(camera); cameraInScene = true; }
   camera.add(grp);
@@ -1143,8 +1147,8 @@ function buildViewModel(template){
   return grp;
 }
 const FOV_BASE = 55, FOV_ADS = 42, ADS_LERP = 10;
-const VM_HIP = new THREE.Vector3(0.12, -0.11, -0.34);   // pose hanche
-const VM_ADS = new THREE.Vector3(0.0, -0.045, -0.27);   // pose visée (centrée, relevée)
+const VM_HIP = new THREE.Vector3(0.12, -0.11, -0.34);   // pose hanche (arme visible en bas-droite)
+const VM_ADS = new THREE.Vector3(0.05, -0.26, -0.30);   // pose visée : l'arme plonge -> centre dégagé pour le viseur
 let adsT = 0;
 function updateWeapon(dt){
   if(weaponRecoil > 0) weaponRecoil = Math.max(0, weaponRecoil - dt*6);
@@ -1152,9 +1156,9 @@ function updateWeapon(dt){
   adsT += (aimNow - adsT) * Math.min(1, dt*ADS_LERP);
   if(viewModel){
     viewModel.visible = (view === 'first' && G.phase === 'playing');
-    viewModel.position.lerpVectors(VM_HIP, VM_ADS, adsT);
+    viewModel.position.lerpVectors(VM_HIP, VM_ADS, adsT);   // en visée : l'arme plonge pour dégager le centre
     viewModel.position.z += weaponRecoil * 0.06;
-    viewModel.rotation.set(0.05 + weaponRecoil*0.18, Math.PI + 0.12*(1-adsT), 0);
+    viewModel.rotation.set(0.05 + weaponRecoil*0.18 + 0.25*adsT, Math.PI + 0.12*(1-adsT), 0);
   }
   if(heldWeapon) heldWeapon.rotation.z = weaponRecoil * 0.2;
   camera.fov = FOV_BASE + (FOV_ADS - FOV_BASE) * adsT; camera.updateProjectionMatrix();

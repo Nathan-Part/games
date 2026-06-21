@@ -78,6 +78,7 @@ test('démarrer charge le perso, le retargette et joue idle', async ({ page }) =
 });
 
 async function startPlaying(page){
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; }); // arme primitive (rapide) sauf test dédié
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
   await page.evaluate(() => __game.debug.start(0));
@@ -555,7 +556,11 @@ test('un ennemi touché se retourne et poursuit le joueur, même hors de portée
 });
 
 test('arme : chargee depuis artefact (GLB) et tenue a la main droite', async ({ page }) => {
-  await startPlaying(page);
+  // ce test charge le VRAI GLB (pas de flag arme-rapide)
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.start(0));
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout:20000 });
   await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:30000 });
   expect(await page.evaluate(() => __game.debug.weapon.source())).toBe('glb');
   expect(await page.evaluate(() => __game.debug.weapon.handBone())).toBe('RightHand');
