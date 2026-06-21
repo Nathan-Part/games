@@ -401,3 +401,16 @@ test('3 touches tuent un ennemi (+1 score) puis il réapparaît', async ({ page 
   await page.waitForFunction(() => __game.debug.enemyAlive() === 3, null, { timeout:6000 }); // respawn
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(3);
 });
+
+test('tirer sur un ennemi devant lui inflige des dégâts', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  // vue 1re personne, regard horizontal => le rayon passe à hauteur du hitbox
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(120);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  const fired = await page.evaluate(() => __game.debug.tryFire());
+  expect(fired).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(hp0 - 1);
+});

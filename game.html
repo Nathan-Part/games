@@ -650,12 +650,19 @@ function tryFire(){
   if(nowS() - lastShot < FIRE_COOLDOWN) return false;
   lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1;
   _ray.setFromCamera({ x:0, y:0 }, camera);                 // rayon = centre de l'écran (viseur)
-  const meshes = targets.filter(t => t.alive).map(t => t.mesh);
-  const hits = _ray.intersectObjects(meshes, false);
+  const shoot = [];
+  for(const t of targets) if(t.alive) shoot.push(t.mesh);
+  for(const e of enemies) if(e.alive) shoot.push(e.hitbox);
+  const hits = _ray.intersectObjects(shoot, false);
   const end = hits.length ? hits[0].point.clone()
     : _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(SHOT_RANGE));
   spawnTracer(_ray.ray.origin, end);
-  if(hits.length){ const t = targets.find(t => t.mesh === hits[0].object); if(t) hitTarget(t); }
+  if(hits.length){
+    const obj = hits[0].object;
+    const t = targets.find(t => t.mesh === obj);
+    if(t) hitTarget(t);
+    else { const e = enemies.find(e => e.hitbox === obj); if(e) damageEnemy(e); }
+  }
   return true;
 }
 function reload(){
@@ -891,6 +898,12 @@ function respawnEnemy(e){
   e.hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); e.hitbox.updateMatrixWorld();
 }
 G.debug.damageEnemy = (i) => damageEnemy(enemies[i]);
+G.debug.setPitch = (p) => { camPitch = p; clampPitch(); };
+G.debug.spawnEnemyInFront = (dist=8) => {
+  _ray.setFromCamera({ x:0, y:0 }, camera);
+  const p = _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(dist));
+  return G.debug.spawnEnemyAt(p.x, p.z);
+};
 
 // ====== Boucle ======
 const clock = new THREE.Clock();
