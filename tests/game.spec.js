@@ -365,3 +365,24 @@ test('un ennemi loin du joueur patrouille (sa position change) et reste dans les
   expect(Math.abs(p1.x)).toBeLessThanOrEqual(24.01);              // dans les bornes (MAP_HALF=24)
   expect(Math.abs(p1.z)).toBeLessThanOrEqual(24.01);
 });
+
+test('un ennemi proche poursuit le joueur (chase) et réduit la distance', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 8)); // à 8 u du joueur (origine), dans le rayon
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'chase', null, { timeout:3000 });
+  const d0 = await page.evaluate(() => { const p = __game.debug.enemyPos(0), q = __game.position(); return Math.hypot(p.x-q.x, p.z-q.z); });
+  await page.waitForTimeout(1000);
+  const d1 = await page.evaluate(() => { const p = __game.debug.enemyPos(0), q = __game.position(); return Math.hypot(p.x-q.x, p.z-q.z); });
+  expect(d1).toBeLessThan(d0 - 0.5); // il s'est rapproché
+});
+
+test('au contact, l’ennemi passe en attaque et ne traverse pas le joueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 1.2)); // collé au joueur
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'attack', null, { timeout:3000 });
+  await page.waitForTimeout(400);
+  const p = await page.evaluate(() => __game.debug.enemyPos(0)), q = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p.x-q.x, p.z-q.z)).toBeGreaterThan(0.8); // reste à distance de contact
+});

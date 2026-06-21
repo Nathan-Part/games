@@ -782,12 +782,31 @@ function createEnemies(){
   }
 }
 function updateEnemies(dt){
-  if(G.phase!=='playing') return;
+  if(G.phase!=='playing' || !model) return;
+  const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
-    if(!e.target || Math.hypot(e.target.x - e.root.position.x, e.target.z - e.root.position.z) < 0.6) pickPatrol(e);
-    moveToward(e, e.target.x, e.target.z, ENEMY_WALK, dt);
+    const dx = px - e.root.position.x, dz = pz - e.root.position.z;
+    const dist = Math.hypot(dx, dz);
+    // transitions (avec hystérésis)
+    if(e.state === 'attack'){
+      if(dist > ATTACK_RANGE*1.2) e.state = 'chase';
+    } else if(e.state === 'chase'){
+      if(dist <= ATTACK_RANGE) e.state = 'attack';
+      else if(dist > LOSE_RADIUS){ e.lostFor += dt; if(e.lostFor >= LOSE_TIME){ e.state = 'patrol'; e.lostFor = 0; pickPatrol(e); } }
+      else e.lostFor = 0;
+    } else { // patrol
+      if(dist <= DETECT_RADIUS){ e.state = 'chase'; e.lostFor = 0; }
+    }
+    // action selon l'état
+    let desired = 'idle';
+    if(e.state === 'chase'){ moveToward(e, px, pz, ENEMY_RUN, dt); desired = 'run'; }
+    else if(e.state === 'attack'){ faceToward(e, px, pz, dt); desired = e.actions.attack ? 'attack' : 'idle'; }
+    else { // patrol
+      if(!e.target || Math.hypot(e.target.x - e.root.position.x, e.target.z - e.root.position.z) < 0.6) pickPatrol(e);
+      moveToward(e, e.target.x, e.target.z, ENEMY_WALK, dt); desired = 'walk';
+    }
     clampEnemy(e);
-    setEnemyLoco(e, 'walk');
+    setEnemyLoco(e, desired);
     e.hitbox.position.set(e.root.position.x, e.root.position.y + 0.9, e.root.position.z);
     e.hitbox.updateMatrixWorld();
     e.mixer.update(dt);
@@ -814,6 +833,11 @@ function moveToward(e, tx, tz, spd, dt){
 }
 function pickPatrol(e){
   e.target = { x:(Math.random()*2-1)*MAP_HALF*0.9, z:(Math.random()*2-1)*MAP_HALF*0.9 };
+}
+function faceToward(e, tx, tz, dt){
+  const dx = tx - e.root.position.x, dz = tz - e.root.position.z;
+  const len = Math.hypot(dx, dz) || 1;
+  faceDir(e, dx/len, dz/len, dt);
 }
 function clampEnemy(e){
   e.root.position.x = Math.max(-MAP_HALF, Math.min(MAP_HALF, e.root.position.x));
