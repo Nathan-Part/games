@@ -553,3 +553,10 @@ test('un ennemi touché se retourne et poursuit le joueur, même hors de portée
   await page.evaluate(() => __game.debug.damageEnemy(0, 10)); // on le touche de loin
   await page.waitForFunction(() => __game.debug.enemyState(0) === 'chase', null, { timeout:3000 }); // il aggro
 });
+
+test('arme : modèle construit en code par défaut, tenue à la main droite', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.weapon.source())).toBe('primitive');
+  expect(await page.evaluate(() => __game.debug.weapon.handBone())).toBe('RightHand');
+});
