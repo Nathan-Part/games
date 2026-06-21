@@ -386,3 +386,18 @@ test('au contact, l’ennemi passe en attaque et ne traverse pas le joueur', asy
   const p = await page.evaluate(() => __game.debug.enemyPos(0)), q = await page.evaluate(() => __game.position());
   expect(Math.hypot(p.x-q.x, p.z-q.z)).toBeGreaterThan(0.8); // reste à distance de contact
 });
+
+test('3 touches tuent un ennemi (+1 score) puis il réapparaît', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  const s0 = await page.evaluate(() => __game.score);
+  await page.evaluate(() => { __game.debug.damageEnemy(0); __game.debug.damageEnemy(0); });
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(1);
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(3);   // pas encore mort
+  await page.evaluate(() => __game.debug.damageEnemy(0));                 // 3e touche
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);   // mort
+  expect(await page.evaluate(() => __game.score)).toBe(s0 + 1);          // +1 score
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+  await page.waitForFunction(() => __game.debug.enemyAlive() === 3, null, { timeout:6000 }); // respawn
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(3);
+});

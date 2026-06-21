@@ -785,6 +785,12 @@ function updateEnemies(dt){
   if(G.phase!=='playing' || !model) return;
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
+    if(e.state === 'dead'){
+      e.root.rotation.x = Math.min(1.45, e.root.rotation.x + dt*3); // bascule au sol
+      if(nowS() >= e.respawnAt) respawnEnemy(e);
+      e.mixer.update(dt);
+      continue;
+    }
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
     // transitions (avec hystérésis)
@@ -809,6 +815,7 @@ function updateEnemies(dt){
     setEnemyLoco(e, desired);
     e.hitbox.position.set(e.root.position.x, e.root.position.y + 0.9, e.root.position.z);
     e.hitbox.updateMatrixWorld();
+    if(e.flashUntil && nowS() >= e.flashUntil){ setEnemyEmissive(e, false); e.flashUntil = 0; }
     e.mixer.update(dt);
   }
 }
@@ -861,6 +868,29 @@ G.debug.spawnEnemyAt = (x, z) => {
   e.hitbox.position.set(x, ENEMY_FOOT_Y+0.9, z); e.hitbox.updateMatrixWorld();
   return e.id;
 };
+
+function setEnemyEmissive(e, on){
+  for(const m of e.mats) m.mat.emissive.copy(on ? FLASH_COLOR : m.base);
+}
+function damageEnemy(e){
+  if(!e || !e.alive) return;
+  e.hp--; setEnemyEmissive(e, true); e.flashUntil = nowS() + ENEMY_FLASH;
+  if(e.hp <= 0) killEnemy(e);
+}
+function killEnemy(e){
+  e.alive = false; e.state = 'dead'; e.loco = 'dead'; e.respawnAt = nowS() + ENEMY_RESPAWN;
+  e.mixer.stopAllAction();
+  score++; G.score = score; flashHitMarker();
+}
+function respawnEnemy(e){
+  const sp = randomSpawn();
+  e.root.position.set(sp.x, ENEMY_FOOT_Y, sp.z); e.root.rotation.set(0, 0, 0);
+  e.hp = ENEMY_HP; e.alive = true; e.state = 'patrol'; e.loco = 'idle'; e.lostFor = 0; pickPatrol(e);
+  setEnemyEmissive(e, false);
+  e.actions.idle?.reset().play();
+  e.hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); e.hitbox.updateMatrixWorld();
+}
+G.debug.damageEnemy = (i) => damageEnemy(enemies[i]);
 
 // ====== Boucle ======
 const clock = new THREE.Clock();
