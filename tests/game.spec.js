@@ -528,3 +528,19 @@ test('audio : un son est joué/journalisé, le mute le coupe, M bascule', async 
   await page.keyboard.press('m');
   expect(await page.evaluate(() => __game.debug.audio.muted())).toBe(false);
 });
+
+test('audio : chaque event de combat joue le bon son', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.audio.init());
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.damageEnemy(0, 10));
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('hit');
+  await page.evaluate(() => __game.debug.damageEnemy(0, 100)); // kill
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('enemyDie');
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.spawnEnemyAt(0,6); __game.debug.forceEnemyShoot(0); });
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('enemyShot');
+  await page.evaluate(() => __game.debug.damagePlayer(10));
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('playerHit');
+  await page.evaluate(() => __game.debug.damagePlayer(100)); // mort
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('gameover');
+});
