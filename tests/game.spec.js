@@ -497,3 +497,16 @@ test('studio : le bouton 🎮 valide un perso pour le jeu (persisté)', async ({
   });
   expect(ready).toBe(true);
 });
+
+test('intégration : valider Guard dans le studio => seul Guard au lobby du jeu', async ({ page }) => {
+  await page.goto('/studio.html');
+  await page.waitForFunction(() => window.__studioReady === true, null, { timeout:20000 });
+  await page.click('#btn-gallery');
+  await page.waitForSelector('#gallery-grid .gcard', { timeout:20000 });
+  await page.locator('.gcard', { hasText: 'Guard' }).first().locator('.gr-toggle').click();
+  await page.waitForTimeout(200);
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, { timeout:20000 });
+  const labels = await page.evaluate(() => __game.characters.map(c => c.label.toLowerCase()));
+  expect(labels).toEqual(['guard']); // seul le perso validé apparaît
+});
