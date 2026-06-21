@@ -272,8 +272,14 @@ async function seedPersosToGallery() {
 async function loadCharactersFromGallery() {
   const recs = await dbAll();
   recs.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  return recs.map(r => ({ id: String(r.id), label: r.name || 'modèle', thumbUrl: r.thumb || null, bytes: r.bytes }));
+  return recs.map(r => ({ id: String(r.id), label: r.name || 'modèle', thumbUrl: r.thumb || null, bytes: r.bytes, gameReady: !!r.gameReady }));
 }
+// ne garde que les persos validés pour le jeu ; repli sur tous si aucun n'est validé
+function filterPlayable(records){
+  const ready = records.filter(c => c.gameReady);
+  return ready.length ? ready : records;
+}
+G.debug.filterPlayable = (records) => filterPlayable(records);
 
 // ====== Animation / retargeting (repris de app.html) ======
 let anims = [];           // [{ key, label, icon, clip }]
@@ -421,7 +427,8 @@ function retargetRole(role){
 }
 
 // ====== Lobby (sélection 3D : on voit le perso, on slide, bouton Jouer) ======
-let characters = [];
+let characters = [];        // persos jouables (lobby) ; sous-ensemble validé de la galerie
+let allCharacters = [];     // toute la galerie (source de sélection des ennemis)
 let lobbyIndex = 0;
 
 function setLobbyCamera(){
@@ -441,7 +448,8 @@ async function initLobby(){
   try {
     if(window.__FORCE_LIST_FAIL__) throw new Error('forced');
     await seedPersosToGallery();
-    characters = await loadCharactersFromGallery();
+    allCharacters = await loadCharactersFromGallery();
+    characters = filterPlayable(allCharacters);
     if(!characters.length){ showOverlay('Aucun personnage. Ajoute-en via studio.html ou vérifie /perso.'); return; }
     G.characters = characters.map(c => ({ id:c.id, label:c.label }));
     setLobbyCamera();
@@ -864,7 +872,7 @@ function rigHeightOf(obj){
 let enemyLabel = '';
 async function buildEnemyAssets(playerChar){
   // ennemi = perso "enemie" en priorité ; sinon un perso différent du joueur
-  const pick = characters.find(c => /enem/i.test(c.label)) || characters.find(c => c.id !== playerChar.id) || playerChar;
+  const pick = allCharacters.find(c => /enem/i.test(c.label)) || allCharacters.find(c => c.id !== playerChar.id) || playerChar;
   enemyLabel = pick.label;
   const url = URL.createObjectURL(new Blob([pick.bytes]));
   const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);

@@ -472,3 +472,12 @@ test('ligne de vue : un obstacle bloque le tir', async ({ page }) => {
   const blocked = await page.evaluate(() => __game.debug.hasLineOfSight(0, 0, 0, 6));
   expect(clear).toBe(true); expect(blocked).toBe(false);
 });
+
+test('filterPlayable : ne garde que les persos validés (repli si aucun)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const r1 = await page.evaluate(() => __game.debug.filterPlayable([{id:'a',gameReady:true},{id:'b'}]).map(c=>c.id));
+  expect(r1).toEqual(['a']);
+  const r2 = await page.evaluate(() => __game.debug.filterPlayable([{id:'b'},{id:'c'}]).map(c=>c.id));
+  expect(r2).toEqual(['b','c']); // repli : aucun validé => tous
+});
