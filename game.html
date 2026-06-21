@@ -192,6 +192,7 @@ function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } 
 function setView(v){
   view = (v === 'first') ? 'first' : 'third';
   G.view = view; applyViewVisibility(); clampPitch();   // recale le pitch dans la plage du mode
+  if(viewModel) viewModel.visible = (view === 'first');
 }
 function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
@@ -683,7 +684,7 @@ function hitTarget(t){
 function tryFire(){
   if(G.phase!=='playing' || reloading || ammo <= 0) return false;
   if(nowS() - lastShot < FIRE_COOLDOWN) return false;
-  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot');
+  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = 1;
   _ray.setFromCamera({ x:0, y:0 }, camera);                 // rayon = centre de l'écran (viseur)
   const shoot = [];
   for(const t of targets) if(t.alive) shoot.push(t.mesh);
@@ -1105,8 +1106,8 @@ function buildViewModel(template){
   grp.traverse(o=>{ if(o.isMesh) o.castShadow = false; });
   if(!cameraInScene){ scene.add(camera); cameraInScene = true; }
   camera.add(grp);
-  grp.position.set(0.16, -0.15, -0.42);   // bas-droite devant la caméra
-  grp.rotation.set(0, Math.PI, 0);        // canon vers l'avant (-Z caméra)
+  grp.position.set(0.12, -0.11, -0.34);   // bas-droite devant la caméra
+  grp.rotation.set(0.05, Math.PI + 0.12, 0); // canon vers l'avant, légèrement tourné (naturel)
   grp.visible = false;
   return grp;
 }
@@ -1114,8 +1115,8 @@ function updateWeapon(dt){
   if(weaponRecoil > 0) weaponRecoil = Math.max(0, weaponRecoil - dt*6);
   if(viewModel){
     viewModel.visible = (view === 'first' && G.phase === 'playing');
-    viewModel.position.z = -0.42 + weaponRecoil * 0.06;
-    viewModel.rotation.x = weaponRecoil * 0.18;
+    viewModel.position.z = -0.34 + weaponRecoil * 0.06;
+    viewModel.rotation.x = 0.05 + weaponRecoil * 0.18;
   }
   if(heldWeapon) heldWeapon.rotation.z = weaponRecoil * 0.2;
 }
@@ -1178,7 +1179,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateHealth(dt); updateCamera(dt); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateHealth(dt); updateCamera(dt); updateWeapon(dt); }
   else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);

@@ -560,3 +560,23 @@ test('arme : modèle construit en code par défaut, tenue à la main droite', as
   expect(await page.evaluate(() => __game.debug.weapon.source())).toBe('primitive');
   expect(await page.evaluate(() => __game.debug.weapon.handBone())).toBe('RightHand');
 });
+
+test('arme : viewmodel visible en 1re personne seulement', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.weapon.viewmodelVisible())).toBe(false);
+  await page.evaluate(() => __game.debug.setView('first'));
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => __game.debug.weapon.viewmodelVisible())).toBe(true);
+  await page.evaluate(() => __game.debug.setView('third'));
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => __game.debug.weapon.viewmodelVisible())).toBe(false);
+});
+
+test('arme : tirer provoque un recul', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.weapon.recoil())).toBeLessThan(0.2);
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.weapon.recoil())).toBeGreaterThan(0.5);
+});
