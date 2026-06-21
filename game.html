@@ -745,17 +745,31 @@ function randomSpawn(){
   const z = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, pz + Math.sin(a)*r));
   return { x, z };
 }
+function rigHeightOf(obj){
+  obj.updateMatrixWorld(true);
+  let lo = Infinity, hi = -Infinity; const v = new THREE.Vector3();
+  obj.traverse(o => { if(o.isBone){ o.getWorldPosition(v); lo = Math.min(lo, v.y); hi = Math.max(hi, v.y); } });
+  return { lo, hi, h:(hi - lo) || 1 };
+}
+let enemyLabel = '';
 async function buildEnemyAssets(playerChar){
-  const pick = characters.find(c => c.id !== playerChar.id) || playerChar;   // perso différent si possible
+  // ennemi = perso "enemie" en priorité ; sinon un perso différent du joueur
+  const pick = characters.find(c => /enem/i.test(c.label)) || characters.find(c => c.id !== playerChar.id) || playerChar;
+  enemyLabel = pick.label;
   const url = URL.createObjectURL(new Blob([pick.bytes]));
   const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);
   const inner = gltf.scene;
   inner.traverse(o => { if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
-  // normaliser hauteur 1.8 et centrer (feet à y=0, centré en x/z) — comme le joueur
-  const box = new THREE.Box3().setFromObject(inner);
-  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
-  const s = 1.8/(size.y||1); inner.scale.setScalar(s);
-  inner.position.sub(center.multiplyScalar(s)); inner.position.y += (size.y*s)/2;
+  // ÉCHELLE basée sur le SQUELETTE (la bbox géométrique sous-estime certains modèles skinnés -> géant).
+  // Cible = la taille réelle du joueur, pour qu'ils fassent la même taille.
+  const targetH = model ? rigHeightOf(model).h : 1.7;
+  inner.scale.setScalar(targetH / rigHeightOf(inner).h);
+  // poser les pieds (os le plus bas) au sol, bassin centré en X/Z
+  inner.updateMatrixWorld(true);
+  let lo = Infinity, hips = null; const v = new THREE.Vector3();
+  inner.traverse(o => { if(o.isBone){ o.getWorldPosition(v); lo = Math.min(lo, v.y); if(o.name===ROOT_BONE) hips = v.clone(); } });
+  if(hips){ inner.position.x -= hips.x; inner.position.z -= hips.z; }
+  inner.position.y -= lo;
   const wrapper = new THREE.Group(); wrapper.add(inner);
   enemyBase = wrapper;
   // retarget des 4 rôles contre le rig ennemi (swap temporaire des globals cible)
@@ -831,6 +845,9 @@ G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
 G.debug.enemyState = (i) => enemies[i]?.state;
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
 G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, z:e.root.position.z } : null; };
+G.debug.enemyLabel  = () => enemyLabel;
+G.debug.enemyHeight = () => enemies[0] ? rigHeightOf(enemies[0].root).h : 0;
+G.debug.playerHeight = () => model ? rigHeightOf(model).h : 0;
 
 function faceDir(e, vx, vz, dt){
   const target = Math.atan2(vx, vz);

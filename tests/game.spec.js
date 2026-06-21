@@ -414,3 +414,13 @@ test('tirer sur un ennemi devant lui inflige des dégâts', async ({ page }) => 
   expect(fired).toBe(true);
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(hp0 - 1);
 });
+
+test('l’ennemi fait à peu près la taille du joueur (pas géant) et utilise le modèle enemie', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  const eh = await page.evaluate(() => __game.debug.enemyHeight());
+  const ph = await page.evaluate(() => __game.debug.playerHeight());
+  expect(eh).toBeGreaterThan(ph*0.8);   // pas nain
+  expect(eh).toBeLessThan(ph*1.25);     // pas géant (avant fix : ~1.8x => échouait)
+  expect((await page.evaluate(() => __game.debug.enemyLabel())).toLowerCase()).toContain('enem');
+});
