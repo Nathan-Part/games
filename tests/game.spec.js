@@ -601,3 +601,28 @@ test('visee : le viseur s affiche en visee', async ({ page }) => {
   await page.evaluate(() => __game.debug.setInput({}));
   await page.waitForFunction(() => __game.debug.weapon.sightVisible() === false, null, { timeout:3000 });
 });
+
+test('assistance : viser pres d un ennemi aligne le lacet horizontalement', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.moveEnemy(1,0,-40); __game.debug.moveEnemy(2,0,-40);
+    __game.debug.setYaw(0); __game.debug.spawnEnemyAt(Math.sin(0.14)*12, Math.cos(0.14)*12); });
+  const y0 = await page.evaluate(() => __game.camera().yaw);
+  await page.evaluate(() => __game.debug.setInput({ aim:true }));
+  await page.waitForTimeout(700);
+  const y1 = await page.evaluate(() => __game.camera().yaw);
+  expect(y1).toBeGreaterThan(y0 + 0.03);     // s est rapproche de l ennemi (~0.14)
+  expect(y1).toBeLessThanOrEqual(0.16);
+});
+
+test('assistance : ennemi hors du cone => aucune aide', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.moveEnemy(1,0,-40); __game.debug.moveEnemy(2,0,-40);
+    __game.debug.setYaw(0); __game.debug.spawnEnemyAt(Math.sin(0.6)*12, Math.cos(0.6)*12); }); // ~34deg => hors cone
+  await page.evaluate(() => __game.debug.setInput({ aim:true }));
+  const y0 = await page.evaluate(() => __game.camera().yaw);
+  await page.waitForTimeout(500);
+  const y1 = await page.evaluate(() => __game.camera().yaw);
+  expect(Math.abs(y1 - y0)).toBeLessThan(0.02);
+});

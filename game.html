@@ -1026,6 +1026,7 @@ G.debug.spawnEnemyAt = (x, z) => {
   e.hitbox.position.set(x, ENEMY_FOOT_Y+0.9, z); e.hitbox.updateMatrixWorld();
   return e.id;
 };
+G.debug.moveEnemy = (i, x, z) => { const e = enemies[i]; if(e){ e.root.position.set(x, ENEMY_FOOT_Y, z); e.state='patrol'; e.lostFor=0; e.hitbox.position.set(x, ENEMY_FOOT_Y+0.9, z); e.hitbox.updateMatrixWorld(); } };
 
 function setEnemyEmissive(e, on){
   for(const m of e.mats) m.mat.emissive.copy(on ? FLASH_COLOR : m.base);
@@ -1214,12 +1215,28 @@ G.debug.audio = {
   state(){ return actx ? actx.state : 'none'; }
 };
 
+// ====== Assistance de visée (douce, horizontale uniquement) ======
+const AIM_ASSIST_ANGLE = 0.18, AIM_ASSIST_RANGE = 30, AIM_ASSIST_GAIN = 6;
+function updateAimAssist(dt){
+  if(!input.aim || !model || G.phase !== 'playing') return;
+  let bestDiff = null, bestAng = AIM_ASSIST_ANGLE;
+  for(const e of enemies){
+    if(!e.alive) continue;
+    const dx = e.root.position.x - model.position.x, dz = e.root.position.z - model.position.z;
+    if(Math.hypot(dx, dz) > AIM_ASSIST_RANGE) continue;
+    const yawTo = Math.atan2(dx, dz);
+    const diff = ((yawTo - camYaw + Math.PI) % (Math.PI*2)) - Math.PI;
+    if(Math.abs(diff) < bestAng){ bestAng = Math.abs(diff); bestDiff = diff; }
+  }
+  if(bestDiff !== null) camYaw += bestDiff * Math.min(1, dt * AIM_ASSIST_GAIN * (1 - bestAng/AIM_ASSIST_ANGLE));
+}
+
 // ====== Boucle ======
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateHealth(dt); updateCamera(dt); updateWeapon(dt); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); }
   else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);
