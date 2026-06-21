@@ -544,3 +544,12 @@ test('audio : chaque event de combat joue le bon son', async ({ page }) => {
   await page.evaluate(() => __game.debug.damagePlayer(100)); // mort
   expect(await page.evaluate(() => __game.debug.audio.last())).toBe('gameover');
 });
+
+test('un ennemi touché se retourne et poursuit le joueur, même hors de portée de détection', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.spawnEnemyAt(20, 0)); // dist 20 > détection (12) => patrouille
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'patrol', null, { timeout:3000 });
+  await page.evaluate(() => __game.debug.damageEnemy(0, 10)); // on le touche de loin
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'chase', null, { timeout:3000 }); // il aggro
+});

@@ -1023,7 +1023,9 @@ function setEnemyEmissive(e, on){
 function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
   e.hp -= amount; setEnemyEmissive(e, true); e.flashUntil = nowS() + ENEMY_FLASH; playSound('hit');
-  if(e.hp <= 0) killEnemy(e);
+  if(e.hp <= 0){ killEnemy(e); return; }
+  if(e.state === 'patrol') e.state = 'chase';   // touché => s'aggrave et se retourne/fonce vers le joueur
+  e.lostFor = 0;
 }
 function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead'; e.respawnAt = nowS() + ENEMY_RESPAWN;
