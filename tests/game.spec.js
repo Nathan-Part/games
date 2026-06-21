@@ -580,3 +580,24 @@ test('arme : tirer provoque un recul', async ({ page }) => {
   await page.evaluate(() => __game.debug.tryFire());
   expect(await page.evaluate(() => __game.debug.weapon.recoil())).toBeGreaterThan(0.5);
 });
+
+test('visee : l arme passe en position ADS et revient', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:30000 });
+  await page.evaluate(() => __game.debug.setView('first'));
+  expect(await page.evaluate(() => __game.debug.weapon.adsProgress())).toBeLessThan(0.2);
+  await page.evaluate(() => __game.debug.setInput({ aim:true }));
+  await page.waitForFunction(() => __game.debug.weapon.adsProgress() > 0.6, null, { timeout:3000 });
+  await page.evaluate(() => __game.debug.setInput({}));
+  await page.waitForFunction(() => __game.debug.weapon.adsProgress() < 0.2, null, { timeout:3000 });
+});
+
+test('visee : le viseur s affiche en visee', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:30000 });
+  expect(await page.evaluate(() => __game.debug.weapon.sightVisible())).toBe(false);
+  await page.evaluate(() => __game.debug.setInput({ aim:true }));
+  await page.waitForFunction(() => __game.debug.weapon.sightVisible() === true, null, { timeout:3000 });
+  await page.evaluate(() => __game.debug.setInput({}));
+  await page.waitForFunction(() => __game.debug.weapon.sightVisible() === false, null, { timeout:3000 });
+});
