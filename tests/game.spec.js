@@ -332,15 +332,16 @@ test('la touche F recharge (et R ne recharge plus)', async ({ page }) => {
   await page.waitForFunction(() => __game.ammo === 12, null, { timeout:5000 });
 });
 
-test('enemyDecision : seuils patrouille/poursuite/attaque', async ({ page }) => {
+test('enemyDecision : seuils patrouille/poursuite/tir', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.booted);
   const f = (d, s) => page.evaluate(([d,s]) => __game.debug.enemyDecision(d,s), [d, s]);
   expect(await f(20, 'patrol')).toBe('patrol');   // loin
-  expect(await f(8,  'patrol')).toBe('chase');    // dans le rayon de détection
-  expect(await f(1,  'chase')).toBe('attack');    // au contact
-  expect(await f(12, 'patrol')).toBe('chase');    // pile au rayon (<=)
-  expect(await f(1.6,'chase')).toBe('attack');    // pile à portée (<=)
+  expect(await f(12, 'patrol')).toBe('chase');    // entre tir et détection
+  expect(await f(11, 'chase')).toBe('chase');     // au-delà de la portée de tir
+  expect(await f(9,  'chase')).toBe('shoot');     // pile à portée de tir (<=)
+  expect(await f(6,  'chase')).toBe('shoot');     // à portée de tir
+  expect(await f(1,  'shoot')).toBe('shoot');     // proche => tir
 });
 
 test('3 ennemis apparaissent et sont vivants au démarrage', async ({ page }) => {
@@ -351,7 +352,7 @@ test('3 ennemis apparaissent et sont vivants au démarrage', async ({ page }) =>
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('patrol');
   const p = await page.evaluate(() => __game.debug.enemyPos(0));
   expect(Number.isFinite(p.x) && Number.isFinite(p.z)).toBe(true);
-  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(3);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(100);
 });
 
 test('un ennemi loin du joueur patrouille (sa position change) et reste dans les bornes', async ({ page }) => {
@@ -369,22 +370,22 @@ test('un ennemi loin du joueur patrouille (sa position change) et reste dans les
 test('un ennemi proche poursuit le joueur (chase) et réduit la distance', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
-  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 8)); // à 8 u du joueur (origine), dans le rayon
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 11.5)); // dans la détection (12) mais au-delà du tir (9)
   await page.waitForFunction(() => __game.debug.enemyState(0) === 'chase', null, { timeout:3000 });
   const d0 = await page.evaluate(() => { const p = __game.debug.enemyPos(0), q = __game.position(); return Math.hypot(p.x-q.x, p.z-q.z); });
   await page.waitForTimeout(1000);
   const d1 = await page.evaluate(() => { const p = __game.debug.enemyPos(0), q = __game.position(); return Math.hypot(p.x-q.x, p.z-q.z); });
-  expect(d1).toBeLessThan(d0 - 0.5); // il s'est rapproché
+  expect(d1).toBeLessThan(d0 - 0.5); // il s'est rapproché (jusqu'à la portée de tir)
 });
 
-test('au contact, l’ennemi passe en attaque et ne traverse pas le joueur', async ({ page }) => {
+test('à portée et en vue, l’ennemi passe en tir (shoot) et ne fonce pas dans le joueur', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
-  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 1.2)); // collé au joueur
-  await page.waitForFunction(() => __game.debug.enemyState(0) === 'attack', null, { timeout:3000 });
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 6)); // dans la portée de tir, en vue
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'shoot', null, { timeout:3000 });
   await page.waitForTimeout(400);
   const p = await page.evaluate(() => __game.debug.enemyPos(0)), q = await page.evaluate(() => __game.position());
-  expect(Math.hypot(p.x-q.x, p.z-q.z)).toBeGreaterThan(0.8); // reste à distance de contact
+  expect(Math.hypot(p.x-q.x, p.z-q.z)).toBeGreaterThan(0.8); // il s'arrête pour tirer, ne traverse pas
 });
 
 test('cumuler des dégâts tue un ennemi (+1 score) puis il réapparaît', async ({ page }) => {
@@ -453,4 +454,21 @@ test('à 0 PV : Game Over, puis Rejouer remet la partie à zéro', async ({ page
   expect(await page.evaluate(() => __game.health)).toBe(100);
   expect(await page.evaluate(() => __game.score)).toBe(0);
   await expect(page.locator('#gameover')).toBeHidden();
+});
+
+test('un ennemi en vue tire et blesse le joueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(1); __game.debug.spawnEnemyAt(0, 6); });
+  const h0 = await page.evaluate(() => __game.health);
+  await page.evaluate(() => __game.debug.forceEnemyShoot(0));
+  expect(await page.evaluate(() => __game.health)).toBe(h0 - 10);
+});
+
+test('ligne de vue : un obstacle bloque le tir', async ({ page }) => {
+  await startPlaying(page);
+  const clear = await page.evaluate(() => __game.debug.hasLineOfSight(0, 0, 0, 6));
+  await page.evaluate(() => __game.debug.setObstacleTest(0, 3)); // boîte entre (0,0) et (0,6)
+  const blocked = await page.evaluate(() => __game.debug.hasLineOfSight(0, 0, 0, 6));
+  expect(clear).toBe(true); expect(blocked).toBe(false);
 });

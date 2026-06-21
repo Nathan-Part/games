@@ -782,7 +782,9 @@ G.debug.restart = () => restartGame();
 // ====== Ennemis / IA ======
 const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE_TIME = 3.0,
       ATTACK_RANGE = 1.6, ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
-      ENEMY_R = 0.45, ENEMY_RESPAWN = 3.0, ENEMY_FLASH = 0.08, ENEMY_TURN = 8;
+      ENEMY_R = 0.45, ENEMY_RESPAWN = 3.0, ENEMY_FLASH = 0.08, ENEMY_TURN = 8,
+      SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
+let enemyAccOverride = null;                   // pour les tests (précision forcée)
 const ENEMY_FOOT_Y = 0;                       // pieds au sol (modèle ennemi centré dans un groupe)
 const FLASH_COLOR = new THREE.Color(0xff2222);
 const enemies = [];      // { id, root, mixer, actions, hitbox, mats, hp, state, alive, loco, target, lostFor, respawnAt, flashUntil }
@@ -791,11 +793,43 @@ let enemyClips = null;   // { idle, walk, run, attack } (AnimationClip retarget�
 
 // décision d'état pure (seuils) — testée isolément
 function enemyDecision(dist, state){
-  if(dist <= ATTACK_RANGE) return 'attack';
+  if(dist <= SHOOT_RANGE) return 'shoot';
   if(dist <= DETECT_RADIUS) return 'chase';
   return 'patrol';
 }
 G.debug.enemyDecision = enemyDecision;
+
+// ligne de vue : le segment (ax,az)->(bx,bz) est-il dégagé d'obstacles ? (Liang-Barsky 2D)
+function segHitsAABB(ax, az, bx, bz, b){
+  const dx = bx - ax, dz = bz - az; let t0 = 0, t1 = 1;
+  const p = [-dx, dx, -dz, dz], q = [ax - b.minX, b.maxX - ax, az - b.minZ, b.maxZ - az];
+  for(let i = 0; i < 4; i++){
+    if(p[i] === 0){ if(q[i] < 0) return false; }
+    else { const r = q[i] / p[i];
+      if(p[i] < 0){ if(r > t1) return false; if(r > t0) t0 = r; }
+      else { if(r < t0) return false; if(r < t1) t1 = r; } }
+  }
+  return true;
+}
+function hasLineOfSight(ax, az, bx, bz){
+  for(const b of obstacles) if(segHitsAABB(ax, az, bx, bz, b)) return false;
+  return true;
+}
+function enemyTryShoot(e, dt){
+  e.shootCd = (e.shootCd || 0) - dt;
+  if(e.shootCd > 0) return;
+  e.shootCd = ENEMY_FIRE_CD;
+  const from = new THREE.Vector3(e.root.position.x, e.root.position.y + 1.4, e.root.position.z);
+  const to   = new THREE.Vector3(model.position.x, model.position.y + 1.4, model.position.z);
+  spawnTracer(from, to);                                            // traceur visible (touché ou raté)
+  const dist = Math.hypot(to.x - from.x, to.z - from.z);
+  const acc = enemyAccOverride != null ? enemyAccOverride
+            : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4));
+  if(Math.random() < acc) damagePlayer(ENEMY_DAMAGE);
+}
+G.debug.hasLineOfSight = (ax, az, bx, bz) => hasLineOfSight(ax, az, bx, bz);
+G.debug.setEnemyAccuracy = (a) => { enemyAccOverride = a; };
+G.debug.forceEnemyShoot = (i) => { const e = enemies[i]; if(e){ e.shootCd = 0; enemyTryShoot(e, 0); } };
 
 // dégâts localisés : zone d'impact selon la hauteur relative aux pieds de l'ennemi
 const HEAD_Y = 1.5, LEGS_Y = 0.6, DMG_HEAD = 100, DMG_TORSO = 50, DMG_LEGS = 25;
@@ -890,11 +924,12 @@ function updateEnemies(dt){
     }
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
+    const los = hasLineOfSight(e.root.position.x, e.root.position.z, px, pz);
     // transitions (avec hystérésis)
-    if(e.state === 'attack'){
-      if(dist > ATTACK_RANGE*1.2) e.state = 'chase';
+    if(e.state === 'shoot'){
+      if(dist > SHOOT_RANGE*1.25 || !los) e.state = 'chase';
     } else if(e.state === 'chase'){
-      if(dist <= ATTACK_RANGE) e.state = 'attack';
+      if(dist <= SHOOT_RANGE && los) e.state = 'shoot';
       else if(dist > LOSE_RADIUS){ e.lostFor += dt; if(e.lostFor >= LOSE_TIME){ e.state = 'patrol'; e.lostFor = 0; pickPatrol(e); } }
       else e.lostFor = 0;
     } else { // patrol
@@ -903,7 +938,7 @@ function updateEnemies(dt){
     // action selon l'état
     let desired = 'idle';
     if(e.state === 'chase'){ moveToward(e, px, pz, ENEMY_RUN, dt); desired = 'run'; }
-    else if(e.state === 'attack'){ faceToward(e, px, pz, dt); desired = e.actions.attack ? 'attack' : 'idle'; }
+    else if(e.state === 'shoot'){ faceToward(e, px, pz, dt); enemyTryShoot(e, dt); desired = e.actions.attack ? 'attack' : 'idle'; }
     else { // patrol
       if(!e.target || Math.hypot(e.target.x - e.root.position.x, e.target.z - e.root.position.z) < 0.6) pickPatrol(e);
       moveToward(e, e.target.x, e.target.z, ENEMY_WALK, dt); desired = 'walk';
