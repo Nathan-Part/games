@@ -512,3 +512,19 @@ test('intégration : valider Guard dans le studio => seul Guard au lobby du jeu'
   const labels = await page.evaluate(() => __game.characters.map(c => c.label.toLowerCase()));
   expect(labels).toEqual(['guard']); // seul le perso validé apparaît
 });
+
+test('audio : un son est joué/journalisé, le mute le coupe, M bascule', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.audio.init());
+  expect(await page.evaluate(() => __game.debug.audio.state())).not.toBe('none'); // contexte créé
+  const c0 = await page.evaluate(() => __game.debug.audio.count());
+  await page.evaluate(() => __game.debug.audio.play('shot'));
+  expect(await page.evaluate(() => __game.debug.audio.count())).toBe(c0 + 1);
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('shot');
+  await page.evaluate(() => __game.debug.audio.setMuted(true));
+  const c1 = await page.evaluate(() => __game.debug.audio.count());
+  await page.evaluate(() => __game.debug.audio.play('shot'));
+  expect(await page.evaluate(() => __game.debug.audio.count())).toBe(c1); // inchangé (muté)
+  await page.keyboard.press('m');
+  expect(await page.evaluate(() => __game.debug.audio.muted())).toBe(false);
+});
