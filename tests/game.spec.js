@@ -434,3 +434,11 @@ test('hitZoneDamage : tête/torse/jambes', async ({ page }) => {
   expect((await z(1.0)).zone).toBe('torso'); expect((await z(1.0)).damage).toBe(50);
   expect((await z(0.3)).zone).toBe('legs');  expect((await z(0.3)).damage).toBe(25);
 });
+
+test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.health)).toBe(100);
+  await page.evaluate(() => __game.debug.damagePlayer(40));
+  expect(await page.evaluate(() => __game.health)).toBe(60);
+  await page.waitForFunction(() => __game.health > 60, null, { timeout:8000 }); // régén après délai
+});
