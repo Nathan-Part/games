@@ -1142,14 +1142,33 @@ function attachWeaponToHand(template){
 }
 function buildViewModel(template){
   const grp = new THREE.Group();
-  const wpn = template.clone(); grp.add(wpn);   // juste l'arme (plus de fausses boîtes-bras)
+  const wpn = template.clone(); grp.add(wpn);   // l'arme
   grp.traverse(o=>{ if(o.isMesh) o.castShadow = false; });
   if(!cameraInScene){ scene.add(camera); cameraInScene = true; }
   camera.add(grp);
   grp.position.set(0.12, -0.11, -0.34);   // bas-droite devant la caméra
   grp.rotation.set(0.05, Math.PI + 0.12, 0); // canon vers l'avant, légèrement tourné (naturel)
   grp.visible = false;
+  if(!armsVM) armsVM = buildArmsViewModel();
   return grp;
+}
+let armsVM = null;
+function buildArmsViewModel(){
+  // avant-bras + gants tactiques low-poly, en espace caméra (devant l'objectif), qui tiennent l'arme
+  const g = new THREE.Group();
+  const sleeve = new THREE.MeshStandardMaterial({ color:0x5b6347, roughness:0.95, metalness:0.0, emissive:0x14160e }); // manche olive (se distingue de l'arme)
+  const glove  = new THREE.MeshStandardMaterial({ color:0x33363c, roughness:0.7, metalness:0.2,  emissive:0x0a0b0d }); // gant gris foncé
+  const arm = (geo, mat, pos, rot) => { const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.rotation.set(...rot); return m; };
+  // bras droit (main sur la poignée) : remonte du bas-droite
+  const rFore = arm(new THREE.CylinderGeometry(0.036, 0.052, 0.26, 10), sleeve, [0.155,-0.205,-0.20], [-0.85, 0.25, 0.35]);
+  const rHand = arm(new THREE.BoxGeometry(0.06,0.08,0.10), glove, [0.105,-0.115,-0.31], [-0.5,0.1,0.2]);
+  // bras gauche (main sur le garde-main, plus en avant)
+  const lFore = arm(new THREE.CylinderGeometry(0.032, 0.046, 0.24, 10), sleeve, [-0.03,-0.185,-0.27], [-1.0, -0.2, -0.3]);
+  const lHand = arm(new THREE.BoxGeometry(0.052,0.07,0.085), glove, [0.02,-0.095,-0.42], [-0.4,-0.1,-0.15]);
+  g.add(rFore, rHand, lFore, lHand);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow = false; });
+  camera.add(g); g.visible = false;
+  return g;
 }
 const FOV_BASE = 55, FOV_ADS = 42, ADS_LERP = 10;
 const VM_HIP = new THREE.Vector3(0.12, -0.11, -0.34);   // pose hanche (arme visible en bas-droite)
@@ -1164,6 +1183,10 @@ function updateWeapon(dt){
     viewModel.position.lerpVectors(VM_HIP, VM_ADS, adsT);   // en visée : l'arme plonge pour dégager le centre
     viewModel.position.z += weaponRecoil * 0.06;
     viewModel.rotation.set(0.05 + weaponRecoil*0.18 + 0.25*adsT, Math.PI + 0.12*(1-adsT), 0);
+  }
+  if(armsVM){                                               // les bras suivent l'arme (même plongée/recul)
+    armsVM.visible = (view === 'first' && G.phase === 'playing');
+    armsVM.position.copy(viewModel.position).sub(VM_HIP);
   }
   if(heldWeapon) heldWeapon.rotation.z = weaponRecoil * 0.2;
   camera.fov = FOV_BASE + (FOV_ADS - FOV_BASE) * adsT; camera.updateProjectionMatrix();
