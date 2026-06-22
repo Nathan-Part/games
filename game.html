@@ -859,6 +859,9 @@ function enemyTryShoot(e, dt){
 G.debug.hasLineOfSight = (ax, az, bx, bz) => hasLineOfSight(ax, az, bx, bz);
 G.debug.setEnemyAccuracy = (a) => { enemyAccOverride = a; };
 G.debug.forceEnemyShoot = (i) => { const e = enemies[i]; if(e){ e.shootCd = 0; enemyTryShoot(e, 0); } };
+G.debug.enemyHasWeapon = (i) => !!(enemies[i] && enemies[i].weapon);
+G.debug.enemyMuzzle = (i) => { const e = enemies[i]; if(!e || !e.muzzle) return null;
+  const v = e.muzzle.getWorldPosition(new THREE.Vector3()); return { x:v.x, y:v.y, z:v.z }; };
 
 // dégâts localisés : zone d'impact selon la hauteur relative aux pieds de l'ennemi
 // ennemi 100 PV (= joueur) : tête = 2 balles, torse = 4, jambes = ~7 (bots plus coriaces)
@@ -939,6 +942,7 @@ function createEnemies(){
     const e = { id:i, root, mixer, actions, hitbox, mats, hp:ENEMY_HP, state:'patrol', alive:true,
                 loco:'idle', target:null, lostFor:0, respawnAt:0, flashUntil:0 };
     actions.idle?.play();
+    attachWeaponToEnemy(e);                       // no-op si le template n'est pas encore prêt
     scene.add(root); enemies.push(e);
   }
 }
@@ -1121,9 +1125,10 @@ async function loadWeaponTemplate(){
   weaponSource = 'primitive'; return buildWeaponMesh();
 }
 async function ensureWeapon(){
-  if(heldWeapon) return;
+  if(heldWeapon){ for(const e of enemies) attachWeaponToEnemy(e); return; }
   if(!weaponTemplate) weaponTemplate = await loadWeaponTemplate();
   if(model && !heldWeapon) attachWeaponToHand(weaponTemplate);
+  for(const e of enemies) attachWeaponToEnemy(e);   // rattrape les ennemis créés avant le chargement
 }
 function attachWeaponToHand(template){
   if(!model || heldWeapon) return;
@@ -1139,6 +1144,40 @@ function attachWeaponToHand(template){
   heldWeapon.rotation.set(Math.PI/2, 0, 0);
   hand.add(heldWeapon);
   if(!viewModel) viewModel = buildViewModel(template);
+}
+// ====== Arme des ennemis (clone du même template, attachée à RightHand) ======
+let weaponMuzzleZ = null;
+function weaponBarrelZ(){
+  if(weaponMuzzleZ != null) return weaponMuzzleZ;
+  if(!weaponTemplate) return 0.45;
+  weaponTemplate.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(weaponTemplate);
+  weaponMuzzleZ = isFinite(box.max.z) ? box.max.z : 0.45;
+  return weaponMuzzleZ;
+}
+function makeMuzzleFlash(){
+  const mat = new THREE.MeshBasicMaterial({ color:0xffd060, transparent:true, opacity:0.95,
+    blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), mat);
+  m.visible = false; return m;       // normale = +Z (canon) -> fait face au joueur quand l'ennemi tire
+}
+function attachWeaponToEnemy(e){
+  if(!e || !e.alive || e.weapon || !weaponTemplate) return;
+  let hand = null;
+  e.root.traverse(o => { if(o.isBone && o.name === 'RightHand') hand = o; });
+  if(!hand) e.root.traverse(o => { if(o.isBone && /righthand|hand_r|rhand/i.test(o.name)) hand = o; });
+  if(!hand) return;
+  const wpn = weaponTemplate.clone();
+  const ws = new THREE.Vector3(); hand.getWorldScale(ws);
+  wpn.scale.multiplyScalar(1 / (ws.x || 1));   // garde la normalisation du template
+  wpn.position.set(0.0, 0.02, 0.08);
+  wpn.rotation.set(Math.PI/2, 0, 0);
+  wpn.traverse(o => { if(o.isMesh) o.castShadow = true; });
+  hand.add(wpn);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, weaponBarrelZ()); wpn.add(muzzle);
+  const flash = makeMuzzleFlash(); muzzle.add(flash);
+  wpn.updateMatrixWorld(true);
+  e.weapon = wpn; e.muzzle = muzzle; e.muzzleFlash = flash; e.muzzleFlashUntil = 0;
 }
 function buildViewModel(template){
   const grp = new THREE.Group();

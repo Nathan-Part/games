@@ -640,3 +640,31 @@ test('mort : l ennemi a une anim de mort (Dead) jouee au kill', async ({ page })
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
   expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);
 });
+
+test('tranche9 : chaque ennemi tient une arme visible (RightHand) avec un canon a hauteur de main', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
+  await page.waitForFunction(() => window.__game.debug.enemyHasWeapon?.(0) === true, null, { timeout:5000 });
+  const n = await page.evaluate(() => __game.debug.enemyAlive());
+  for(let i=0;i<n;i++) expect(await page.evaluate(j => __game.debug.enemyHasWeapon(j), i)).toBe(true);
+  await page.evaluate(() => __game.debug.spawnEnemyAt(2, 0));
+  const m = await page.evaluate(() => __game.debug.enemyMuzzle(0));
+  expect(m).not.toBeNull();
+  expect(m.y).toBeGreaterThan(0.6); expect(m.y).toBeLessThan(2.0);     // hauteur de main
+  expect(Math.hypot(m.x - 2, m.z - 0)).toBeLessThan(1.2);              // proche de l'ennemi en XZ
+});
+
+test('tranche9 : un ennemi qui tire montre un flash de bouche bref et un traceur partant du canon', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyHasWeapon?.(0) === true, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.spawnEnemyAt(3, 0));
+  expect(await page.evaluate(() => __game.debug.enemyMuzzleFlash(0))).toBe(false);
+  const before = await page.evaluate(() => __game.debug.tracerCount());
+  await page.evaluate(() => __game.debug.forceEnemyShoot(0));
+  expect(await page.evaluate(() => __game.debug.enemyMuzzleFlash(0))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.tracerCount())).toBeGreaterThan(before);
+  const m = await page.evaluate(() => __game.debug.enemyMuzzle(0));
+  const s = await page.evaluate(() => __game.debug.lastTracerStart());
+  expect(Math.hypot(s.x-m.x, s.y-m.y, s.z-m.z)).toBeLessThan(0.5);
+  await page.waitForFunction(() => window.__game.debug.enemyMuzzleFlash(0) === false, null, { timeout:2000 });
+});
