@@ -200,7 +200,7 @@ const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
 const EYE_HEIGHT = 1.62;                       // hauteur des yeux (vue 1re personne)
 let view = 'third';                            // 'third' | 'first'
-function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } // masqué en FPS (viewmodel à la place)
+function applyViewVisibility(){ if(model) model.visible = true; } // visible aussi en FPS (vraies mains, tête masquée)
 function setView(v){
   view = (v === 'first') ? 'first' : 'third';
   G.view = view; applyViewVisibility(); clampPitch();   // recale le pitch dans la plage du mode
@@ -1123,8 +1123,37 @@ async function loadWeaponTemplate(){
 async function ensureWeapon(){
   if(heldWeapon) return;
   if(!weaponTemplate) weaponTemplate = await loadWeaponTemplate();
-  if(model && !heldWeapon) attachWeaponToHand(weaponTemplate);
+  if(model && !heldWeapon){ attachWeaponToHand(weaponTemplate); cacheFpsBones(); }
 }
+// ===== Pose FPS (vraies mains) : on relève le bras pour tenir l'arme devant la caméra =====
+let fpsBones = null, fpsPoseT = 0;
+// réglages de pose (offsets ajoutés par-dessus l'anim) — tunés par capture
+const FPS_POSE = { rArm:[-1.5, 0.0, -1.0], rFore:[-1.2, 0.0, 0.0], lArm:[0.0,0.0,0.0], lFore:[0.0,0.0,0.0] };
+const FPS_POSE_ADS = { rArm:[-0.15, 0.0, 0.45] };   // visée : relève un peu l'arme
+function cacheFpsBones(){
+  if(!model) return; const b = {};
+  model.traverse(o => { if(o.isBone) b[o.name] = o; });
+  fpsBones = { head:b['Head']||b['head']||null, neck:b['neck']||b['Neck']||null,
+    rArm:b['RightArm']||null, rFore:b['RightForeArm']||null, lArm:b['LeftArm']||null, lFore:b['LeftForeArm']||null };
+}
+function addRot(bone, off, t){ if(bone && off){ bone.rotation.x += off[0]*t; bone.rotation.y += off[1]*t; bone.rotation.z += off[2]*t; } }
+function updatePlayerFpsPose(dt){
+  if(!fpsBones) return;
+  const target = (view === 'first' && G.phase === 'playing') ? 1 : 0;
+  fpsPoseT += (target - fpsPoseT) * Math.min(1, dt*12);
+  // tête masquée en FPS (sinon on voit l'intérieur du crâne)
+  const hideHead = 1 - 0.985*fpsPoseT;
+  if(fpsBones.head) fpsBones.head.scale.setScalar(hideHead);
+  if(fpsPoseT < 0.001) return;
+  if(view === 'first' && model) model.rotation.y = camYaw;     // corps face à la visée
+  // bras relevés par-dessus l'anim (override APRES le mixer)
+  addRot(fpsBones.rArm, FPS_POSE.rArm, fpsPoseT);
+  addRot(fpsBones.rArm, FPS_POSE_ADS.rArm, fpsPoseT*adsT);
+  addRot(fpsBones.rFore, FPS_POSE.rFore, fpsPoseT);
+  addRot(fpsBones.lArm, FPS_POSE.lArm, fpsPoseT);
+  addRot(fpsBones.lFore, FPS_POSE.lFore, fpsPoseT);
+}
+G.debug.setFpsPose = (rArm, rFore, lArm, lFore) => { if(rArm) FPS_POSE.rArm=rArm; if(rFore) FPS_POSE.rFore=rFore; if(lArm) FPS_POSE.lArm=lArm; if(lFore) FPS_POSE.lFore=lFore; };
 function attachWeaponToHand(template){
   if(!model || heldWeapon) return;
   let hand = null;
@@ -1159,18 +1188,13 @@ function updateWeapon(dt){
   if(weaponRecoil > 0) weaponRecoil = Math.max(0, weaponRecoil - dt*6);
   const aimNow = (G.phase === 'playing' && input.aim) ? 1 : 0;
   adsT += (aimNow - adsT) * Math.min(1, dt*ADS_LERP);
-  if(viewModel){
-    viewModel.visible = (view === 'first' && G.phase === 'playing');
-    viewModel.position.lerpVectors(VM_HIP, VM_ADS, adsT);   // en visée : l'arme plonge pour dégager le centre
-    viewModel.position.z += weaponRecoil * 0.06;
-    viewModel.rotation.set(0.05 + weaponRecoil*0.18 + 0.25*adsT, Math.PI + 0.12*(1-adsT), 0);
-  }
+  if(viewModel) viewModel.visible = false;   // on utilise les vraies mains (vrai modèle) en FPS
   if(heldWeapon) heldWeapon.rotation.z = weaponRecoil * 0.2;
   camera.fov = FOV_BASE + (FOV_ADS - FOV_BASE) * adsT; camera.updateProjectionMatrix();
 }
 G.debug.weapon = {
   held(){ return !!heldWeapon; }, handBone(){ return handBoneName; }, source(){ return weaponSource; },
-  viewmodelVisible(){ return !!(viewModel && viewModel.visible); }, recoil(){ return weaponRecoil; },
+  viewmodelVisible(){ return view==='first' && G.phase==='playing' && !!heldWeapon && !!(model && model.visible); }, recoil(){ return weaponRecoil; },
   aiming(){ return !!input.aim; }, adsProgress(){ return adsT; },
   sightVisible(){ return document.getElementById('sight').classList.contains('show'); }
 };
@@ -1248,6 +1272,7 @@ function animate(){
   if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); }
   else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
   if (mixer) mixer.update(dt);
+  if (G.phase==='playing') updatePlayerFpsPose(dt);   // pose des bras APRES le mixer (vraies mains en FPS)
   renderer.render(scene, camera);
 }
 animate();
