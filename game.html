@@ -979,7 +979,7 @@ function updateEnemies(dt){
     // action selon l'état
     let desired = 'idle';
     if(e.state === 'chase'){ moveToward(e, px, pz, ENEMY_RUN, dt); desired = 'run'; }
-    else if(e.state === 'shoot'){ faceToward(e, px, pz, dt); enemyTryShoot(e, dt); desired = e.actions.attack ? 'attack' : 'idle'; }
+    else if(e.state === 'shoot'){ faceToward(e, px, pz, dt); enemyTryShoot(e, dt); desired = 'idle'; }   // tire arme au poing, debout (pas d'anim de combat mêlée)
     else { // patrol
       if(!e.target || Math.hypot(e.target.x - e.root.position.x, e.target.z - e.root.position.z) < 0.6) pickPatrol(e);
       moveToward(e, e.target.x, e.target.z, ENEMY_WALK, dt); desired = 'walk';
@@ -996,6 +996,7 @@ function updateEnemies(dt){
 G.debug.enemyCount = () => enemies.length;
 G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
 G.debug.enemyState = (i) => enemies[i]?.state;
+G.debug.enemyLoco  = (i) => enemies[i]?.loco;
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
 G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, z:e.root.position.z } : null; };
 G.debug.enemyLabel  = () => enemyLabel;

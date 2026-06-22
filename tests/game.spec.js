@@ -668,3 +668,14 @@ test('tranche9 : un ennemi qui tire montre un flash de bouche bref et un traceur
   expect(Math.hypot(s.x-m.x, s.y-m.y, s.z-m.z)).toBeLessThan(0.5);
   await page.waitForFunction(() => window.__game.debug.enemyMuzzleFlash(0) === false, null, { timeout:2000 });
 });
+
+test('tranche9 : un ennemi qui tire reste debout (pas d anim de combat melee)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyHasWeapon?.(0) === true, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.moveEnemy(1,0,-40); __game.debug.moveEnemy(2,0,-40);
+    __game.debug.spawnEnemyAt(0, -6); });                         // à portée + en vue
+  await page.waitForFunction(() => window.__game.debug.enemyState(0) === 'shoot', null, { timeout:5000 });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('shoot');
+  expect(await page.evaluate(() => __game.debug.enemyLoco(0))).not.toBe('attack');   // tire en restant debout
+});
