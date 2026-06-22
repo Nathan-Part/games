@@ -246,7 +246,7 @@ test('basculer en vue première personne place la caméra à hauteur des yeux, p
   expect(await page.evaluate(() => __game.view)).toBe('first');
   const fp = await page.evaluate(() => ({ cam:__game.camera(), pos:__game.position() }));
   expect(fp.cam.y).toBeGreaterThan(fp.pos.y + 1.0);  // à hauteur des yeux
-  expect(await page.evaluate(() => __game.debug.modelVisible())).toBe(true); // modèle visible (vraies mains/arme en FPS)
+  expect(await page.evaluate(() => __game.debug.modelVisible())).toBe(false); // on ne se voit pas
 
   // -> retour en 3e personne
   await page.evaluate(() => __game.debug.setView('third'));
