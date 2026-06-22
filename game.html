@@ -134,7 +134,7 @@ function locomotionState(speed, sprint){
   if (speed < WALK_EPS) return 'idle';
   return sprint ? 'run' : 'walk';
 }
-const ROLE_RE = { idle:/alert|idle|wait/i, walk:/walk|march/i, run:/run|sprint|course/i, attack:/attack|combat|punch|hit|skill/i };
+const ROLE_RE = { idle:/alert|idle|wait/i, walk:/walk|march/i, run:/run|sprint|course/i, attack:/attack|combat|punch|hit|skill/i, dead:/dead|death|die|mort/i };
 function resolveClipRole(role, names){
   const re = ROLE_RE[role]; if (!re) return null;
   return names.find(n => re.test(n)) || null;
@@ -915,7 +915,7 @@ async function buildEnemyAssets(playerChar){
   // retarget des 4 rôles contre le rig ennemi (swap temporaire des globals cible)
   const sr = targetRest, srw = targetRestWorld, so = targetBoneOrder;
   targetRest = captureRest(inner); targetRestWorld = captureRestWorld(inner); targetBoneOrder = boneOrder(inner);
-  enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack') };
+  enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
 function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; }
@@ -932,7 +932,7 @@ function createEnemies(){
     } });
     const mixer = new THREE.AnimationMixer(root);
     const actions = {};
-    for(const k of ['idle','walk','run','attack']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
+    for(const k of ['idle','walk','run','attack','dead']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
     const hitbox = makeHitbox();
     const sp = randomSpawn(); root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
     hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
@@ -947,7 +947,7 @@ function updateEnemies(dt){
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
     if(e.state === 'dead'){
-      e.root.rotation.x = Math.min(1.45, e.root.rotation.x + dt*3); // bascule au sol
+      if(!e.actions.dead) e.root.rotation.x = Math.min(1.45, e.root.rotation.x + dt*3); // repli : bascule en code si pas d'anim Dead
       if(nowS() >= e.respawnAt) respawnEnemy(e);
       e.mixer.update(dt);
       continue;
@@ -987,6 +987,7 @@ G.debug.enemyState = (i) => enemies[i]?.state;
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
 G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, z:e.root.position.z } : null; };
 G.debug.enemyLabel  = () => enemyLabel;
+G.debug.enemyHasClip = (role) => !!(enemyClips && enemyClips[role]);
 G.debug.enemyHeight = () => enemies[0] ? rigHeightOf(enemies[0].root).h : 0;
 G.debug.playerHeight = () => model ? rigHeightOf(model).h : 0;
 
@@ -1048,6 +1049,9 @@ function damageEnemy(e, amount = DMG_TORSO){
 function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead'; e.respawnAt = nowS() + ENEMY_RESPAWN;
   e.mixer.stopAllAction();
+  if(e.actions.dead){                                  // joue l'anim de mort (Dead) et garde la pose finale
+    e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
+  }
   score++; G.score = score; flashHitMarker(); playSound('enemyDie');
 }
 function respawnEnemy(e){
@@ -1055,6 +1059,7 @@ function respawnEnemy(e){
   e.root.position.set(sp.x, ENEMY_FOOT_Y, sp.z); e.root.rotation.set(0, 0, 0);
   e.hp = ENEMY_HP; e.alive = true; e.state = 'patrol'; e.loco = 'idle'; e.lostFor = 0; pickPatrol(e);
   setEnemyEmissive(e, false);
+  e.mixer.stopAllAction();                 // coupe l'anim de mort
   e.actions.idle?.reset().play();
   e.hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); e.hitbox.updateMatrixWorld();
 }

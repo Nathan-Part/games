@@ -631,3 +631,12 @@ test('assistance : ennemi hors du cone => aucune aide', async ({ page }) => {
   const y1 = await page.evaluate(() => __game.camera().yaw);
   expect(Math.abs(y1 - y0)).toBeLessThan(0.02);
 });
+
+test('mort : l ennemi a une anim de mort (Dead) jouee au kill', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.enemyHasClip('dead'))).toBe(true);  // anim Dead retargetee
+  await page.evaluate(() => __game.debug.damageEnemy(0, 100));                        // kill
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);
+});
