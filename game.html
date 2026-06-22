@@ -848,9 +848,12 @@ function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
   e.shootCd = ENEMY_FIRE_CD;
-  const from = new THREE.Vector3(e.root.position.x, e.root.position.y + 1.4, e.root.position.z);
+  let from;
+  if(e.muzzle){ e.muzzle.updateMatrixWorld(true); from = e.muzzle.getWorldPosition(new THREE.Vector3()); }
+  else from = new THREE.Vector3(e.root.position.x, e.root.position.y + 1.4, e.root.position.z);
   const to   = new THREE.Vector3(model.position.x, model.position.y + 1.4, model.position.z);
-  spawnTracer(from, to); playSound('enemyShot');                    // traceur + son (touché ou raté)
+  spawnTracer(from, to); playSound('enemyShot');                    // traceur (depuis le canon) + son
+  if(e.muzzleFlash){ e.muzzleFlash.visible = true; e.muzzleFlashUntil = nowS() + 0.05; }   // flash de bouche bref
   const dist = Math.hypot(to.x - from.x, to.z - from.z);
   const acc = enemyAccOverride != null ? enemyAccOverride
             : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4));
@@ -862,6 +865,10 @@ G.debug.forceEnemyShoot = (i) => { const e = enemies[i]; if(e){ e.shootCd = 0; e
 G.debug.enemyHasWeapon = (i) => !!(enemies[i] && enemies[i].weapon);
 G.debug.enemyMuzzle = (i) => { const e = enemies[i]; if(!e || !e.muzzle) return null;
   const v = e.muzzle.getWorldPosition(new THREE.Vector3()); return { x:v.x, y:v.y, z:v.z }; };
+G.debug.enemyMuzzleFlash = (i) => !!(enemies[i] && enemies[i].muzzleFlash && enemies[i].muzzleFlash.visible);
+G.debug.tracerCount = () => tracers.length;
+G.debug.lastTracerStart = () => { const tr = tracers[tracers.length-1]; if(!tr) return null;
+  const p = tr.line.geometry.attributes.position; return { x:p.getX(0), y:p.getY(0), z:p.getZ(0) }; };
 
 // dégâts localisés : zone d'impact selon la hauteur relative aux pieds de l'ennemi
 // ennemi 100 PV (= joueur) : tête = 2 balles, torse = 4, jambes = ~7 (bots plus coriaces)
@@ -982,6 +989,7 @@ function updateEnemies(dt){
     e.hitbox.position.set(e.root.position.x, e.root.position.y + 0.9, e.root.position.z);
     e.hitbox.updateMatrixWorld();
     if(e.flashUntil && nowS() >= e.flashUntil){ setEnemyEmissive(e, false); e.flashUntil = 0; }
+    if(e.muzzleFlashUntil && nowS() >= e.muzzleFlashUntil){ if(e.muzzleFlash) e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
     e.mixer.update(dt);
   }
 }
@@ -1053,6 +1061,7 @@ function damageEnemy(e, amount = DMG_TORSO){
 function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead'; e.respawnAt = nowS() + ENEMY_RESPAWN;
   e.mixer.stopAllAction();
+  if(e.muzzleFlash){ e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
   if(e.actions.dead){                                  // joue l'anim de mort (Dead) et garde la pose finale
     e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
   }
