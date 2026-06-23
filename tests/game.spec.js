@@ -776,3 +776,14 @@ test('save : le HUD affiche l argent en jeu', async ({ page }) => {
   await expect(page.locator('#money-hud')).toBeVisible();
   await expect(page.locator('#money-hud')).toContainText('250');
 });
+
+test('save : le record (meilleure vague) persiste au rechargement', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.forceNextWave());     // atteint la vague 2
+  expect(await page.evaluate(() => __game.bestWave)).toBe(2);
+  await page.reload();
+  await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().bestWave)).toBe(2);
+  expect(await page.evaluate(() => __game.bestWave)).toBe(2);  // record rechargé depuis la save
+});

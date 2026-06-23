@@ -833,10 +833,10 @@ G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
 
 function playerDie(){
-  G.phase = 'dead';
-  playSound('gameover');
+  G.phase = 'dead'; recordScore(); playSound('gameover');
   if(document.pointerLockElement) document.exitPointerLock?.();
-  document.getElementById('go-score').textContent = 'Score : ' + score;
+  document.getElementById('go-score').innerHTML =
+    `Score : ${score} · Vague atteinte : ${wave}<br>Record : vague ${save.bestWave} · 💰 ${save.money}`;
   document.getElementById('gameover').classList.remove('hidden');
 }
 function restartGame(){
@@ -869,8 +869,8 @@ const enemies = [];      // { id, root, mixer, actions, hitbox, mats, hp, state,
 let enemyBase = null;    // groupe centré à cloner
 let enemyClips = null;   // { idle, walk, run, attack } (AnimationClip retargetés pour le rig ennemi)
 // ====== Vagues (mode survie) ======
-let wave = 0, waveState = 'active', nextWaveAt = 0, bestWave = 0;   // bestWave = record (mémoire ; persistance = tranche 12)
-G.wave = 0; G.bestWave = 0;
+let wave = 0, waveState = 'active', nextWaveAt = 0, bestWave = save.bestWave;   // record persistant (localStorage, tranche 12)
+G.wave = 0; G.bestWave = bestWave;
 
 // décision d'état pure (seuils) — testée isolément
 function enemyDecision(dist, state){
@@ -1124,7 +1124,7 @@ function killEnemy(e){
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
   wave = w; G.wave = w;
-  if(w > bestWave){ bestWave = w; G.bestWave = bestWave; }   // record = meilleure vague atteinte
+  if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w));         // nettoie les corps + crée la nouvelle vague
   waveState = 'active';
   updateWaveHud(); showWaveBanner('Vague ' + w);
