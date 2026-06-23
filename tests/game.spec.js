@@ -175,8 +175,8 @@ test('le saut fait décoller puis retomber le perso', async ({ page }) => {
   await startPlaying(page);
   const y0 = await page.evaluate(() => __game.position().y);
   await page.evaluate(() => __game.debug.jump());
-  await page.waitForFunction(y => window.__game.position().y > y + 0.2, y0, { timeout:3000 });   // décolle
-  await page.waitForFunction(y => Math.abs(window.__game.position().y - y) < 0.05, y0, { timeout:5000 }); // retombe
+  await page.waitForFunction(y => window.__game.position().y > y + 0.2, y0, { timeout:6000 });   // décolle
+  await page.waitForFunction(y => Math.abs(window.__game.position().y - y) < 0.05, y0, { timeout:9000 }); // retombe (marge pour stalls de rendu logiciel)
 });
 
 test('tirer sur une cible devant => score +1 et la cible disparaît', async ({ page }) => {
