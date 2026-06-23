@@ -679,3 +679,16 @@ test('tranche9 : un ennemi qui tire reste debout (pas d anim de combat melee)', 
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('shoot');
   expect(await page.evaluate(() => __game.debug.enemyLoco(0))).not.toBe('attack');   // tire en restant debout
 });
+
+test('vagues : enemiesForWave et enemyHpForWave croissent et sont plafonnées', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const n = (w) => page.evaluate(ww => __game.debug.enemiesForWave(ww), w);
+  const hp = (w) => page.evaluate(ww => __game.debug.enemyHpForWave(ww), w);
+  expect(await n(1)).toBe(3);                 // compat : vague 1 = 3 ennemis
+  expect(await n(2)).toBe(4);
+  expect(await n(2)).toBeGreaterThan(await n(1));
+  expect(await n(99)).toBe(7);                // plafond MAX_PER_WAVE
+  expect(await hp(1)).toBe(100);              // compat : 100 PV vague 1
+  expect(await hp(3)).toBeGreaterThan(await hp(1));  // plus coriaces
+});

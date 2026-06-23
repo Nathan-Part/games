@@ -813,6 +813,12 @@ const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE
       ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
       ENEMY_R = 0.45, ENEMY_RESPAWN = 3.0, ENEMY_FLASH = 0.08, ENEMY_TURN = 8,
       SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
+const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5;
+// courbes de progression des vagues (pures) : nombre + PV croissants, plafonnés
+function enemiesForWave(w){ return Math.min(2 + w, MAX_PER_WAVE); }
+function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1))); }
+G.debug.enemiesForWave = enemiesForWave;
+G.debug.enemyHpForWave = enemyHpForWave;
 let enemyAccOverride = null;                   // pour les tests (précision forcée)
 const ENEMY_FOOT_Y = 0;                       // pieds au sol (modèle ennemi centré dans un groupe)
 const FLASH_COLOR = new THREE.Color(0xff2222);
