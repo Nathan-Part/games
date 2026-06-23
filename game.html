@@ -493,6 +493,7 @@ async function previewCharacter(index){
   lobbyIndex = ((index % n) + n) % n;
   const c = characters[lobbyIndex];
   document.getElementById('char-name').textContent = c.label;   // maj immédiate du nom
+  save.selectedCharacterId = c.id; persist();                  // mémorise le perso choisi (tranche 12)
   await spawnModel(c);                                          // affiche le modèle (turntable)
 }
 function cycleCharacter(dir){ if(G.phase==='lobby') previewCharacter(lobbyIndex + dir); }
@@ -506,7 +507,8 @@ async function initLobby(){
     if(!characters.length){ showOverlay('Aucun personnage. Ajoute-en via studio.html ou vérifie /perso.'); return; }
     G.characters = characters.map(c => ({ id:c.id, label:c.label }));
     setLobbyCamera();
-    await previewCharacter(0);
+    const savedIdx = characters.findIndex(c => c.id === save.selectedCharacterId);   // rouvre sur le perso mémorisé
+    await previewCharacter(savedIdx >= 0 ? savedIdx : 0);
     G.phase = 'lobby';
   } catch (e) {
     console.warn('init KO', e);

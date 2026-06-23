@@ -787,3 +787,15 @@ test('save : le record (meilleure vague) persiste au rechargement', async ({ pag
   expect(await page.evaluate(() => __game.debug.save.get().bestWave)).toBe(2);
   expect(await page.evaluate(() => __game.bestWave)).toBe(2);  // record rechargé depuis la save
 });
+
+test('save : le perso choisi est memorise (persiste au rechargement)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 2 && window.__game.phase === 'lobby', null, { timeout:20000 });
+  const name0 = (await page.locator('#char-name').textContent()).trim();
+  await page.locator('#next').click();
+  await expect.poll(async () => (await page.locator('#char-name').textContent()).trim()).not.toBe(name0);
+  const chosen = (await page.locator('#char-name').textContent()).trim();
+  await page.reload();
+  await page.waitForFunction(() => window.__game?.characters?.length >= 2 && window.__game.phase === 'lobby', null, { timeout:20000 });
+  await expect.poll(async () => (await page.locator('#char-name').textContent()).trim()).toBe(chosen);  // rouvre sur le perso choisi
+});
