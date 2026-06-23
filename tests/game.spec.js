@@ -731,3 +731,48 @@ test('vagues : enemiesForWave et enemyHpForWave croissent et sont plafonnées', 
   expect(await hp(1)).toBe(100);              // compat : 100 PV vague 1
   expect(await hp(3)).toBeGreaterThan(await hp(1));  // plus coriaces
 });
+
+test('save : l argent persiste au rechargement (round-trip localStorage)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(100); });
+  await page.reload();
+  await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.money)).toBe(100);
+});
+
+test('save : tuer un ennemi rapporte de l argent (par kill)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  const rates = await page.evaluate(() => __game.debug.save.rates());
+  const before = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 1000));   // tue 1 des 3 (vague non finie)
+  const after = await page.evaluate(() => __game.money);
+  expect(after - before).toBe(rates.perKill);
+});
+
+test('save : nettoyer une vague rapporte un bonus (par vague)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  const rates = await page.evaluate(() => __game.debug.save.rates());
+  const before = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.killAllEnemies());       // 3 kills + bonus vague 1
+  const after = await page.evaluate(() => __game.money);
+  expect(after - before).toBe(3 * rates.perKill + rates.perWave * 1);
+});
+
+test('save : une sauvegarde corrompue retombe sur les valeurs par defaut', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  await page.evaluate(() => localStorage.setItem('cod-save-v1', '{pas du json'));
+  await page.reload();
+  await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.money)).toBe(0);
+  expect(await page.evaluate(() => __game.debug.save.get().bestWave)).toBe(0);
+});
+
+test('save : le HUD affiche l argent en jeu', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(250); });
+  await expect(page.locator('#money-hud')).toBeVisible();
+  await expect(page.locator('#money-hud')).toContainText('250');
+});

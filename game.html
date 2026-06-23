@@ -59,6 +59,10 @@
     padding:7px 16px;font-size:14px;font-weight:600;letter-spacing:.3px;white-space:nowrap}
   #wave-hud.hidden{display:none}
   #wave-hud b{color:#b8c8ff}
+  #money-hud{position:fixed;left:16px;top:14px;z-index:10;background:rgba(20,24,33,.8);
+    border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:7px 14px;
+    font-size:15px;font-weight:700;color:#ffd479;white-space:nowrap}
+  #money-hud.hidden{display:none}
   #wave-banner{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.82);z-index:21;
     font-size:42px;font-weight:800;color:#e8ecf4;text-shadow:0 4px 24px rgba(0,0,0,.75);
     opacity:0;transition:opacity .25s ease,transform .25s ease;pointer-events:none;
@@ -104,6 +108,7 @@
 <div id="hitmarker">✕</div>
 <div id="combat" class="hidden"></div>
 <div id="wave-hud" class="hidden"></div>
+<div id="money-hud" class="hidden"></div>
 <div id="wave-banner"></div>
 <div id="vignette"></div>
 <div id="healthbar" class="hidden"><div id="health-fill"></div></div>
@@ -171,6 +176,29 @@ function pushOutCircleAABB(px, pz, r, box){
   return { x: pen.x, z: pen.z };
 }
 Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB });
+
+// ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
+const SAVE_KEY = 'cod-save-v1';
+function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selectedCharacterId:null,
+  ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{} }; }
+function loadSave(){
+  try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
+    const p = JSON.parse(raw); return (p && typeof p === 'object') ? Object.assign(defaultSave(), p) : defaultSave();
+  } catch(e){ return defaultSave(); }   // save corrompue / indisponible -> valeurs par défaut
+}
+let save = loadSave();
+function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
+const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
+function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
+function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
+function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `💰 ${save.money}`; }
+G.money = save.money;
+G.debug.save = {
+  get(){ return JSON.parse(JSON.stringify(save)); },
+  reset(){ save = defaultSave(); G.money = save.money; persist(); updateMoneyHud(); },
+  addMoney(n){ addMoney(n); }, raw(){ try { return localStorage.getItem(SAVE_KEY); } catch(e){ return null; } },
+  rates(){ return { perKill:MONEY_PER_KILL, perWave:MONEY_PER_WAVE }; },
+};
 
 // ====== Moteur ======
 const app = document.getElementById('app');
@@ -508,6 +536,7 @@ async function startGame(){
   document.getElementById('crosshair').classList.remove('hidden');
   document.getElementById('combat').classList.remove('hidden');
   document.getElementById('wave-hud').classList.remove('hidden');
+  document.getElementById('money-hud').classList.remove('hidden'); updateMoneyHud();
   updateCombatHud();
   if(!enemyBase) await buildEnemyAssets(char);
   startWave(1);
@@ -1089,6 +1118,7 @@ function killEnemy(e){
     e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
   }
   score++; G.score = score; flashHitMarker(); playSound('enemyDie');
+  addMoney(MONEY_PER_KILL);                            // argent par kill (méta-monnaie persistée)
   checkWaveCleared(); updateWaveHud();                 // vague : un mort de moins (plus de respawn auto)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
@@ -1102,6 +1132,7 @@ function startWave(w){
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
+  addMoney(MONEY_PER_WAVE * wave); recordScore();      // bonus de vague (croissant) + record du score
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 function updateWaves(dt){
