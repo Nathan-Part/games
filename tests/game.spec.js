@@ -12,7 +12,7 @@ test('boote la scène three.js sans erreur', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game && window.__game.booted === true);
-  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.locator('#app canvas')).toBeVisible();   // #app = canvas three.js principal (≠ #radar)
   expect(errors).toEqual([]);
 });
 

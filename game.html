@@ -1137,7 +1137,8 @@ function applyShopVisibility(){
 function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, sans brouillard, hémisphère boostée)
   const weaponsView = shopOpen && shopTab === 'weapons';
   ground.visible = !weaponsView; grid.visible = !shopOpen;
-  for(const m of obstacleMeshes) m.visible = !shopOpen;   // caisses du décor masquées (fond propre)
+  for(const m of obstacleMeshes) m.visible = !shopOpen;   // décor (bâtiments/murs/caisses) masqué (fond propre)
+  lamp1.visible = lamp2.visible = !shopOpen;              // lampes d'accent éteintes en boutique
   shopLight.intensity = weaponsView ? 3.0 : 0; shopFill.intensity = weaponsView ? 1.7 : 0;
   hemi.intensity = shopOpen ? 2.3 : 0.9;
   scene.background = shopOpen ? SHOP_BG : SCENE_BG;
