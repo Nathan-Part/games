@@ -585,8 +585,14 @@ async function playLobbyIdle(){
   const target = model;
   try { if(!anims.length) await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); } catch(e){ return; }
   if(model !== target) return;                          // un autre perso a été sélectionné entre-temps
-  const clip = retargetRole('idle');
-  if(clip){ mixer = new THREE.AnimationMixer(model); mixer.clipAction(clip).play(); lobbyIdle = true; }
+  // lobby = perso sans arme → pose debout détendue (bras le long du corps) : 1er frame de "Agree_Gesture" figé.
+  // (l'idle EN JEU reste "Alert" — correct car le perso tient alors son arme.)
+  const calm = anims.find(a => a.key === 'Agree_Gesture');
+  const clip = calm ? retargetClipWorld(calm.clip) : retargetRole('idle');
+  if(clip){ mixer = new THREE.AnimationMixer(model); const act = mixer.clipAction(clip);
+    if(calm){ act.play(); act.paused = true; act.time = 0.05; mixer.update(0); }   // pose figée naturelle
+    else act.play();
+    lobbyIdle = true; }
 }
 G.debug.lobbyAnimated = () => lobbyIdle;
 function retargetRole(role){
