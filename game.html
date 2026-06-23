@@ -108,7 +108,7 @@
     background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
   /* ====== Boutique v2 : carrousel 3D + UI bas-centre ====== */
   #shop-panel{position:fixed;inset:0;z-index:45;
-    background:radial-gradient(ellipse 82% 62% at 50% 36%, rgba(96,110,148,.44), rgba(30,36,52,.86) 60%, rgba(14,17,26,.95))}
+    background:radial-gradient(ellipse 95% 88% at 50% 42%, transparent 46%, rgba(18,22,34,.34) 100%)}
   #shop-panel.hidden{display:none}
   .shop-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;padding:16px 22px;z-index:3}
   .shop-tabs{display:flex;gap:8px}
@@ -312,6 +312,7 @@ const app = document.getElementById('app');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b0d12);
 scene.fog = new THREE.Fog(0x0b0d12, 18, 60);
+const SCENE_BG = new THREE.Color(0x0b0d12), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xaeb6c9); // fond clair pour la boutique
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 3, -6);
@@ -323,7 +324,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0x9bb6ff, 0x1a1d26, 0.9));
+const hemi = new THREE.HemisphereLight(0x9bb6ff, 0x1a1d26, 0.9); scene.add(hemi);
 const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
 keyLight.position.set(8, 14, 6); keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048,2048); keyLight.shadow.camera.far = 60;
@@ -359,11 +360,11 @@ function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
 // ====== Map : obstacles + bornes ======
 const PLAYER_R = 0.45;
-const obstacles = [];
+const obstacles = [], obstacleMeshes = [];
 function addBox(cx, cz, w, d, h){
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
     new THREE.MeshStandardMaterial({ color:0x2a3550, roughness:0.8 }));
-  mesh.position.set(cx, h/2, cz); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+  mesh.position.set(cx, h/2, cz); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh); obstacleMeshes.push(mesh);
   obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 });
 }
 addBox(-5, 6, 2, 2, 1.5); addBox(7, -4, 3, 1, 2); addBox(0, 12, 2, 2, 1.5);
@@ -959,10 +960,14 @@ function applyShopVisibility(){
   if(model) model.visible = !weaponsView;               // perso caché en vitrine d'arme (lobby = toujours 3e pers.)
   for(const o of [shopWeaponObj, shopSideL, shopSideR]) if(o) o.visible = weaponsView;
 }
-function updateShopScene(){   // home masqué quand la boutique est ouverte ; sol/grille masqués + appoints en vitrine d'arme
+function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, sans brouillard, hémisphère boostée)
   const weaponsView = shopOpen && shopTab === 'weapons';
-  ground.visible = !weaponsView; grid.visible = !weaponsView;
-  shopLight.intensity = weaponsView ? 3.4 : 0; shopFill.intensity = weaponsView ? 1.9 : 0;
+  ground.visible = !weaponsView; grid.visible = !shopOpen;
+  for(const m of obstacleMeshes) m.visible = !shopOpen;   // caisses du décor masquées (fond propre)
+  shopLight.intensity = weaponsView ? 3.0 : 0; shopFill.intensity = weaponsView ? 1.7 : 0;
+  hemi.intensity = shopOpen ? 2.3 : 0.9;
+  scene.background = shopOpen ? SHOP_BG : SCENE_BG;
+  scene.fog = shopOpen ? null : SCENE_FOG;
   document.getElementById('lobby').classList.toggle('hidden', shopOpen);
 }
 function updateShopCamera(){
