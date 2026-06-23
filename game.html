@@ -177,6 +177,7 @@
   .shop-sub2{font-size:12px;font-weight:700;opacity:.8;width:100%;margin:8px 0 8px;
     border-top:1px solid rgba(150,175,235,.18);padding-top:10px}
   .shop-upgrades.nobox{background:transparent;border:none;padding:0;width:100%;margin-top:0}
+  .shop-swatch{display:inline-block;width:20px;height:20px;border-radius:6px;border:1px solid rgba(255,255,255,.35);vertical-align:middle}
 </style>
 </head>
 <body>
@@ -228,6 +229,7 @@
     <div class="shop-tabs">
       <button class="shop-tab active" data-tab="weapons">🔫 Armes</button>
       <button class="shop-tab" data-tab="player">🧍 Personnage</button>
+      <button class="shop-tab" data-tab="skins">🎨 Skins</button>
     </div>
     <div class="shop-money2">💰 <span id="shop-money-val">0</span></div>
     <button id="shop-close" class="shop-close" title="Fermer">✕</button>
@@ -305,7 +307,7 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 const SAVE_KEY = 'cod-save-v1';
 function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selectedCharacterId:null,
   ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},
-  ownedCharacters:['perso:blue-soldier'] }; }
+  ownedCharacters:['perso:blue-soldier'], ownedSkins:['default'], selectedSkin:'default' }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); return (p && typeof p === 'object') ? Object.assign(defaultSave(), p) : defaultSave();
@@ -328,6 +330,50 @@ G.debug.save = {
   addMoney(n){ addMoney(n); }, raw(){ try { return localStorage.getItem(SAVE_KEY); } catch(e){ return null; } },
   rates(){ return { perKill:MONEY_PER_KILL, perWave:MONEY_PER_WAVE }; },
 };
+
+// ====== Skins / cosmétiques (#16) : teinte des matériaux du perso ======
+const SKINS = [
+  { id:'default', name:'Origine', price:0,   tint:null },
+  { id:'crimson', name:'Carmin',  price:400, tint:0xd23b3b },
+  { id:'azure',   name:'Azur',    price:400, tint:0x3b78d2 },
+  { id:'shadow',  name:'Spectre', price:600, tint:0x4a5260 },
+  { id:'gold',    name:'Doré',    price:800, tint:0xd2a93b },
+];
+function skinById(id){ return SKINS.find(s => s.id === id) || SKINS[0]; }
+function applySkin(root, skinId){
+  if(!root) return;
+  const tint = skinById(skinId).tint;
+  root.traverse(o => { if(o.isMesh && o.material){
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for(const m of mats){
+      if(!m.color) continue;
+      if(!m.userData.baseColor) m.userData.baseColor = m.color.clone();                 // couleur d'origine mémorisée
+      if(m.emissive && !m.userData.baseEmissive) m.userData.baseEmissive = m.emissive.clone();
+      if(tint == null){                                                                  // Origine : restaure tout
+        m.color.copy(m.userData.baseColor);
+        if(m.emissive && m.userData.baseEmissive) m.emissive.copy(m.userData.baseEmissive);
+      } else {
+        m.color.setHex(tint);                                                            // teinte (multiplie la texture)
+        if(m.emissive) m.emissive.setHex(tint).multiplyScalar(0.28);                     // léger halo coloré : skin lisible sur toute texture
+      }
+    }
+  } });
+}
+function buySkin(id){
+  const s = SKINS.find(s => s.id === id); if(!s) return false;
+  if(save.ownedSkins.includes(id) || save.money < s.price) return false;
+  save.money -= s.price; G.money = save.money; save.ownedSkins.push(id);
+  persist(); updateMoneyHud(); updateHomeMeta(); return true;
+}
+function selectSkin(id){
+  if(!SKINS.find(s => s.id === id) || !save.ownedSkins.includes(id)) return false;
+  save.selectedSkin = id; persist(); applySkin(model, id); return true;   // re-teinte live
+}
+G.debug.playerSkin = () => save.selectedSkin;
+G.debug.modelTint = () => { if(!model) return null; let hex = null;
+  model.traverse(o => { if(hex == null && o.isMesh && o.material){
+    const m = Array.isArray(o.material) ? o.material[0] : o.material; if(m && m.color) hex = '#' + m.color.getHexString(); } });
+  return hex; };
 
 // ====== Moteur ======
 const app = document.getElementById('app');
@@ -589,6 +635,7 @@ async function spawnModel(char){
   const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);
   const m = gltf.scene;
   m.traverse(o => { if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+  applySkin(m, save.selectedSkin);                    // teinte cosmétique (#16) : appliquée dès le spawn
   targetRest = captureRest(m); targetRestWorld = captureRestWorld(m); targetBoneOrder = boneOrder(m);
   const box = new THREE.Box3().setFromObject(m);
   const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3());
@@ -1006,7 +1053,7 @@ function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, 
 }
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
-  else if(shopOpen && shopTab === 'player'){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche
+  else if(shopOpen && (shopTab === 'player' || shopTab === 'skins')){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche
   else setLobbyCamera();
 }
 function updateShopTabs(){
@@ -1031,7 +1078,7 @@ function closeShop(){
   updateShopScene(); updateHomeMeta(); updateShopCamera();   // restaure home (méta à jour) + caméra lobby
 }
 function setShopTab(name){
-  shopTab = (name === 'player') ? 'player' : 'weapons';
+  shopTab = (name === 'player') ? 'player' : (name === 'skins') ? 'skins' : 'weapons';
   updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera(); renderShop();
 }
 Object.assign(G.debug.shop, {
@@ -1069,7 +1116,7 @@ function renderShop(){
     if(owned && shopAmeliorerOpen){ html += `<div class="shop-upgrades">`;
       for(const t in UPGRADE_SPECS) html += upgRow(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg');
       html += `</div>`; }
-  } else {
+  } else if(shopTab === 'player'){
     const sel = save.selectedCharacterId || CHARACTERS[0].id;
     html += `<div class="shop-wname">Personnage</div>`;
     html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Perso</span><span>Vie</span><span>Régén</span><span>Vit.</span><span></span></div>`;
@@ -1083,8 +1130,21 @@ function renderShop(){
     html += `</div><div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades nobox">`;
     for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
     html += `</div>`;
+  } else {   // onglet Skins (#16) : teintes cosmétiques du perso
+    const sel = save.selectedSkin || 'default';
+    html += `<div class="shop-wname">Skins</div>`;
+    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Skin</span><span></span><span></span><span></span><span></span></div>`;
+    for(const s of SKINS){
+      const owned = save.ownedSkins.includes(s.id), eq = sel === s.id;
+      const sw = s.tint == null ? 'linear-gradient(135deg,#9aa,#e8edf6)' : '#' + s.tint.toString(16).padStart(6, '0');
+      const act = eq ? `<span class="shop-chartag">✓</span>`
+        : owned ? `<button class="shop-charbtn" data-selskin="${s.id}">Équiper</button>`
+        : `<button class="shop-charbtn buy" data-buyskin="${s.id}"${save.money >= s.price ? '' : ' disabled'}>💰${s.price}</button>`;
+      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${s.name}</span><span><i class="shop-swatch" style="background:${sw}"></i></span><span></span><span></span><span>${act}</span></div>`;
+    }
+    html += `</div>`;
   }
-  info.classList.toggle('left', shopTab === 'player');         // bloc à gauche pour le perso
+  info.classList.toggle('left', shopTab === 'player' || shopTab === 'skins');   // bloc à gauche pour perso & skins
   info.innerHTML = html;
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
@@ -1092,6 +1152,8 @@ function renderShop(){
   info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
   info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
   info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)){ showSelectedCharacter(); renderShop(); } });
+  info.querySelectorAll('[data-buyskin]').forEach(b => b.onclick = () => { if(buySkin(b.dataset.buyskin)) renderShop(); });
+  info.querySelectorAll('[data-selskin]').forEach(b => b.onclick = () => { if(selectSkin(b.dataset.selskin)) renderShop(); });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
 }
 
@@ -1243,6 +1305,9 @@ G.debug.playerStats = () => ({ maxHealth, regenRate, speedMult });
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
+G.debug.shop.skinCatalog = () => SKINS.map(s => ({ id:s.id, name:s.name, price:s.price }));
+G.debug.shop.buySkin = (id) => buySkin(id);
+G.debug.shop.selectSkin = (id) => selectSkin(id);
 function updateHealthHud(){
   const bar = document.getElementById('health-fill');
   if(bar) bar.style.width = (Math.max(0, health) / maxHealth * 100) + '%';

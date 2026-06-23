@@ -1145,3 +1145,54 @@ test('persos : l UI (onglet Personnage) montre le tableau et permet d acheter/eq
   await page.locator('#shop-info [data-selchar="perso:robot"]').click();    // équiper
   expect(await page.evaluate(() => __game.debug.save.get().selectedCharacterId)).toBe('perso:robot');
 });
+
+// ====== Tranche 16 : skins / cosmétiques (teintes du perso) ======
+test('skins : catalogue (Origine gratuit, prix croissants)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.skinCatalog());
+  const byId = id => cat.find(s => s.id === id);
+  expect(byId('default').price).toBe(0);
+  expect(byId('crimson')).toBeTruthy();
+  expect(byId('gold').price).toBeGreaterThan(byId('crimson').price);
+});
+
+test('skins : acheter+equiper change la teinte du modele (persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
+  expect(await page.evaluate(() => __game.debug.shop.buySkin('crimson'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.selectSkin('crimson'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => __game.debug.modelTint())).toBe('#d23b3b');
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().selectedSkin)).toBe('crimson');
+  expect(await page.evaluate(() => __game.debug.save.get().ownedSkins)).toContain('crimson');
+});
+
+test('skins : default ne force pas une teinte vive', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());   // selectedSkin = default
+  expect(await page.evaluate(() => __game.debug.playerSkin())).toBe('default');
+  expect(await page.evaluate(() => __game.debug.modelTint())).not.toBe('#d23b3b');
+});
+
+test('skins : achat refuse sans argent ; skin non possede non equipable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(100); });
+  expect(await page.evaluate(() => __game.debug.shop.buySkin('gold'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.selectSkin('gold'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.save.get().ownedSkins)).not.toContain('gold');
+});
+
+test('skins : onglet boutique montre le tableau et permet acheter/equiper', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(5000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="skins"]').click();
+  expect(await page.evaluate(() => __game.debug.shop.currentTab())).toBe('skins');
+  await expect(page.locator('#shop-info')).toContainText('Carmin');
+  await page.locator('#shop-info [data-buyskin="crimson"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().ownedSkins)).toContain('crimson');
+  await page.locator('#shop-info [data-selskin="crimson"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().selectedSkin)).toBe('crimson');
+});
