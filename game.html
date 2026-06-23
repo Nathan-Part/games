@@ -106,6 +106,20 @@
   .panel-card p{opacity:.8;line-height:1.6;margin-bottom:20px}
   .panel-back{padding:11px 20px;border-radius:11px;border:1px solid #5b8cff;font-size:15px;cursor:pointer;
     background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
+  #shop-panel .panel-card{max-width:520px;width:90%}
+  .shop-balance{font-size:18px;font-weight:800;color:#ffd479;margin-bottom:16px}
+  .shop-list{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+  .shop-item{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    background:rgba(255,255,255,.04);border:1px solid rgba(120,150,220,.15);border-radius:12px;padding:11px 14px}
+  .shop-item-info{display:flex;flex-direction:column;gap:3px;text-align:left}
+  .shop-item-info b{font-size:15px}
+  .shop-stats{font-size:12px;opacity:.65}
+  .shop-btn{padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+    border:1px solid rgba(120,150,220,.35);background:rgba(20,24,33,.7);color:#e8ecf4;transition:.15s}
+  .shop-btn.buy{border-color:#5b8cff;background:linear-gradient(135deg,rgba(91,140,255,.32),rgba(181,107,255,.24))}
+  .shop-btn:not(:disabled):hover{transform:translateY(-1px)}
+  .shop-btn:disabled{opacity:.5;cursor:default}
+  .shop-btn.equipped{border-color:#3ad17a;color:#8fe07a;opacity:1}
 </style>
 </head>
 <body>
@@ -606,7 +620,7 @@ document.getElementById('play-btn').onclick = () => startGame();
 // Accueil : panneaux Boutique / Réglages (placeholders, remplis aux tranches 13/18)
 const openPanel = id => document.getElementById(id).classList.remove('hidden');
 const closePanel = id => document.getElementById(id).classList.add('hidden');
-document.getElementById('btn-shop').onclick = () => openPanel('shop-panel');
+document.getElementById('btn-shop').onclick = () => { renderShop(); openPanel('shop-panel'); };
 document.getElementById('btn-settings').onclick = () => openPanel('settings-panel');
 for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
 addEventListener('keydown', e => {
@@ -797,6 +811,26 @@ G.debug.shop = {
   catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price })); },
   buy(id){ return buyWeapon(id); }, equip(id){ return equipWeapon(id); },
 };
+// ====== Écran boutique (UI, remplit #shop-panel) ======
+function renderShop(){
+  const card = document.querySelector('#shop-panel .panel-card'); if(!card) return;
+  let html = `<h2>🛒 Boutique</h2><div class="shop-balance">💰 ${save.money}</div><div class="shop-list">`;
+  for(const w of WEAPONS){
+    const owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id;
+    const s = weaponStats(w.id);
+    let btn;
+    if(equipped) btn = `<button class="shop-btn equipped" disabled>✓ Équipé</button>`;
+    else if(owned) btn = `<button class="shop-btn" data-equip="${w.id}">Équiper</button>`;
+    else btn = `<button class="shop-btn buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter · 💰${w.price}</button>`;
+    html += `<div class="shop-item"><div class="shop-item-info"><b>${w.name}</b>`
+      + `<span class="shop-stats">Chargeur ${s.mag} · Cadence ${(1/s.cooldown).toFixed(1)}/s · Dégâts ×${s.dmgMult}</span></div>${btn}</div>`;
+  }
+  html += `</div><button class="panel-back" data-panel="shop-panel">◀ Retour</button>`;
+  card.innerHTML = html;
+  card.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
+  card.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
+  card.querySelector('.panel-back').onclick = () => closePanel('shop-panel');
+}
 
 // ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
 const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;

@@ -925,3 +925,14 @@ test('boutique : equiper une autre arme reconstruit le modele au lancement', asy
   await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
   expect(await page.evaluate(() => __game.debug.weapon.equippedId())).toBe('smg');
 });
+
+test('boutique : l UI permet d acheter une arme (clic)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  await page.locator('#btn-shop').click();
+  await expect(page.locator('#shop-panel')).toBeVisible();
+  await page.locator('#shop-panel [data-buy="smg"]').click();
+  await expect(page.locator('#shop-panel [data-equip="smg"]')).toBeVisible();   // devient « Équiper »
+  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).toContain('smg');
+});
