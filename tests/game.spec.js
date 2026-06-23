@@ -859,3 +859,18 @@ test('accueil : on revient au menu apres un Game Over', async ({ page }) => {
   await expect(page.locator('#lobby')).toBeVisible();
   await expect(page.locator('#gameover')).toBeHidden();
 });
+
+test('boutique : catalogue d armes avec prix croissants', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.catalog());
+  const ids = cat.map(w => w.id);
+  expect(ids).toContain('default'); expect(ids).toContain('smg'); expect(ids).toContain('sniper');
+  expect(cat.find(w => w.id === 'default').price).toBe(0);
+  expect(cat.find(w => w.id === 'sniper').price).toBeGreaterThan(cat.find(w => w.id === 'smg').price);
+});
+
+test('boutique : l arme de depart garde les stats actuelles (compat)', async ({ page }) => {
+  await startPlaying(page);
+  const s = await page.evaluate(() => __game.debug.weaponStats());
+  expect(s.mag).toBe(12); expect(s.cooldown).toBeCloseTo(0.12, 5); expect(s.dmgMult).toBe(1);
+});

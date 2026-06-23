@@ -582,7 +582,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  score=0; G.score=0; ammo=MAG_SIZE; G.ammo=ammo; reloading=false; lastShot=-1;
+  score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
   document.getElementById('combat').classList.remove('hidden');
@@ -765,9 +765,29 @@ document.addEventListener('pointerlockchange', () => {
   document.getElementById('pause').classList.toggle('hidden', locked || G.phase!=='playing');
 });
 
+// ====== Catalogue d'armes (boutique #13) ======
+const WEAPONS = [
+  { id:'default', name:"Fusil d'assaut", price:0, glb:true,
+    stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
+  { id:'smg', name:'Mitraillette', price:700,
+    stats:{ mag:24, cooldown:0.07, reload:1.4, dmgMult:0.6, recoil:0.6 }, build:buildWeaponMesh },
+  { id:'sniper', name:'Sniper', price:1500,
+    stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2 }, build:buildWeaponMesh },
+];
+function weaponById(id){ return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
+function weaponStats(id = save.selectedWeapon){
+  const s = weaponById(id).stats;        // #14 modifiera ces valeurs via save.weaponUpgrades[id]
+  return { mag:s.mag, cooldown:s.cooldown, reload:s.reload, dmgMult:s.dmgMult, recoil:s.recoil };
+}
+let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1;
+function applyWeaponStats(){ const s = weaponStats();
+  curMag=s.mag; curCooldown=s.cooldown; curReload=s.reload; curDmgMult=s.dmgMult; curRecoil=s.recoil; }
+G.debug.weaponStats = () => weaponStats();
+G.debug.shop = { catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price })); } };
+
 // ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
-const MAG_SIZE = 12, FIRE_COOLDOWN = 0.12, RELOAD_TIME = 1.2, RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
-let ammo = MAG_SIZE, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
+const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
+let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 const targets = [];                 // entités-données : { id, mesh, alive, respawnAt }
 const _ray = new THREE.Raycaster();
 const nowS = () => performance.now() / 1000;
@@ -793,8 +813,8 @@ function hitTarget(t){
 }
 function tryFire(){
   if(G.phase!=='playing' || reloading || ammo <= 0) return false;
-  if(nowS() - lastShot < FIRE_COOLDOWN) return false;
-  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = 1;
+  if(nowS() - lastShot < curCooldown) return false;
+  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil;
   _ray.setFromCamera({ x:0, y:0 }, camera);                 // rayon = centre de l'écran (viseur)
   const shoot = [];
   for(const t of targets) if(t.alive) shoot.push(t.mesh);
@@ -808,13 +828,13 @@ function tryFire(){
     const t = targets.find(t => t.mesh === obj);
     if(t) hitTarget(t);
     else { const e = enemies.find(e => e.hitbox === obj);
-      if(e){ const relY = hits[0].point.y - e.root.position.y; damageEnemy(e, hitZoneDamage(relY).damage); } }
+      if(e){ const relY = hits[0].point.y - e.root.position.y; damageEnemy(e, Math.round(hitZoneDamage(relY).damage * curDmgMult)); } }
   }
   return true;
 }
 function reload(){
-  if(reloading || ammo === MAG_SIZE || G.phase!=='playing') return;
-  reloading = true; reloadAt = nowS() + RELOAD_TIME; playSound('reload');
+  if(reloading || ammo === curMag || G.phase!=='playing') return;
+  reloading = true; reloadAt = nowS() + curReload; playSound('reload');
 }
 // juice : trace de balle qui s'efface
 const tracers = [];
@@ -837,11 +857,11 @@ function flashHitMarker(){
 }
 function updateCombatHud(){
   document.getElementById('combat').innerHTML =
-    `Score <b>${score}</b><br>${reloading ? 'Recharge…' : '🔫 ' + ammo + ' / ' + MAG_SIZE}`;
+    `Score <b>${score}</b><br>${reloading ? 'Recharge…' : '🔫 ' + ammo + ' / ' + curMag}`;
 }
 function updateCombat(dt){
   if(G.phase!=='playing') return;
-  if(reloading && nowS() >= reloadAt){ ammo = MAG_SIZE; reloading = false; G.ammo = ammo; }
+  if(reloading && nowS() >= reloadAt){ ammo = curMag; reloading = false; G.ammo = ammo; }
   if(input.fire) tryFire();
   const t = nowS();
   for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
@@ -900,7 +920,7 @@ function restartGame(){
   document.getElementById('gameover').classList.add('hidden');
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   health = MAX_HEALTH; G.health = health; lastDamageAt = -999; updateHealthHud();
-  score = 0; G.score = 0; ammo = MAG_SIZE; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
+  score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   spawnDefaultTargets();
   G.phase = 'playing';
   startWave(1);
