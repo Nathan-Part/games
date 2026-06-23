@@ -846,3 +846,13 @@ test('accueil : Reglages ouvre un panneau puis Retour le ferme', async ({ page }
   await page.locator('#settings-panel .panel-back').click();
   await expect(page.locator('#settings-panel')).toBeHidden();
 });
+
+test('accueil : on revient au menu apres un Game Over', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(100));
+  expect(await page.evaluate(() => __game.phase)).toBe('dead');
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => __game.phase)).toBe('lobby');
+  await expect(page.locator('#lobby')).toBeVisible();
+  await expect(page.locator('#gameover')).toBeHidden();
+});

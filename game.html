@@ -150,6 +150,7 @@
 <div id="gameover" class="hidden"><div class="go-inner">
   <h1>💀 Game Over</h1><div id="go-score"></div>
   <button id="go-restart">Rejouer ▶</button>
+  <button id="go-menu">Menu ◀</button>
 </div></div>
 <div id="shop-panel" class="panel hidden"><div class="panel-card">
   <h2>🛒 Boutique</h2><p>Bientôt disponible — achat d'armes (tranche 13).</p>
@@ -511,7 +512,7 @@ async function spawnModel(char){
   m.position.sub(center.multiplyScalar(s)); m.position.y += (size.y*s)/2;
   m.rotation.y = 0;
   if(mixer){ mixer.stopAllAction(); mixer = null; }   // lobby : pas d'anim, le modèle tourne sur lui-même
-  if(model) scene.remove(model);
+  if(model){ scene.remove(model); heldWeapon = null; }   // nouveau modèle => l'arme se ré-attache à la partie suivante
   model = m; scene.add(model);
   groundY = m.position.y; velY = 0; grounded = true;
 }
@@ -906,6 +907,21 @@ function restartGame(){
 }
 document.getElementById('go-restart').addEventListener('click', restartGame);
 G.debug.restart = () => restartGame();
+
+// Retour à l'accueil (depuis le Game Over) : masque les HUD, vide la scène de jeu, réaffiche le menu
+function backToHome(){
+  document.getElementById('gameover').classList.add('hidden');
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair'])
+    document.getElementById(id).classList.add('hidden');
+  clearEnemies(); clearTargets();
+  if(document.pointerLockElement) document.exitPointerLock?.();
+  G.phase = 'lobby';
+  document.getElementById('lobby').classList.remove('hidden');
+  updateHomeMeta(); setLobbyCamera();
+  if(characters[lobbyIndex]) previewCharacter(lobbyIndex);
+}
+document.getElementById('go-menu').addEventListener('click', backToHome);
+G.debug.backToHome = () => backToHome();
 
 // ====== Ennemis / IA ======
 const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE_TIME = 3.0,
