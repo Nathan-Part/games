@@ -1105,3 +1105,32 @@ test('boutique3d : la vitrine affiche les stats de l arme (degats, chargeur)', a
   await expect(page.locator('#shop-info')).toContainText('Dégâts');
   await expect(page.locator('#shop-info')).toContainText('Chargeur');
 });
+
+test('persos : catalogue (Blue-Soldier gratuit, Sentinel/Cyborg payants, Cyborg > Sentinel)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.charCatalog());
+  const byName = n => cat.find(c => c.name === n);
+  expect(byName('Blue-Soldier').price).toBe(0);
+  expect(byName('Cyborg').price).toBeGreaterThan(byName('Sentinel').price);   // Cyborg plus cher
+  expect(byName('Cyborg').base.health).toBeGreaterThan(byName('Sentinel').base.health);   // meilleures stats
+  expect(byName('Cyborg').base.speed).toBeGreaterThan(byName('Blue-Soldier').base.speed);
+});
+
+test('persos : acheter et equiper un perso change les stats de base', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(100);   // Blue-Soldier
+  await page.evaluate(() => { __game.debug.save.addMoney(5000); __game.debug.shop.buyCharacter('perso:robot'); __game.debug.shop.selectCharacter('perso:robot'); });
+  expect(await page.evaluate(() => __game.debug.save.get().ownedCharacters)).toContain('perso:robot');
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(175);   // Cyborg base
+  expect(await page.evaluate(() => __game.debug.playerStats().speedMult)).toBeGreaterThan(1);
+});
+
+test('persos : achat refuse si pas assez d argent ; non possede non equipable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(100); });
+  expect(await page.evaluate(() => __game.debug.shop.buyCharacter('perso:guard'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.selectCharacter('perso:guard'))).toBe(false);   // non possédé
+  expect(await page.evaluate(() => __game.debug.save.get().ownedCharacters)).not.toContain('perso:guard');
+});

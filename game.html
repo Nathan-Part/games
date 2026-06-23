@@ -283,7 +283,8 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 // ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
 const SAVE_KEY = 'cod-save-v1';
 function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selectedCharacterId:null,
-  ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{} }; }
+  ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},
+  ownedCharacters:['perso:blue-soldier'] }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); return (p && typeof p === 'object') ? Object.assign(defaultSave(), p) : defaultSave();
@@ -1147,6 +1148,13 @@ let maxHealth = BASE_MAX_HEALTH, regenRate = BASE_REGEN_RATE, speedMult = 1;   /
 let health = maxHealth, lastDamageAt = -999;
 G.health = maxHealth; G.maxHealth = maxHealth;
 // ====== Améliorations du perso (#15) ======
+// ====== Catalogue de personnages (achat ; stats de base par perso) ======
+const CHARACTERS = [
+  { id:'perso:blue-soldier', name:'Blue-Soldier', price:0,    base:{ health:100, regen:10, speed:1.00 } },
+  { id:'perso:guard',        name:'Sentinel',     price:1500, base:{ health:135, regen:13, speed:1.00 } },
+  { id:'perso:robot',        name:'Cyborg',       price:3000, base:{ health:175, regen:17, speed:1.15 } },
+];
+function characterById(id){ return CHARACTERS.find(c => c.id === id) || CHARACTERS[0]; }
 const PLAYER_UPGRADE_SPECS = {
   health: { name:'Vie',     max:5, baseCost:300, perLevel:20 },
   regen:  { name:'Régén',   max:5, baseCost:250, perLevel:3 },
@@ -1156,9 +1164,10 @@ function playerUpgradeLevel(type){ return (save.playerUpgrades && save.playerUpg
 function playerUpgradeCost(type){ const l = playerUpgradeLevel(type);
   return l >= PLAYER_UPGRADE_SPECS[type].max ? null : PLAYER_UPGRADE_SPECS[type].baseCost * (l + 1); }
 function applyPlayerStats(){
-  maxHealth = BASE_MAX_HEALTH + PLAYER_UPGRADE_SPECS.health.perLevel * playerUpgradeLevel('health');
-  regenRate = BASE_REGEN_RATE + PLAYER_UPGRADE_SPECS.regen.perLevel  * playerUpgradeLevel('regen');
-  speedMult = 1 + PLAYER_UPGRADE_SPECS.speed.perLevel * playerUpgradeLevel('speed');
+  const b = characterById(save.selectedCharacterId).base;   // base du perso équipé + améliorations (#15)
+  maxHealth = b.health + PLAYER_UPGRADE_SPECS.health.perLevel * playerUpgradeLevel('health');
+  regenRate = b.regen  + PLAYER_UPGRADE_SPECS.regen.perLevel  * playerUpgradeLevel('regen');
+  speedMult = b.speed * (1 + PLAYER_UPGRADE_SPECS.speed.perLevel * playerUpgradeLevel('speed'));
   G.maxHealth = maxHealth;
 }
 function buyPlayerUpgrade(type){
@@ -1169,8 +1178,21 @@ function buyPlayerUpgrade(type){
   save.money -= cost; G.money = save.money; save.playerUpgrades[type] = playerUpgradeLevel(type) + 1;
   persist(); updateMoneyHud(); updateHomeMeta(); applyPlayerStats(); return true;   // effet immédiat
 }
+function buyCharacter(id){
+  const c = CHARACTERS.find(c => c.id === id); if(!c) return false;
+  if(save.ownedCharacters.includes(id) || save.money < c.price) return false;
+  save.money -= c.price; G.money = save.money; save.ownedCharacters.push(id);
+  persist(); updateMoneyHud(); updateHomeMeta(); return true;
+}
+function selectCharacter(id){
+  if(!CHARACTERS.find(c => c.id === id) || !save.ownedCharacters.includes(id)) return false;
+  save.selectedCharacterId = id; persist(); applyPlayerStats(); return true;
+}
 applyPlayerStats();   // reflète les améliorations sauvegardées dès le chargement
 G.debug.playerStats = () => ({ maxHealth, regenRate, speedMult });
+G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base }));
+G.debug.shop.buyCharacter = (id) => buyCharacter(id);
+G.debug.shop.selectCharacter = (id) => selectCharacter(id);
 function updateHealthHud(){
   const bar = document.getElementById('health-fill');
   if(bar) bar.style.width = (Math.max(0, health) / maxHealth * 100) + '%';
