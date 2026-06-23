@@ -981,3 +981,35 @@ test('upgrade : l UI ameliore l arme equipee (clic)', async ({ page }) => {
   await page.locator('#shop-panel [data-upg="damage"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.damage)).toBe(1);
 });
+
+test('perso : ameliorer la vie augmente la vie max', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(100);
+  expect(await page.evaluate(() => __game.debug.shop.playerUpgrade('health'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(120);
+});
+
+test('perso : ameliorer la vitesse augmente le multiplicateur (debite, persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); __game.debug.shop.playerUpgrade('speed'); });
+  expect(await page.evaluate(() => __game.debug.playerStats().speedMult)).toBeGreaterThan(1);
+  expect(await page.evaluate(() => __game.money)).toBe(650);
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().playerUpgrades.speed)).toBe(1);
+});
+
+test('perso : sans amelioration = stats de base (compat)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const s = await page.evaluate(() => __game.debug.playerStats());
+  expect(s.maxHealth).toBe(100); expect(s.regenRate).toBe(10); expect(s.speedMult).toBe(1);
+});
+
+test('perso : ameliorer la vie donne plus de PV en partie', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000);
+    __game.debug.shop.playerUpgrade('health'); __game.debug.shop.playerUpgrade('health'); });  // +40
+  await page.evaluate(() => __game.debug.restart());   // relance la partie => PV pleins au nouveau max
+  expect(await page.evaluate(() => __game.health)).toBe(140);
+});
