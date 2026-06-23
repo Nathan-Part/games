@@ -1342,3 +1342,23 @@ test('radar : masque au lobby', async ({ page }) => {
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await expect(page.locator('#radar')).toBeHidden();
 });
+
+// ====== Tranche 19 : vraie map / niveau ======
+test('map : niveau enrichi avec un perimetre et des batiments', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.obstacleCount())).toBeGreaterThanOrEqual(10);
+  expect(await page.evaluate(() => __game.debug.pointInObstacle(0,22))).toBe(true);   // mur nord
+});
+
+test('map : les zones de jeu critiques restent degagees', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.pointInObstacle(0,0))).toBe(false);     // spawn
+  expect(await page.evaluate(() => __game.debug.pointInObstacle(0,3))).toBe(false);     // couloir +Z
+  expect(await page.evaluate(() => __game.debug.hasLineOfSight(0,0, 0,6))).toBe(true);  // LOS couloir
+});
+
+test('map : un batiment bloque la ligne de vue', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.pointInObstacle(16,8))).toBe(true);          // bâtiment est
+  expect(await page.evaluate(() => __game.debug.hasLineOfSight(10,8, 22,8))).toBe(false);    // vue coupée au travers
+});

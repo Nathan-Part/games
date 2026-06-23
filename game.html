@@ -437,7 +437,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
 const hemi = new THREE.HemisphereLight(0x9bb6ff, 0x1a1d26, 0.9); scene.add(hemi);
-const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+const keyLight = new THREE.DirectionalLight(0xfff2e0, 2.4);   // key chaude (urbain)
 keyLight.position.set(8, 14, 6); keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048,2048); keyLight.shadow.camera.far = 60;
 keyLight.shadow.camera.left=-20; keyLight.shadow.camera.right=20;
@@ -447,9 +447,9 @@ scene.add(keyLight);
 const MAP_HALF = 24;
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(MAP_HALF*2, MAP_HALF*2),
-  new THREE.MeshStandardMaterial({ color:0x12151d, roughness:0.95 }));
+  new THREE.MeshStandardMaterial({ color:0x23262e, roughness:0.96 }));   // bitume urbain
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
-const grid = new THREE.GridHelper(MAP_HALF*2, MAP_HALF, 0x2a3550, 0x1a1f2e); scene.add(grid);
+const grid = new THREE.GridHelper(MAP_HALF*2, MAP_HALF, 0x39435c, 0x20252f); scene.add(grid);
 const shopLight = new THREE.DirectionalLight(0xbcd0ff, 0); shopLight.position.set(2.4, 3, 3.4); scene.add(shopLight); // appoints vitrine boutique
 const shopFill  = new THREE.DirectionalLight(0xfff0d8, 0); shopFill.position.set(-3, 2.2, 2.6); scene.add(shopFill);
 
@@ -479,8 +479,42 @@ function addBox(cx, cz, w, d, h){
   mesh.position.set(cx, h/2, cz); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh); obstacleMeshes.push(mesh);
   obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 });
 }
-addBox(-5, 6, 2, 2, 1.5); addBox(7, -4, 3, 1, 2); addBox(0, 12, 2, 2, 1.5);
+// ====== Vraie map / niveau (#19) : arène urbaine (enceinte + bâtiments + cover) ======
+const levelMat = {
+  concrete:  () => new THREE.MeshStandardMaterial({ color:0x3a3f4b, roughness:0.9,  metalness:0.05 }),
+  concrete2: () => new THREE.MeshStandardMaterial({ color:0x4a4136, roughness:0.92 }),   // béton chaud (variation)
+  wall:      () => new THREE.MeshStandardMaterial({ color:0x2c313c, roughness:0.95 }),
+};
+function addWall(cx, cz, w, d, h){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), levelMat.wall());
+  m.position.set(cx, h/2, cz); m.castShadow = m.receiveShadow = true; scene.add(m); obstacleMeshes.push(m);
+  obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 }); return m;
+}
+function addBuilding(cx, cz, w, d, h, opt = {}){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), (opt.warm ? levelMat.concrete2() : levelMat.concrete()));
+  m.position.set(cx, h/2, cz); m.castShadow = m.receiveShadow = true; scene.add(m); obstacleMeshes.push(m);
+  obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 });
+  if(opt.lit){   // bandeau lumineux (décor : pas de collision, masqué en boutique via obstacleMeshes)
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(w*0.72, 0.2, d*0.72),
+      new THREE.MeshStandardMaterial({ color:0xffe6bd, emissive:0xffb860, emissiveIntensity:0.9, roughness:0.5 }));
+    strip.position.set(cx, h-0.18, cz); scene.add(strip); obstacleMeshes.push(strip);
+  }
+  return m;
+}
+addBox(-5, 6, 2, 2, 1.5); addBox(7, -4, 3, 1, 2); addBox(0, 12, 2, 2, 1.5);   // caisses d'origine (conservées)
+// mur d'enceinte (arène fermée + toile de fond) ; en retrait du bord (le clamp ±MAP_HALF reste libre)
+addWall(0, 22, 48, 1.6, 4); addWall(0, -22, 48, 1.6, 4); addWall(22, 0, 1.6, 48, 4); addWall(-22, 0, 1.6, 48, 4);
+// bâtiments (couloirs, angles, bloqueurs de vue) — évitent l'origine, le couloir +Z et les points d'ennemis testés
+addBuilding(-13, 13, 6, 6, 5, { lit:true }); addBuilding(-14, -12, 6, 7, 4.5, { warm:true });
+addBuilding(13, -13, 7, 6, 5, { warm:true, lit:true }); addBuilding(16, 8, 4, 8, 4.5); addBuilding(-17, 0, 3, 7, 4);
+// cover bas (barricades pour se mettre à couvert)
+addBox(8, 4, 2, 2, 1.2); addBox(-7, -6, 2.5, 1, 1.2); addBox(4, -10, 2, 2, 1.2); addBox(-3, 18, 3, 2, 1.4);
+// lampes d'accent chaudes (décor pur, sans ombre)
+const lamp1 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp1.position.set(-13, 6, 13); scene.add(lamp1);
+const lamp2 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp2.position.set(13, 6, -13); scene.add(lamp2);
 G.debug.mapHalf = MAP_HALF;
+G.debug.obstacleCount = () => obstacles.length;
+G.debug.pointInObstacle = (x, z) => obstacles.some(b => x>=b.minX && x<=b.maxX && z>=b.minZ && z<=b.maxZ);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
 G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
 
@@ -1521,21 +1555,34 @@ let radarCtx = null;
 function updateRadar(){
   const cv = document.getElementById('radar'); if(!cv || !model) return;
   if(!radarCtx) radarCtx = cv.getContext('2d');
-  const ctx = radarCtx, C = cv.width/2;
+  const ctx = radarCtx, C = cv.width/2, s = RADAR_R/RADAR_RANGE;
+  const px=model.position.x, pz=model.position.z, cy=camYaw, cos=Math.cos(cy), sin=Math.sin(cy);
   ctx.clearRect(0,0,cv.width,cv.height);
+  // anneau + croix
   ctx.strokeStyle='rgba(120,150,220,.32)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.arc(C,C,RADAR_R,0,Math.PI*2); ctx.stroke();
   ctx.strokeStyle='rgba(120,150,220,.14)';
   ctx.beginPath(); ctx.moveTo(C,C-RADAR_R); ctx.lineTo(C,C+RADAR_R); ctx.moveTo(C-RADAR_R,C); ctx.lineTo(C+RADAR_R,C); ctx.stroke();
-  // joueur : triangle vert pointant vers le haut (la direction du regard)
-  ctx.fillStyle='#7dff9e'; ctx.beginPath(); ctx.moveTo(C,C-6); ctx.lineTo(C-4,C+5); ctx.lineTo(C+4,C+5); ctx.closePath(); ctx.fill();
-  const px=model.position.x, pz=model.position.z;
+  // contenu clippé au disque
+  ctx.save(); ctx.beginPath(); ctx.arc(C,C,RADAR_R,0,Math.PI*2); ctx.clip();
+  // minimap du niveau : obstacles proches (quads gris, orientés regard)
+  const toRadar = (wx,wz) => { const dx=wx-px, dz=wz-pz; return [C + (dx*cos - dz*sin)*s, C - (dx*sin + dz*cos)*s]; };
+  ctx.fillStyle='rgba(150,170,210,.16)';
+  for(const b of obstacles){
+    const ocx=(b.minX+b.maxX)/2, ocz=(b.minZ+b.maxZ)/2;
+    if(Math.hypot(ocx-px,ocz-pz) > RADAR_RANGE + Math.max(b.maxX-b.minX, b.maxZ-b.minZ)) continue;
+    const c1=toRadar(b.minX,b.minZ), c2=toRadar(b.maxX,b.minZ), c3=toRadar(b.maxX,b.maxZ), c4=toRadar(b.minX,b.maxZ);
+    ctx.beginPath(); ctx.moveTo(c1[0],c1[1]); ctx.lineTo(c2[0],c2[1]); ctx.lineTo(c3[0],c3[1]); ctx.lineTo(c4[0],c4[1]); ctx.closePath(); ctx.fill();
+  }
+  // ennemis (couleur par type, clamp au bord si hors portée)
   for(const e of enemies){ if(!e.alive) continue;
-    const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, camYaw, RADAR_RANGE, RADAR_R);
+    const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, cy, RADAR_RANGE, RADAR_R);
     ctx.globalAlpha = b.inRange ? 1 : 0.5; ctx.fillStyle = RADAR_COLORS[e.type] || '#ff5b5b';
     ctx.beginPath(); ctx.arc(C + b.x, C - b.y, b.inRange ? 4 : 3, 0, Math.PI*2); ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = 1; ctx.restore();
+  // joueur : triangle vert pointant vers le haut (direction du regard)
+  ctx.fillStyle='#7dff9e'; ctx.beginPath(); ctx.moveTo(C,C-6); ctx.lineTo(C-4,C+5); ctx.lineTo(C+4,C+5); ctx.closePath(); ctx.fill();
 }
 G.debug.radarBlip = radarBlip;
 G.debug.radar = {
