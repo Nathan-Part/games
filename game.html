@@ -106,22 +106,49 @@
   .panel-card p{opacity:.8;line-height:1.6;margin-bottom:20px}
   .panel-back{padding:11px 20px;border-radius:11px;border:1px solid #5b8cff;font-size:15px;cursor:pointer;
     background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
-  #shop-panel .panel-card{max-width:520px;width:90%;max-height:82vh;overflow-y:auto}
-  .shop-sub{font-size:14px;font-weight:700;opacity:.85;margin:6px 0 10px;text-align:left;
-    border-top:1px solid rgba(120,150,220,.15);padding-top:14px}
-  .shop-balance{font-size:18px;font-weight:800;color:#ffd479;margin-bottom:16px}
-  .shop-list{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
-  .shop-item{display:flex;align-items:center;justify-content:space-between;gap:16px;
-    background:rgba(255,255,255,.04);border:1px solid rgba(120,150,220,.15);border-radius:12px;padding:11px 14px}
-  .shop-item-info{display:flex;flex-direction:column;gap:3px;text-align:left}
-  .shop-item-info b{font-size:15px}
-  .shop-stats{font-size:12px;opacity:.65}
-  .shop-btn{padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
-    border:1px solid rgba(120,150,220,.35);background:rgba(20,24,33,.7);color:#e8ecf4;transition:.15s}
-  .shop-btn.buy{border-color:#5b8cff;background:linear-gradient(135deg,rgba(91,140,255,.32),rgba(181,107,255,.24))}
-  .shop-btn:not(:disabled):hover{transform:translateY(-1px)}
-  .shop-btn:disabled{opacity:.5;cursor:default}
-  .shop-btn.equipped{border-color:#3ad17a;color:#8fe07a;opacity:1}
+  /* ====== Boutique : vitrine 3D plein écran ====== */
+  #shop-panel{position:fixed;inset:0;z-index:45;
+    background:radial-gradient(circle at 66% 46%, rgba(34,40,60,.30), rgba(8,10,15,.93) 68%)}
+  #shop-panel.hidden{display:none}
+  .shop-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;padding:16px 22px;z-index:3}
+  .shop-tabs{display:flex;gap:8px}
+  .shop-tab{padding:10px 20px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;
+    color:#aab4c8;background:rgba(20,24,33,.6);border:1px solid rgba(120,150,220,.18);transition:.15s}
+  .shop-tab:hover{color:#e8ecf4}
+  .shop-tab.active{color:#0b0d12;background:linear-gradient(135deg,#5b8cff,#b56bff);border-color:#5b8cff}
+  .shop-money2{margin-left:auto;font-size:18px;font-weight:800;color:#ffd479;
+    background:rgba(20,24,33,.6);border:1px solid rgba(120,150,220,.2);border-radius:999px;padding:7px 16px}
+  .shop-close{width:42px;height:42px;border-radius:50%;font-size:17px;cursor:pointer;
+    color:#e8ecf4;background:rgba(20,24,33,.6);border:1px solid rgba(120,150,220,.2);transition:.15s}
+  .shop-close:hover{background:#ff5b5b;color:#0b0d12;border-color:#ff5b5b}
+  .shop-nav-arrow{position:absolute;top:52%;transform:translateY(-50%);z-index:3;
+    width:56px;height:56px;border-radius:50%;font-size:30px;line-height:1;cursor:pointer;
+    color:#e8ecf4;background:rgba(20,24,33,.55);border:1px solid rgba(120,150,220,.25);transition:.15s}
+  .shop-nav-arrow.left{left:35%}
+  .shop-nav-arrow.right{right:5%}
+  .shop-nav-arrow:hover{background:#5b8cff;color:#0b0d12;border-color:#5b8cff}
+  .shop-info{position:absolute;left:5%;top:50%;transform:translateY(-50%);z-index:2;width:330px;
+    background:rgba(16,19,28,.82);backdrop-filter:blur(10px);border:1px solid rgba(120,150,220,.22);
+    border-radius:18px;padding:22px 24px;text-align:left;max-height:78vh;overflow-y:auto}
+  .shop-wname{font-size:24px;font-weight:800;margin-bottom:16px}
+  .shop-statgrid{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+  .shop-statrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+  .shop-statrow>span{opacity:.85}
+  .shop-statrow>span i{opacity:.55;font-style:normal;font-size:12px;margin-left:4px}
+  .shop-statrow>b{color:#b8c8ff}
+  .shop-cta{display:block;width:100%;padding:13px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;
+    color:#e8ecf4;background:rgba(20,24,33,.7);border:1px solid rgba(120,150,220,.35);margin-bottom:4px;transition:.15s}
+  .shop-cta.buy{border-color:#5b8cff;background:linear-gradient(135deg,#5b8cff,#b56bff);color:#0b0d12}
+  .shop-cta:not(:disabled):hover{transform:translateY(-2px)}
+  .shop-cta:disabled{opacity:.45;cursor:default}
+  .shop-badge{text-align:center;padding:11px;border-radius:12px;font-weight:700;color:#8fe07a;border:1px solid #3ad17a;margin-bottom:4px}
+  .shop-sub2{font-size:13px;font-weight:700;opacity:.8;margin:14px 0 9px;
+    border-top:1px solid rgba(120,150,220,.15);padding-top:13px}
+  .shop-upg-btn{padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+    color:#e8ecf4;background:rgba(20,24,33,.7);border:1px solid rgba(120,150,220,.3);transition:.15s}
+  .shop-upg-btn.buy{border-color:#5b8cff;background:linear-gradient(135deg,rgba(91,140,255,.35),rgba(181,107,255,.25))}
+  .shop-upg-btn:not(:disabled):hover{transform:translateY(-1px)}
+  .shop-upg-btn:disabled{opacity:.4;cursor:default}
 </style>
 </head>
 <body>
@@ -168,10 +195,19 @@
   <button id="go-restart">Rejouer ▶</button>
   <button id="go-menu">Menu ◀</button>
 </div></div>
-<div id="shop-panel" class="panel hidden"><div class="panel-card">
-  <h2>🛒 Boutique</h2><p>Bientôt disponible — achat d'armes (tranche 13).</p>
-  <button class="panel-back" data-panel="shop-panel">◀ Retour</button>
-</div></div>
+<div id="shop-panel" class="hidden">
+  <div class="shop-header">
+    <div class="shop-tabs">
+      <button class="shop-tab active" data-tab="weapons">🔫 Armes</button>
+      <button class="shop-tab" data-tab="player">🧍 Personnage</button>
+    </div>
+    <div class="shop-money2">💰 <span id="shop-money-val">0</span></div>
+    <button id="shop-close" class="shop-close" title="Fermer">✕</button>
+  </div>
+  <button id="shop-prev" class="shop-nav-arrow left" title="Précédent">‹</button>
+  <button id="shop-next" class="shop-nav-arrow right" title="Suivant">›</button>
+  <div id="shop-info" class="shop-info"></div>
+</div>
 <div id="settings-panel" class="panel hidden"><div class="panel-card">
   <h2>⚙️ Réglages</h2><p>Bientôt disponible — sensibilité, volume, vue (tranche 18).</p>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
@@ -293,7 +329,8 @@ const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(MAP_HALF*2, MAP_HALF*2),
   new THREE.MeshStandardMaterial({ color:0x12151d, roughness:0.95 }));
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
-scene.add(new THREE.GridHelper(MAP_HALF*2, MAP_HALF, 0x2a3550, 0x1a1f2e));
+const grid = new THREE.GridHelper(MAP_HALF*2, MAP_HALF, 0x2a3550, 0x1a1f2e); scene.add(grid);
+const shopLight = new THREE.DirectionalLight(0xbcd0ff, 0); shopLight.position.set(2.4, 3, 3.4); scene.add(shopLight); // appoint vitrine boutique
 
 const loader = new GLTFLoader();
 
@@ -622,11 +659,21 @@ document.getElementById('play-btn').onclick = () => startGame();
 // Accueil : panneaux Boutique / Réglages (placeholders, remplis aux tranches 13/18)
 const openPanel = id => document.getElementById(id).classList.remove('hidden');
 const closePanel = id => document.getElementById(id).classList.add('hidden');
-document.getElementById('btn-shop').onclick = () => { renderShop(); openPanel('shop-panel'); };
+document.getElementById('btn-shop').onclick = openShop;
+document.getElementById('shop-close').onclick = closeShop;
+document.getElementById('shop-prev').onclick = () => setShopWeapon(shopWeaponIndex - 1);
+document.getElementById('shop-next').onclick = () => setShopWeapon(shopWeaponIndex + 1);
+for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShopTab(t.dataset.tab);
 document.getElementById('btn-settings').onclick = () => openPanel('settings-panel');
 for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
+  if(shopOpen){                                                  // navigation boutique
+    if(e.code==='Escape') closeShop();
+    else if(shopTab==='weapons' && e.code==='ArrowLeft') setShopWeapon(shopWeaponIndex - 1);
+    else if(shopTab==='weapons' && e.code==='ArrowRight') setShopWeapon(shopWeaponIndex + 1);
+    return;
+  }
   if(e.code==='ArrowLeft' || e.code==='KeyA') cycleCharacter(-1);
   else if(e.code==='ArrowRight' || e.code==='KeyD') cycleCharacter(1);
   else if(e.code==='Enter' || e.code==='Space'){ e.preventDefault(); startGame(); }
@@ -837,48 +884,91 @@ G.debug.shop = {
   upgrade(id, type){ return buyUpgrade(id, type); }, upgradeCost(id, type){ return upgradeCost(id, type); },
   playerUpgrade(type){ return buyPlayerUpgrade(type); }, playerUpgradeCost(type){ return playerUpgradeCost(type); },
 };
-// ====== Écran boutique (UI, remplit #shop-panel) ======
+// ====== Boutique : vitrine 3D + navigation (refonte) ======
+let shopOpen = false, shopTab = 'weapons', shopWeaponIndex = 0, shopWeaponObj = null;
+const SHOP_WEAPON_POS = new THREE.Vector3(0, 1.5, 0);
+function applyShopVisibility(){
+  const weaponsView = shopOpen && shopTab === 'weapons';
+  if(model) model.visible = !weaponsView;   // perso caché seulement en vitrine d'arme (lobby = toujours 3e pers.)
+  if(shopWeaponObj) shopWeaponObj.visible = weaponsView;
+}
+function updateShopScene(){   // home masqué quand la boutique est ouverte ; sol/grille masqués + appoint en vitrine d'arme
+  const weaponsView = shopOpen && shopTab === 'weapons';
+  ground.visible = !weaponsView; grid.visible = !weaponsView;
+  shopLight.intensity = weaponsView ? 2.8 : 0;
+  document.getElementById('lobby').classList.toggle('hidden', shopOpen);
+}
+function setShopWeapon(i){
+  const n = WEAPONS.length; shopWeaponIndex = ((i % n) + n) % n;
+  if(shopWeaponObj){ scene.remove(shopWeaponObj); shopWeaponObj.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); }); }
+  const m = WEAPONS[shopWeaponIndex].build(); m.scale.multiplyScalar(2.9);
+  const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()); m.position.sub(c);   // centré pour un turntable propre
+  const grp = new THREE.Group(); grp.add(m); grp.position.copy(SHOP_WEAPON_POS);
+  scene.add(grp); shopWeaponObj = grp; applyShopVisibility(); renderShop();
+}
+function updateShopCamera(){
+  if(shopOpen && shopTab === 'weapons'){ camera.position.set(0.6, 1.72, 2.7); camera.lookAt(-0.55, 1.5, 0); }
+  else setLobbyCamera();
+}
+function updateShopTabs(){
+  for(const t of document.querySelectorAll('.shop-tab')) t.classList.toggle('active', t.dataset.tab === shopTab);
+  const show = (shopTab === 'weapons') ? '' : 'none';
+  const pv = document.getElementById('shop-prev'), nx = document.getElementById('shop-next');
+  if(pv) pv.style.display = show; if(nx) nx.style.display = show;
+}
+function openShop(){
+  shopOpen = true; shopTab = 'weapons';
+  const i = WEAPONS.findIndex(w => w.id === save.selectedWeapon); setShopWeapon(i >= 0 ? i : 0);
+  document.getElementById('shop-panel').classList.remove('hidden');
+  updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera(); renderShop();
+}
+function closeShop(){
+  shopOpen = false; document.getElementById('shop-panel').classList.add('hidden');
+  if(shopWeaponObj) shopWeaponObj.visible = false; if(model) model.visible = true;   // perso réaffiché
+  updateShopScene(); updateHomeMeta(); updateShopCamera();   // restaure home (méta à jour) + caméra lobby
+}
+function setShopTab(name){
+  shopTab = (name === 'player') ? 'player' : 'weapons';
+  updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera(); renderShop();
+}
+Object.assign(G.debug.shop, {
+  open(){ openShop(); }, close(){ closeShop(); }, isOpen(){ return shopOpen; },
+  tab(name){ setShopTab(name); }, currentTab(){ return shopTab; },
+  setWeapon(x){ const i = (typeof x === 'number') ? x : WEAPONS.findIndex(w => w.id === x); if(i >= 0) setShopWeapon(i); },
+  next(){ setShopWeapon(shopWeaponIndex + 1); }, prev(){ setShopWeapon(shopWeaponIndex - 1); },
+  current(){ return WEAPONS[shopWeaponIndex].id; },
+  previewWeapon(){ return (shopOpen && shopTab === 'weapons') ? WEAPONS[shopWeaponIndex].id : null; },
+});
+// ====== Écran boutique (UI, remplit #shop-info selon l'onglet) ======
+function statRow(label, val){ return `<div class="shop-statrow"><span>${label}</span><b>${val}</b></div>`; }
+function upgRow(type, lvl, spec, cost, attr){
+  const btn = (cost == null) ? `<button class="shop-upg-btn" disabled>Max</button>`
+    : `<button class="shop-upg-btn buy" ${attr}="${type}"${save.money >= cost ? '' : ' disabled'}>+ · 💰${cost}</button>`;
+  return `<div class="shop-statrow"><span>${spec.name} <i>Niv ${lvl}/${spec.max}</i></span>${btn}</div>`;
+}
 function renderShop(){
-  const card = document.querySelector('#shop-panel .panel-card'); if(!card) return;
-  let html = `<h2>🛒 Boutique</h2><div class="shop-balance">💰 ${save.money}</div><div class="shop-list">`;
-  for(const w of WEAPONS){
-    const owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id;
-    const s = weaponStats(w.id);
-    let btn;
-    if(equipped) btn = `<button class="shop-btn equipped" disabled>✓ Équipé</button>`;
-    else if(owned) btn = `<button class="shop-btn" data-equip="${w.id}">Équiper</button>`;
-    else btn = `<button class="shop-btn buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter · 💰${w.price}</button>`;
-    html += `<div class="shop-item"><div class="shop-item-info"><b>${w.name}</b>`
-      + `<span class="shop-stats">Chargeur ${s.mag} · Cadence ${(1/s.cooldown).toFixed(1)}/s · Dégâts ×${s.dmgMult}</span></div>${btn}</div>`;
+  const info = document.getElementById('shop-info'); if(!info) return;
+  const mv = document.getElementById('shop-money-val'); if(mv) mv.textContent = save.money;
+  let html = '';
+  if(shopTab === 'weapons'){
+    const w = WEAPONS[shopWeaponIndex], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
+    html += `<div class="shop-wname">${w.name}</div><div class="shop-statgrid">`
+      + statRow('Chargeur', s.mag) + statRow('Cadence', (1/s.cooldown).toFixed(1) + '/s')
+      + statRow('Dégâts', '×' + (Math.round(s.dmgMult*100)/100)) + statRow('Recul', (Math.round(s.recoil*100)/100)) + `</div>`;
+    if(equipped) html += `<div class="shop-badge">✓ Équipée</div>`;
+    else if(owned) html += `<button class="shop-cta" data-equip="${w.id}">Équiper</button>`;
+    else html += `<button class="shop-cta buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter · 💰${w.price}</button>`;
+    if(owned){ html += `<div class="shop-sub2">Améliorer l'arme</div>`;
+      for(const t in UPGRADE_SPECS) html += upgRow(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg'); }
+  } else {
+    html += `<div class="shop-wname">Personnage</div>`;
+    for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
   }
-  html += `</div>`;
-  // Section améliorations de l'arme équipée (#14)
-  const eqId = save.selectedWeapon;
-  html += `<h3 class="shop-sub">Améliorations — ${weaponById(eqId).name}</h3><div class="shop-list">`;
-  for(const type in UPGRADE_SPECS){
-    const spec = UPGRADE_SPECS[type], lvl = upgradeLevel(eqId, type), cost = upgradeCost(eqId, type);
-    const btn = (cost == null) ? `<button class="shop-btn equipped" disabled>Max</button>`
-      : `<button class="shop-btn buy" data-upg="${type}"${save.money >= cost ? '' : ' disabled'}>+ · 💰${cost}</button>`;
-    html += `<div class="shop-item"><div class="shop-item-info"><b>${spec.name}</b>`
-      + `<span class="shop-stats">Niveau ${lvl} / ${spec.max}</span></div>${btn}</div>`;
-  }
-  html += `</div>`;
-  // Section personnage (#15)
-  html += `<h3 class="shop-sub">Personnage</h3><div class="shop-list">`;
-  for(const type in PLAYER_UPGRADE_SPECS){
-    const spec = PLAYER_UPGRADE_SPECS[type], lvl = playerUpgradeLevel(type), cost = playerUpgradeCost(type);
-    const btn = (cost == null) ? `<button class="shop-btn equipped" disabled>Max</button>`
-      : `<button class="shop-btn buy" data-pupg="${type}"${save.money >= cost ? '' : ' disabled'}>+ · 💰${cost}</button>`;
-    html += `<div class="shop-item"><div class="shop-item-info"><b>${spec.name}</b>`
-      + `<span class="shop-stats">Niveau ${lvl} / ${spec.max}</span></div>${btn}</div>`;
-  }
-  html += `</div><button class="panel-back" data-panel="shop-panel">◀ Retour</button>`;
-  card.innerHTML = html;
-  card.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
-  card.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
-  card.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(save.selectedWeapon, b.dataset.upg)) renderShop(); });
-  card.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
-  card.querySelector('.panel-back').onclick = () => closePanel('shop-panel');
+  info.innerHTML = html;
+  info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
+  info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
+  info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(WEAPONS[shopWeaponIndex].id, b.dataset.upg)) renderShop(); });
+  info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
 }
 
 // ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
@@ -1646,7 +1736,10 @@ function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
   if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); }
-  else if(G.phase==='lobby' && model){ model.rotation.y += dt*0.6; } // turntable de sélection
+  else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
+    if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
+    else if(model){ model.rotation.y += dt*0.6; }
+  }
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);
 }

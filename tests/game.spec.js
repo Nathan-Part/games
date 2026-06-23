@@ -830,13 +830,13 @@ test('accueil : argent et record affiches depuis la sauvegarde', async ({ page }
   await expect(page.locator('#home-record')).toContainText('Vague');
 });
 
-test('accueil : Boutique ouvre un panneau puis Retour le ferme', async ({ page }) => {
+test('accueil : Boutique ouvre un ecran plein et le bouton fermer le ferme', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await expect(page.locator('#shop-panel')).toBeHidden();
   await page.locator('#btn-shop').click();
   await expect(page.locator('#shop-panel')).toBeVisible();
-  await page.locator('#shop-panel .panel-back').click();
+  await page.locator('#shop-close').click();
   await expect(page.locator('#shop-panel')).toBeHidden();
 });
 
@@ -926,15 +926,69 @@ test('boutique : equiper une autre arme reconstruit le modele au lancement', asy
   expect(await page.evaluate(() => __game.debug.weapon.equippedId())).toBe('smg');
 });
 
-test('boutique : l UI permet d acheter une arme (clic)', async ({ page }) => {
+test('boutique3d : ouvre plein ecran, masque le perso, montre l arme ; fermer restaure', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.debug?.modelVisible?.() === true, null, { timeout:20000 });  // lobby chargé (perso visible)
+  await page.locator('#btn-shop').click();
+  await expect(page.locator('#shop-panel')).toBeVisible();
+  expect(await page.evaluate(() => __game.debug.shop.isOpen())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.previewWeapon())).not.toBeNull();   // arme en vitrine
+  expect(await page.evaluate(() => __game.debug.modelVisible())).toBe(false);             // perso masqué
+  await page.locator('#shop-close').click();
+  await expect(page.locator('#shop-panel')).toBeHidden();
+  expect(await page.evaluate(() => __game.debug.shop.isOpen())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.modelVisible())).toBe(true);              // perso restauré
+});
+
+test('boutique3d : le carrousel change l arme affichee', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();
+  const a = await page.evaluate(() => __game.debug.shop.current());
+  await page.locator('#shop-next').click();
+  const b = await page.evaluate(() => __game.debug.shop.current());
+  expect(b).not.toBe(a);
+  expect(await page.evaluate(() => __game.debug.shop.previewWeapon())).toBe(b);
+});
+
+test('boutique3d : onglet Personnage masque les fleches et montre les ameliorations perso', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  expect(await page.evaluate(() => __game.debug.shop.currentTab())).toBe('player');
+  await expect(page.locator('#shop-prev')).toBeHidden();
+  await expect(page.locator('#shop-info [data-pupg="health"]')).toBeVisible();
+});
+
+test('boutique3d : acheter via la vitrine puis equiper', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
+  await page.locator('#btn-shop').click();
+  await page.evaluate(() => __game.debug.shop.setWeapon('sniper'));
+  await page.locator('#shop-info [data-buy="sniper"]').click();
+  await expect(page.locator('#shop-info [data-equip="sniper"]')).toBeVisible();
+  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).toContain('sniper');
+});
+
+test('boutique3d : ameliorer l arme possedee depuis l onglet Armes', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  await page.locator('#btn-shop').click();   // arme equipee 'default' (possedee) affichee d'office
+  await page.locator('#shop-info [data-upg="damage"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.damage)).toBe(1);
+});
+
+test('boutique3d : ameliorer le perso depuis l onglet Personnage', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
   await page.locator('#btn-shop').click();
-  await expect(page.locator('#shop-panel')).toBeVisible();
-  await page.locator('#shop-panel [data-buy="smg"]').click();
-  await expect(page.locator('#shop-panel [data-equip="smg"]')).toBeVisible();   // devient « Équiper »
-  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).toContain('smg');
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  await page.locator('#shop-info [data-pupg="health"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().playerUpgrades.health)).toBe(1);
 });
 
 test('upgrade : ameliorer les degats augmente le multiplicateur', async ({ page }) => {
@@ -973,15 +1027,6 @@ test('upgrade : sans amelioration = stats de base (compat)', async ({ page }) =>
   expect(s.dmgMult).toBe(1); expect(s.mag).toBe(12);
 });
 
-test('upgrade : l UI ameliore l arme equipee (clic)', async ({ page }) => {
-  await page.goto('/game.html');
-  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
-  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
-  await page.locator('#btn-shop').click();
-  await page.locator('#shop-panel [data-upg="damage"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.damage)).toBe(1);
-});
-
 test('perso : ameliorer la vie augmente la vie max', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
@@ -1014,11 +1059,13 @@ test('perso : ameliorer la vie donne plus de PV en partie', async ({ page }) => 
   expect(await page.evaluate(() => __game.health)).toBe(140);
 });
 
-test('perso : l UI ameliore le perso (clic)', async ({ page }) => {
+test('boutique3d : la touche fleche change l arme, Echap ferme', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
-  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
   await page.locator('#btn-shop').click();
-  await page.locator('#shop-panel [data-pupg="health"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().playerUpgrades.health)).toBe(1);
+  const a = await page.evaluate(() => __game.debug.shop.current());
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => page.evaluate(() => __game.debug.shop.current())).not.toBe(a);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#shop-panel')).toBeHidden();
 });
