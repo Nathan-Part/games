@@ -106,7 +106,9 @@
   .panel-card p{opacity:.8;line-height:1.6;margin-bottom:20px}
   .panel-back{padding:11px 20px;border-radius:11px;border:1px solid #5b8cff;font-size:15px;cursor:pointer;
     background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
-  #shop-panel .panel-card{max-width:520px;width:90%}
+  #shop-panel .panel-card{max-width:520px;width:90%;max-height:82vh;overflow-y:auto}
+  .shop-sub{font-size:14px;font-weight:700;opacity:.85;margin:6px 0 10px;text-align:left;
+    border-top:1px solid rgba(120,150,220,.15);padding-top:14px}
   .shop-balance{font-size:18px;font-weight:800;color:#ffd479;margin-bottom:16px}
   .shop-list{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
   .shop-item{display:flex;align-items:center;justify-content:space-between;gap:16px;
@@ -848,10 +850,22 @@ function renderShop(){
     html += `<div class="shop-item"><div class="shop-item-info"><b>${w.name}</b>`
       + `<span class="shop-stats">Chargeur ${s.mag} · Cadence ${(1/s.cooldown).toFixed(1)}/s · Dégâts ×${s.dmgMult}</span></div>${btn}</div>`;
   }
+  html += `</div>`;
+  // Section améliorations de l'arme équipée (#14)
+  const eqId = save.selectedWeapon;
+  html += `<h3 class="shop-sub">Améliorations — ${weaponById(eqId).name}</h3><div class="shop-list">`;
+  for(const type in UPGRADE_SPECS){
+    const spec = UPGRADE_SPECS[type], lvl = upgradeLevel(eqId, type), cost = upgradeCost(eqId, type);
+    const btn = (cost == null) ? `<button class="shop-btn equipped" disabled>Max</button>`
+      : `<button class="shop-btn buy" data-upg="${type}"${save.money >= cost ? '' : ' disabled'}>+ · 💰${cost}</button>`;
+    html += `<div class="shop-item"><div class="shop-item-info"><b>${spec.name}</b>`
+      + `<span class="shop-stats">Niveau ${lvl} / ${spec.max}</span></div>${btn}</div>`;
+  }
   html += `</div><button class="panel-back" data-panel="shop-panel">◀ Retour</button>`;
   card.innerHTML = html;
   card.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   card.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
+  card.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(save.selectedWeapon, b.dataset.upg)) renderShop(); });
   card.querySelector('.panel-back').onclick = () => closePanel('shop-panel');
 }
 

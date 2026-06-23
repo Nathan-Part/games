@@ -972,3 +972,12 @@ test('upgrade : sans amelioration = stats de base (compat)', async ({ page }) =>
   const s = await page.evaluate(() => __game.debug.weaponStats('default'));
   expect(s.dmgMult).toBe(1); expect(s.mag).toBe(12);
 });
+
+test('upgrade : l UI ameliore l arme equipee (clic)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('#shop-panel [data-upg="damage"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.damage)).toBe(1);
+});
