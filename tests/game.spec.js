@@ -936,3 +936,39 @@ test('boutique : l UI permet d acheter une arme (clic)', async ({ page }) => {
   await expect(page.locator('#shop-panel [data-equip="smg"]')).toBeVisible();   // devient « Équiper »
   expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).toContain('smg');
 });
+
+test('upgrade : ameliorer les degats augmente le multiplicateur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  const d0 = await page.evaluate(() => __game.debug.weaponStats().dmgMult);
+  expect(await page.evaluate(() => __game.debug.shop.upgrade('default','damage'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.weaponStats().dmgMult)).toBeGreaterThan(d0);
+});
+
+test('upgrade : achat debite et persiste, chargeur +20%', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); __game.debug.shop.upgrade('default','mag'); });
+  expect(await page.evaluate(() => __game.money)).toBe(750);
+  expect(await page.evaluate(() => __game.debug.weaponStats().mag)).toBe(14);   // round(12*1.2)
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.mag)).toBe(1);
+});
+
+test('upgrade : cout croissant et niveau plafonne', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(100000); });
+  const c0 = await page.evaluate(() => __game.debug.shop.upgradeCost('default','damage'));
+  await page.evaluate(() => __game.debug.shop.upgrade('default','damage'));
+  const c1 = await page.evaluate(() => __game.debug.shop.upgradeCost('default','damage'));
+  expect(c1).toBeGreaterThan(c0);
+  for(let i=0;i<6;i++) await page.evaluate(() => __game.debug.shop.upgrade('default','damage'));
+  expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.damage)).toBe(5);  // max
+  expect(await page.evaluate(() => __game.debug.shop.upgrade('default','damage'))).toBe(false);
+});
+
+test('upgrade : sans amelioration = stats de base (compat)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const s = await page.evaluate(() => __game.debug.weaponStats('default'));
+  expect(s.dmgMult).toBe(1); expect(s.mag).toBe(12);
+});

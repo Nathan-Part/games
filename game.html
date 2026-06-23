@@ -789,9 +789,31 @@ const WEAPONS = [
     stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2 }, build:buildSniperMesh },
 ];
 function weaponById(id){ return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
+// ====== Améliorations d'arme (#14) ======
+const UPGRADE_SPECS = {
+  damage:   { name:'Dégâts',   max:5, baseCost:300, apply:(s,l)=>{ s.dmgMult *= 1 + 0.15*l; } },
+  fireRate: { name:'Cadence',  max:5, baseCost:300, apply:(s,l)=>{ s.cooldown *= 1 - 0.08*l; } },
+  recoil:   { name:'Recul',    max:5, baseCost:200, apply:(s,l)=>{ s.recoil  *= 1 - 0.12*l; } },
+  mag:      { name:'Chargeur', max:5, baseCost:250, apply:(s,l)=>{ s.mag = Math.round(s.mag * (1 + 0.2*l)); } },
+};
+function upgradeLevel(weaponId, type){ return (save.weaponUpgrades[weaponId] && save.weaponUpgrades[weaponId][type]) || 0; }
+function upgradeCost(weaponId, type){ const l = upgradeLevel(weaponId, type);
+  return l >= UPGRADE_SPECS[type].max ? null : UPGRADE_SPECS[type].baseCost * (l + 1); }
+function buyUpgrade(weaponId, type){
+  const spec = UPGRADE_SPECS[type]; if(!spec) return false;
+  const cost = upgradeCost(weaponId, type);
+  if(cost == null || save.money < cost) return false;
+  const up = save.weaponUpgrades[weaponId] || (save.weaponUpgrades[weaponId] = {});
+  save.money -= cost; G.money = save.money; up[type] = (up[type] || 0) + 1;
+  persist(); updateMoneyHud(); updateHomeMeta();
+  if(weaponId === save.selectedWeapon) applyWeaponStats();   // effet immédiat si arme équipée
+  return true;
+}
 function weaponStats(id = save.selectedWeapon){
-  const s = weaponById(id).stats;        // #14 modifiera ces valeurs via save.weaponUpgrades[id]
-  return { mag:s.mag, cooldown:s.cooldown, reload:s.reload, dmgMult:s.dmgMult, recoil:s.recoil };
+  const b = weaponById(id).stats;
+  const s = { mag:b.mag, cooldown:b.cooldown, reload:b.reload, dmgMult:b.dmgMult, recoil:b.recoil };
+  for(const type in UPGRADE_SPECS){ const l = upgradeLevel(id, type); if(l > 0) UPGRADE_SPECS[type].apply(s, l); }
+  return s;
 }
 let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1;
 function applyWeaponStats(){ const s = weaponStats();
@@ -810,6 +832,7 @@ function equipWeapon(id){
 G.debug.shop = {
   catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price })); },
   buy(id){ return buyWeapon(id); }, equip(id){ return equipWeapon(id); },
+  upgrade(id, type){ return buyUpgrade(id, type); }, upgradeCost(id, type){ return upgradeCost(id, type); },
 };
 // ====== Écran boutique (UI, remplit #shop-panel) ======
 function renderShop(){
