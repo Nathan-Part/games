@@ -1502,7 +1502,6 @@ Object.assign(G.debug, { flankTarget, segClear, peekTarget });
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
-  e.shootCd = ENEMY_FIRE_CD;
   let from;
   if(e.muzzle){ e.muzzle.updateMatrixWorld(true); from = e.muzzle.getWorldPosition(new THREE.Vector3()); }
   else from = new THREE.Vector3(e.root.position.x, e.root.position.y + 1.4, e.root.position.z);
@@ -1512,11 +1511,39 @@ function enemyTryShoot(e, dt){
   const dist = Math.hypot(to.x - from.x, to.z - from.z);
   const acc = enemyAccOverride != null ? enemyAccOverride
             : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4));
-  if(Math.random() < acc) damagePlayer(ENEMY_DAMAGE);
+  if(Math.random() < acc) damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1)));
+  // rafale (#11) : enchaîne spec.burst cartouches espacées, puis longue pause
+  e.burstLeft = (e.burstLeft || 1) - 1;
+  if(e.burstLeft > 0) e.shootCd = ENEMY_BURST_GAP;
+  else { e.burstLeft = (e.spec && e.spec.burst) || 1; e.shootCd = ENEMY_FIRE_CD; }
+}
+// mêlée (#11) : le rusher frappe au contact, sur cooldown
+function enemyMeleeAttack(e, dt){
+  e.meleeCd = (e.meleeCd || 0) - dt;
+  const dist = Math.hypot(model.position.x - e.root.position.x, model.position.z - e.root.position.z);
+  if(e.meleeCd > 0 || dist > MELEE_RANGE) return;
+  e.meleeCd = MELEE_CD;
+  damagePlayer(Math.round(MELEE_DAMAGE * (e.spec ? e.spec.damageMult : 1)));
 }
 G.debug.hasLineOfSight = (ax, az, bx, bz) => hasLineOfSight(ax, az, bx, bz);
 G.debug.setEnemyAccuracy = (a) => { enemyAccOverride = a; };
 G.debug.forceEnemyShoot = (i) => { const e = enemies[i]; if(e){ e.shootCd = 0; enemyTryShoot(e, 0); } };
+G.debug.enemyType = (i) => enemies[i]?.type;
+G.debug.enemyBurstSize = (i) => enemies[i]?.spec?.burst;
+G.debug.forceEnemyBurst = (i) => { const e = enemies[i]; if(!e || !e.spec) return 0;
+  const start = tracers.length; e.burstLeft = e.spec.burst;
+  for(let k=0;k<e.spec.burst;k++){ e.shootCd = 0; enemyTryShoot(e, 0); }   // salve complète d'un coup (test)
+  return tracers.length - start; };
+G.debug.spawnEnemyTypeAt = (i, type, x, z) => {
+  const e = enemies[i]; if(!e) return null;
+  const spec = ENEMY_TYPES[type] || ENEMY_TYPES.shooter;
+  e.type = type; e.spec = spec; e.burstLeft = spec.burst || 1; e.meleeCd = 0;
+  e.hp = Math.round(enemyHpForWave(wave || 1) * spec.hpMult); e.maxHp = e.hp;
+  e.alive = true; e.state = 'patrol'; e.loco = 'idle'; e.lostFor = 0; e.target = null;
+  e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0, 0, 0);
+  e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
+  return e.id;
+};
 G.debug.enemyHasWeapon = (i) => !!(enemies[i] && enemies[i].weapon);
 G.debug.enemyMuzzle = (i) => { const e = enemies[i]; if(!e || !e.muzzle) return null;
   const v = e.muzzle.getWorldPosition(new THREE.Vector3()); return { x:v.x, y:v.y, z:v.z }; };
@@ -1535,11 +1562,11 @@ function hitZoneDamage(relY){
 }
 G.debug.hitZoneDamage = hitZoneDamage;
 
-function makeHitbox(){
+function makeHitbox(scale = 1){
   const hb = new THREE.Mesh(
-    new THREE.CylinderGeometry(ENEMY_R, ENEMY_R, 1.8, 8),   // couvre tout le corps [0,1.8]
+    new THREE.CylinderGeometry(ENEMY_R*scale, ENEMY_R*scale, 1.8*scale, 8),   // couvre tout le corps (mis à l'échelle du type)
     new THREE.MeshBasicMaterial({ visible:false }));        // non rendu mais raycastable (mesh.visible reste true)
-  hb.position.set(0, ENEMY_FOOT_Y + 0.9, 0); scene.add(hb); hb.updateMatrixWorld();
+  hb.position.set(0, ENEMY_FOOT_Y + 0.9*scale, 0); scene.add(hb); hb.updateMatrixWorld();
   return hb;
 }
 function randomSpawn(){
@@ -1584,25 +1611,33 @@ async function buildEnemyAssets(playerChar){
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
 function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; }
-function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP){
+function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
+    const type = (comp && comp[i]) || 'shooter';
+    const spec = ENEMY_TYPES[type] || ENEMY_TYPES.shooter;
     const root = cloneSkeleton(enemyBase);
+    if(spec.scale !== 1) root.scale.multiplyScalar(spec.scale);     // tank plus grand, rusher plus petit
     const mats = [];
-    // matériaux clonés par ennemi (flash indépendant) ; gère le cas multi-matériaux (tableau)
+    // matériaux clonés par ennemi (flash indépendant) ; halo emissif coloré = lecture du type
     root.traverse(o => { if(o.isMesh){
       o.castShadow=true; o.receiveShadow=true;
-      const cloneMat = m => { const c = m.clone(); if(c.emissive) mats.push({ mat:c, base:c.emissive.clone() }); return c; };
+      const cloneMat = m => { const c = m.clone();
+        if(c.emissive){ if(spec.glow != null) c.emissive.setHex(spec.glow); mats.push({ mat:c, base:c.emissive.clone() }); }
+        return c; };
       o.material = Array.isArray(o.material) ? o.material.map(cloneMat) : cloneMat(o.material);
     } });
     const mixer = new THREE.AnimationMixer(root);
     const actions = {};
     for(const k of ['idle','walk','run','attack','dead']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
-    const hitbox = makeHitbox();
+    const hbY = 0.9 * spec.scale;
+    const hitbox = makeHitbox(spec.scale);
     const sp = randomSpawn(); root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
-    hitbox.position.set(sp.x, ENEMY_FOOT_Y + 0.9, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
-    const e = { id:i, root, mixer, actions, hitbox, mats, hp, maxHp:hp, state:'patrol', alive:true,
-                loco:'idle', target:null, lostFor:0, flashUntil:0 };
+    hitbox.position.set(sp.x, ENEMY_FOOT_Y + hbY, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
+    const ehp = Math.round(hp * spec.hpMult);
+    const e = { id:i, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
+                loco:'idle', target:null, lostFor:0, flashUntil:0,
+                burstLeft:spec.burst || 1, flankSide:(i%2===0)?1:-1, meleeCd:0 };
     actions.idle?.play();
     attachWeaponToEnemy(e);                       // no-op si le template n'est pas encore prêt
     scene.add(root); enemies.push(e);
@@ -1620,27 +1655,47 @@ function updateEnemies(dt){
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
     const los = hasLineOfSight(e.root.position.x, e.root.position.z, px, pz);
-    // transitions (avec hystérésis)
-    if(e.state === 'shoot'){
-      if(dist > SHOOT_RANGE*1.25 || !los) e.state = 'chase';
-    } else if(e.state === 'chase'){
-      if(dist <= SHOOT_RANGE && los) e.state = 'shoot';
-      else if(dist > LOSE_RADIUS){ e.lostFor += dt; if(e.lostFor >= LOSE_TIME){ e.state = 'patrol'; e.lostFor = 0; pickPatrol(e); } }
-      else e.lostFor = 0;
-    } else { // patrol
-      if(dist <= DETECT_RADIUS){ e.state = 'chase'; e.lostFor = 0; }
-    }
-    // action selon l'état
+    const spec = e.spec || ENEMY_TYPES.shooter, ex = e.root.position.x, ez = e.root.position.z;
     let desired = 'idle';
-    if(e.state === 'chase'){ moveToward(e, px, pz, ENEMY_RUN, dt); desired = 'run'; }
-    else if(e.state === 'shoot'){ faceToward(e, px, pz, dt); enemyTryShoot(e, dt); desired = 'idle'; }   // tire arme au poing, debout (pas d'anim de combat mêlée)
-    else { // patrol
-      if(!e.target || Math.hypot(e.target.x - e.root.position.x, e.target.z - e.root.position.z) < 0.6) pickPatrol(e);
-      moveToward(e, e.target.x, e.target.z, ENEMY_WALK, dt); desired = 'walk';
+    if(spec.melee){
+      // RUSHER : poursuite agressive avec contournement, frappe au contact
+      if(e.state === 'melee'){ if(dist > MELEE_RANGE*1.4) e.state = 'chase'; }
+      else if(e.state === 'chase'){
+        if(dist <= MELEE_RANGE) e.state = 'melee';
+        else if(dist > LOSE_RADIUS){ e.lostFor += dt; if(e.lostFor >= LOSE_TIME){ e.state = 'patrol'; e.lostFor = 0; pickPatrol(e); } }
+        else e.lostFor = 0;
+      } else { // patrol
+        if(dist <= DETECT_RADIUS){ e.state = 'chase'; e.lostFor = 0; }
+      }
+      if(e.state === 'chase'){
+        let tx = px, tz = pz;
+        if(dist > MELEE_RANGE*1.5){ const f = flankTarget(px, pz, ex, ez, e.flankSide); tx = f.x; tz = f.z; }   // contournement
+        moveToward(e, tx, tz, ENEMY_RUN*spec.speedMult, dt); desired = 'run';
+      } else if(e.state === 'melee'){ faceToward(e, px, pz, dt); enemyMeleeAttack(e, dt); desired = 'attack'; }
+      else { if(!e.target || Math.hypot(e.target.x - ex, e.target.z - ez) < 0.6) pickPatrol(e);
+        moveToward(e, e.target.x, e.target.z, ENEMY_WALK*spec.speedMult, dt); desired = 'walk'; }
+    } else {
+      // RANGED (shooter/tank) : transitions à hystérésis + mise à couvert si vue coupée + tir en rafale
+      if(e.state === 'shoot'){
+        if(dist > SHOOT_RANGE*1.25 || !los) e.state = 'chase';
+      } else if(e.state === 'chase'){
+        if(dist <= SHOOT_RANGE && los) e.state = 'shoot';
+        else if(dist > LOSE_RADIUS){ e.lostFor += dt; if(e.lostFor >= LOSE_TIME){ e.state = 'patrol'; e.lostFor = 0; pickPatrol(e); } }
+        else e.lostFor = 0;
+      } else { // patrol
+        if(dist <= DETECT_RADIUS){ e.state = 'chase'; e.lostFor = 0; }
+      }
+      if(e.state === 'chase'){
+        let tx = px, tz = pz;
+        if(!los){ const c = peekTarget(ex, ez, px, pz, obstacles); tx = c.x; tz = c.z; }   // se repositionne autour du couvert
+        moveToward(e, tx, tz, ENEMY_RUN*spec.speedMult, dt); desired = 'run';
+      } else if(e.state === 'shoot'){ faceToward(e, px, pz, dt); enemyTryShoot(e, dt); desired = 'idle'; }   // tire debout (pas d'anim mêlée)
+      else { if(!e.target || Math.hypot(e.target.x - ex, e.target.z - ez) < 0.6) pickPatrol(e);
+        moveToward(e, e.target.x, e.target.z, ENEMY_WALK*spec.speedMult, dt); desired = 'walk'; }
     }
     clampEnemy(e);
     setEnemyLoco(e, desired);
-    e.hitbox.position.set(e.root.position.x, e.root.position.y + 0.9, e.root.position.z);
+    e.hitbox.position.set(e.root.position.x, e.root.position.y + (e.hbY || 0.9), e.root.position.z);
     e.hitbox.updateMatrixWorld();
     if(e.flashUntil && nowS() >= e.flashUntil){ setEnemyEmissive(e, false); e.flashUntil = 0; }
     if(e.muzzleFlashUntil && nowS() >= e.muzzleFlashUntil){ if(e.muzzleFlash) e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
@@ -1698,10 +1753,10 @@ G.debug.spawnEnemyAt = (x, z) => {
   const e = enemies[0]; if(!e) return null;
   e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0,0,0);
   e.hp = ENEMY_HP; e.alive = true; e.state='patrol'; e.loco='idle'; e.lostFor=0; e.target=null;
-  e.hitbox.position.set(x, ENEMY_FOOT_Y+0.9, z); e.hitbox.updateMatrixWorld();
+  e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
   return e.id;
 };
-G.debug.moveEnemy = (i, x, z) => { const e = enemies[i]; if(e){ e.root.position.set(x, ENEMY_FOOT_Y, z); e.state='patrol'; e.lostFor=0; e.hitbox.position.set(x, ENEMY_FOOT_Y+0.9, z); e.hitbox.updateMatrixWorld(); } };
+G.debug.moveEnemy = (i, x, z) => { const e = enemies[i]; if(e){ e.root.position.set(x, ENEMY_FOOT_Y, z); e.state='patrol'; e.lostFor=0; e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld(); } };
 
 function setEnemyEmissive(e, on){
   for(const m of e.mats) m.mat.emissive.copy(on ? FLASH_COLOR : m.base);
@@ -1728,7 +1783,7 @@ function killEnemy(e){
 function startWave(w){
   wave = w; G.wave = w;
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
-  createEnemies(enemiesForWave(w), enemyHpForWave(w));         // nettoie les corps + crée la nouvelle vague
+  createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   waveState = 'active';
   updateWaveHud(); showWaveBanner('Vague ' + w);
 }
