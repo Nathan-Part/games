@@ -51,11 +51,12 @@ test('helpers purs : caméra-relatif, état, clip, collision', async ({ page }) 
 });
 
 test('le lobby montre un perso en 3D et permet de slider', async ({ page }) => {
+  await page.addInitScript(() => { if(!localStorage.getItem('cod-save-v1')) localStorage.setItem('cod-save-v1', JSON.stringify({ ownedCharacters:['perso:blue-soldier','perso:guard','perso:robot'] })); });  // tout possédé pour slider
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.characters?.length >= 2 && window.__game.phase === 'lobby', null, { timeout: 20000 });
   const labels = await page.evaluate(() => __game.characters.map(c => c.label).join('|').toLowerCase());
-  expect(labels).toContain('guard');
-  expect(labels).toContain('robot');
+  expect(labels).toContain('sentinel');   // guard => Sentinel (catalogue)
+  expect(labels).toContain('cyborg');     // robot => Cyborg
   await expect(page.locator('#lobby')).toBeVisible();
   await expect(page.locator('#play-btn')).toBeVisible();
   const name0 = (await page.locator('#char-name').textContent()).trim();
@@ -543,17 +544,11 @@ test('studio : le bouton 🎮 valide un perso pour le jeu (persisté)', async ({
   expect(ready).toBe(true);
 });
 
-test('intégration : valider Guard dans le studio => seul Guard au lobby du jeu', async ({ page }) => {
-  await page.goto('/studio.html');
-  await page.waitForFunction(() => window.__studioReady === true, null, { timeout:20000 });
-  await page.click('#btn-gallery');
-  await page.waitForSelector('#gallery-grid .gcard', { timeout:20000 });
-  await page.locator('.gcard', { hasText: 'Guard' }).first().locator('.gr-toggle').click();
-  await page.waitForTimeout(200);
+test('persos : par defaut seul Blue-Soldier est jouable au lobby (les autres s achetent)', async ({ page }) => {
   await page.goto('/game.html');
-  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, { timeout:20000 });
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1 && window.__game.phase === 'lobby', null, { timeout:20000 });
   const labels = await page.evaluate(() => __game.characters.map(c => c.label.toLowerCase()));
-  expect(labels).toEqual(['guard']); // seul le perso validé apparaît
+  expect(labels).toEqual(['blue-soldier']);   // seul le perso possédé par défaut (Sentinel/Cyborg à acheter)
 });
 
 test('audio : un son est joué/journalisé, le mute le coupe, M bascule', async ({ page }) => {
@@ -793,6 +788,7 @@ test('save : le record (meilleure vague) persiste au rechargement', async ({ pag
 });
 
 test('save : le perso choisi est memorise (persiste au rechargement)', async ({ page }) => {
+  await page.addInitScript(() => { if(!localStorage.getItem('cod-save-v1')) localStorage.setItem('cod-save-v1', JSON.stringify({ ownedCharacters:['perso:blue-soldier','perso:guard','perso:robot'] })); });  // 3 persos possédés (slider)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.characters?.length >= 2 && window.__game.phase === 'lobby', null, { timeout:20000 });
   const name0 = (await page.locator('#char-name').textContent()).trim();
@@ -1133,4 +1129,19 @@ test('persos : achat refuse si pas assez d argent ; non possede non equipable', 
   expect(await page.evaluate(() => __game.debug.shop.buyCharacter('perso:guard'))).toBe(false);
   expect(await page.evaluate(() => __game.debug.shop.selectCharacter('perso:guard'))).toBe(false);   // non possédé
   expect(await page.evaluate(() => __game.debug.save.get().ownedCharacters)).not.toContain('perso:guard');
+});
+
+test('persos : l UI (onglet Personnage) montre le tableau et permet d acheter/equiper', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(5000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  await expect(page.locator('#shop-info')).toContainText('Cyborg');         // tableau des persos
+  await expect(page.locator('#shop-info')).toContainText('Sentinel');
+  await page.locator('#shop-info [data-buychar="perso:robot"]').click();    // acheter Cyborg
+  expect(await page.evaluate(() => __game.debug.save.get().ownedCharacters)).toContain('perso:robot');
+  await page.locator('#shop-info [data-selchar="perso:robot"]').click();    // équiper
+  expect(await page.evaluate(() => __game.debug.save.get().selectedCharacterId)).toBe('perso:robot');
 });

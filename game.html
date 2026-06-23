@@ -156,6 +156,27 @@
   .shop-upg-btn.buy{border-color:#6f9bff;background:linear-gradient(135deg,rgba(111,155,255,.4),rgba(192,123,255,.3))}
   .shop-upg-btn:not(:disabled):hover{transform:translateY(-1px)}
   .shop-upg-btn:disabled{opacity:.4;cursor:default}
+  /* onglet Personnage : bloc à gauche + tableau des persos */
+  .shop-info.left{left:4%;right:auto;bottom:auto;top:50%;transform:translateY(-50%);align-items:flex-start;text-align:left;
+    width:340px;max-height:84vh;overflow-y:auto;padding:18px 20px;border-radius:18px;
+    background:rgba(16,20,30,.9);border:1px solid rgba(150,175,235,.22);backdrop-filter:blur(8px)}
+  .shop-info.left .shop-wname{font-size:22px;margin-bottom:12px}
+  .shop-chartable{display:flex;flex-direction:column;gap:4px;width:100%;margin-bottom:8px}
+  .shop-chartr{display:grid;grid-template-columns:1fr 34px 42px 46px 66px;align-items:center;gap:6px;
+    font-size:13px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.04)}
+  .shop-chartr.on{background:rgba(111,155,255,.20);border:1px solid rgba(111,155,255,.45)}
+  .shop-charhead{background:transparent;opacity:.6;font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+  .shop-chartr>span:not(:first-child){text-align:center}
+  .shop-chartr>span:last-child{text-align:right}
+  .shop-chartag{color:#8fe07a;font-weight:800}
+  .shop-charbtn{padding:5px 9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;
+    color:#e8ecf4;background:rgba(34,40,58,.85);border:1px solid rgba(150,175,235,.35);transition:.15s}
+  .shop-charbtn.buy{border-color:#ffd479;color:#ffd479}
+  .shop-charbtn:not(:disabled):hover{transform:translateY(-1px)}
+  .shop-charbtn:disabled{opacity:.4;cursor:default}
+  .shop-sub2{font-size:12px;font-weight:700;opacity:.8;width:100%;margin:8px 0 8px;
+    border-top:1px solid rgba(150,175,235,.18);padding-top:10px}
+  .shop-upgrades.nobox{background:transparent;border:none;padding:0;width:100%;margin-top:0}
 </style>
 </head>
 <body>
@@ -627,15 +648,27 @@ async function previewCharacter(index){
   playLobbyIdle();                                              // non-bloquant : joue l'idle dès que prêt (no T-pose)
 }
 function cycleCharacter(dir){ if(G.phase==='lobby') previewCharacter(lobbyIndex + dir); }
+// le lobby ne montre que les persos POSSÉDÉS (catalogue), résolus aux modèles de la galerie
+function rebuildLobbyCharacters(){
+  characters = CHARACTERS.filter(c => save.ownedCharacters.includes(c.id))
+    .map(c => { const rec = allCharacters.find(a => a.id === c.id); return rec ? Object.assign({}, rec, { label:c.name }) : null; })
+    .filter(Boolean);
+  if(!characters.length) characters = filterPlayable(allCharacters);   // repli sécurité
+  G.characters = characters.map(c => ({ id:c.id, label:c.label }));
+}
+// (re)affiche le perso équipé en 3D (onglet Personnage de la boutique / après équipement)
+async function showSelectedCharacter(){
+  const c = characterById(save.selectedCharacterId), rec = allCharacters.find(a => a.id === c.id);
+  if(rec){ await spawnModel(rec); playLobbyIdle(); applyShopVisibility(); }
+}
 
 async function initLobby(){
   try {
     if(window.__FORCE_LIST_FAIL__) throw new Error('forced');
     await seedPersosToGallery();
     allCharacters = await loadCharactersFromGallery();
-    characters = filterPlayable(allCharacters);
+    rebuildLobbyCharacters();                                    // persos possédés
     if(!characters.length){ showOverlay('Aucun personnage. Ajoute-en via studio.html ou vérifie /perso.'); return; }
-    G.characters = characters.map(c => ({ id:c.id, label:c.label }));
     updateHomeMeta();                                            // accueil : argent + record
     setLobbyCamera();
     const savedIdx = characters.findIndex(c => c.id === save.selectedCharacterId);   // rouvre sur le perso mémorisé
@@ -973,6 +1006,7 @@ function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, 
 }
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
+  else if(shopOpen && shopTab === 'player'){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche
   else setLobbyCamera();
 }
 function updateShopTabs(){
@@ -991,6 +1025,9 @@ function closeShop(){
   shopOpen = false; document.getElementById('shop-panel').classList.add('hidden');
   for(const o of [shopWeaponObj, shopSideL, shopSideR]) if(o) o.visible = false;
   if(model) model.visible = true;
+  rebuildLobbyCharacters();                                   // un achat de perso a pu changer la liste
+  const idx = characters.findIndex(c => c.id === save.selectedCharacterId); lobbyIndex = idx >= 0 ? idx : 0;
+  const cn = document.getElementById('char-name'); if(cn && characters[lobbyIndex]) cn.textContent = characters[lobbyIndex].label;
   updateShopScene(); updateHomeMeta(); updateShopCamera();   // restaure home (méta à jour) + caméra lobby
 }
 function setShopTab(name){
@@ -1033,15 +1070,28 @@ function renderShop(){
       for(const t in UPGRADE_SPECS) html += upgRow(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg');
       html += `</div>`; }
   } else {
-    html += `<div class="shop-wname">Personnage</div><div class="shop-upgrades">`;
+    const sel = save.selectedCharacterId || CHARACTERS[0].id;
+    html += `<div class="shop-wname">Personnage</div>`;
+    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Perso</span><span>Vie</span><span>Régén</span><span>Vit.</span><span></span></div>`;
+    for(const c of CHARACTERS){
+      const owned = save.ownedCharacters.includes(c.id), eq = sel === c.id;
+      const act = eq ? `<span class="shop-chartag">✓</span>`
+        : owned ? `<button class="shop-charbtn" data-selchar="${c.id}">Équiper</button>`
+        : `<button class="shop-charbtn buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>💰${c.price}</button>`;
+      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${c.name}</span><span>${c.base.health}</span><span>${c.base.regen}</span><span>${c.base.speed.toFixed(2)}×</span><span>${act}</span></div>`;
+    }
+    html += `</div><div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades nobox">`;
     for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
     html += `</div>`;
   }
+  info.classList.toggle('left', shopTab === 'player');         // bloc à gauche pour le perso
   info.innerHTML = html;
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
   info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(WEAPONS[shopWeaponIndex].id, b.dataset.upg)) renderShop(); });
   info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
+  info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
+  info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)){ showSelectedCharacter(); renderShop(); } });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
 }
 
