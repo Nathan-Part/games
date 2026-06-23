@@ -76,6 +76,9 @@
     border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:7px 14px;
     font-size:15px;font-weight:700;color:#ffd479;white-space:nowrap}
   #money-hud.hidden{display:none}
+  #radar{position:fixed;right:16px;top:14px;z-index:10;width:150px;height:150px;border-radius:50%;
+    background:rgba(12,16,24,.62);border:1px solid rgba(120,150,220,.3);box-shadow:0 4px 18px rgba(0,0,0,.4)}
+  #radar.hidden{display:none}
   #wave-banner{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.82);z-index:21;
     font-size:42px;font-weight:800;color:#e8ecf4;text-shadow:0 4px 24px rgba(0,0,0,.75);
     opacity:0;transition:opacity .25s ease,transform .25s ease;pointer-events:none;
@@ -225,6 +228,7 @@
 <div id="combat" class="hidden"></div>
 <div id="wave-hud" class="hidden"></div>
 <div id="money-hud" class="hidden"></div>
+<canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
 <div id="vignette"></div>
 <div id="healthbar" class="hidden"><div id="health-fill"></div></div>
@@ -790,6 +794,7 @@ async function startGame(){
   document.getElementById('combat').classList.remove('hidden');
   document.getElementById('wave-hud').classList.remove('hidden');
   document.getElementById('money-hud').classList.remove('hidden'); updateMoneyHud();
+  document.getElementById('radar').classList.remove('hidden');   // mini-carte (#21)
   updateCombatHud();
   if(!enemyBase) await buildEnemyAssets(char);
   startWave(1);
@@ -1407,7 +1412,7 @@ G.debug.restart = () => restartGame();
 // Retour à l'accueil (depuis le Game Over) : masque les HUD, vide la scène de jeu, réaffiche le menu
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -1499,6 +1504,47 @@ function peekTarget(ex, ez, px, pz, obs){
   return { x:px, z:pz };
 }
 Object.assign(G.debug, { flankTarget, segClear, peekTarget });
+// ====== Mini-carte / radar (#21) : blips ennemis autour du joueur, orientés regard ======
+const RADAR_RANGE = 28, RADAR_R = 70;
+const RADAR_COLORS = { shooter:'#ffb84d', rusher:'#ff5b5b', tank:'#c07bff' };
+// projection pure monde->radar : "haut" = direction face caméra (mêmes axes que la caméra)
+function radarBlip(ex, ez, px, pz, yaw, range, radius){
+  const dx=ex-px, dz=ez-pz;
+  const right = dx*Math.cos(yaw) - dz*Math.sin(yaw);
+  const up    = dx*Math.sin(yaw) + dz*Math.cos(yaw);
+  const dist = Math.hypot(dx,dz), s = radius/range;
+  let bx = right*s, by = up*s; const inRange = dist <= range;
+  if(!inRange){ const l = Math.hypot(bx,by)||1; bx = bx/l*radius; by = by/l*radius; }   // clampé au bord
+  return { x:bx, y:by, inRange, dist };
+}
+let radarCtx = null;
+function updateRadar(){
+  const cv = document.getElementById('radar'); if(!cv || !model) return;
+  if(!radarCtx) radarCtx = cv.getContext('2d');
+  const ctx = radarCtx, C = cv.width/2;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle='rgba(120,150,220,.32)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(C,C,RADAR_R,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(120,150,220,.14)';
+  ctx.beginPath(); ctx.moveTo(C,C-RADAR_R); ctx.lineTo(C,C+RADAR_R); ctx.moveTo(C-RADAR_R,C); ctx.lineTo(C+RADAR_R,C); ctx.stroke();
+  // joueur : triangle vert pointant vers le haut (la direction du regard)
+  ctx.fillStyle='#7dff9e'; ctx.beginPath(); ctx.moveTo(C,C-6); ctx.lineTo(C-4,C+5); ctx.lineTo(C+4,C+5); ctx.closePath(); ctx.fill();
+  const px=model.position.x, pz=model.position.z;
+  for(const e of enemies){ if(!e.alive) continue;
+    const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, camYaw, RADAR_RANGE, RADAR_R);
+    ctx.globalAlpha = b.inRange ? 1 : 0.5; ctx.fillStyle = RADAR_COLORS[e.type] || '#ff5b5b';
+    ctx.beginPath(); ctx.arc(C + b.x, C - b.y, b.inRange ? 4 : 3, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+G.debug.radarBlip = radarBlip;
+G.debug.radar = {
+  blips(){ if(!model) return []; const px=model.position.x, pz=model.position.z, out=[];
+    for(const e of enemies){ if(!e.alive) continue; const b=radarBlip(e.root.position.x,e.root.position.z,px,pz,camYaw,RADAR_RANGE,RADAR_R);
+      out.push({ id:e.id, x:b.x, y:b.y, inRange:b.inRange, type:e.type }); } return out; },
+  range(){ return RADAR_RANGE; },
+  visible(){ const cv=document.getElementById('radar'); return !!cv && !cv.classList.contains('hidden'); },
+};
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
@@ -2089,7 +2135,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(model){ model.rotation.y += dt*0.6; }

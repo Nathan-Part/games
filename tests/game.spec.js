@@ -1305,3 +1305,40 @@ test('types : le shooter tire en rafale (plusieurs cartouches par salve)', async
   expect(await page.evaluate(() => __game.debug.enemyBurstSize(0))).toBeGreaterThanOrEqual(2);
   expect(await page.evaluate(() => __game.debug.forceEnemyBurst(0))).toBeGreaterThanOrEqual(2);
 });
+
+// ====== Tranche 21 : mini-carte / radar ======
+test('radar : radarBlip projette devant/droite et clampe hors portee', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const front = await page.evaluate(() => __game.debug.radarBlip(0,10, 0,0, 0, 20, 60));
+  expect(front.y).toBeCloseTo(30, 0); expect(Math.abs(front.x)).toBeLessThan(0.001); expect(front.inRange).toBe(true);
+  const right = await page.evaluate(() => __game.debug.radarBlip(10,0, 0,0, 0, 20, 60));
+  expect(right.x).toBeCloseTo(30, 0); expect(right.inRange).toBe(true);
+  const far = await page.evaluate(() => __game.debug.radarBlip(0,40, 0,0, 0, 20, 60));
+  expect(far.inRange).toBe(false); expect(Math.hypot(far.x, far.y)).toBeCloseTo(60, 0);
+});
+
+test('radar : visible en jeu, un blip par ennemi vivant', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await expect(page.locator('#radar')).toBeVisible();
+  expect((await page.evaluate(() => __game.debug.radar.blips())).length)
+    .toBe(await page.evaluate(() => __game.debug.enemyAlive()));
+});
+
+test('radar : un ennemi devant apparait en haut, a droite -> a droite', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  const front = await page.evaluate(() => { __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.spawnEnemyAt(0,10);  // x=0, z=10 (devant, +Z)
+    return __game.debug.radar.blips().find(b => b.id === 0); });
+  expect(front.y).toBeGreaterThan(5); expect(Math.abs(front.x)).toBeLessThan(5);
+  const rightB = await page.evaluate(() => { __game.debug.moveEnemy(0, 10, 0);
+    return __game.debug.radar.blips().find(b => b.id === 0); });
+  expect(rightB.x).toBeGreaterThan(5); expect(Math.abs(rightB.y)).toBeLessThan(5);
+});
+
+test('radar : masque au lobby', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await expect(page.locator('#radar')).toBeHidden();
+});
