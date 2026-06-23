@@ -783,7 +783,20 @@ let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil 
 function applyWeaponStats(){ const s = weaponStats();
   curMag=s.mag; curCooldown=s.cooldown; curReload=s.reload; curDmgMult=s.dmgMult; curRecoil=s.recoil; }
 G.debug.weaponStats = () => weaponStats();
-G.debug.shop = { catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price })); } };
+function buyWeapon(id){
+  const w = weaponById(id);
+  if(save.ownedWeapons.includes(id) || save.money < w.price) return false;
+  save.money -= w.price; G.money = save.money; save.ownedWeapons.push(id);
+  persist(); updateMoneyHud(); updateHomeMeta(); return true;
+}
+function equipWeapon(id){
+  if(!save.ownedWeapons.includes(id)) return false;
+  save.selectedWeapon = id; persist(); applyWeaponStats(); return true;
+}
+G.debug.shop = {
+  catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price })); },
+  buy(id){ return buyWeapon(id); }, equip(id){ return equipWeapon(id); },
+};
 
 // ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
 const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;

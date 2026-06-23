@@ -874,3 +874,30 @@ test('boutique : l arme de depart garde les stats actuelles (compat)', async ({ 
   const s = await page.evaluate(() => __game.debug.weaponStats());
   expect(s.mag).toBe(12); expect(s.cooldown).toBeCloseTo(0.12, 5); expect(s.dmgMult).toBe(1);
 });
+
+test('boutique : acheter une arme debite l argent et la rend possedee (persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  expect(await page.evaluate(() => __game.debug.shop.buy('smg'))).toBe(true);
+  expect(await page.evaluate(() => __game.money)).toBe(300);
+  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).toContain('smg');
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).toContain('smg');
+});
+
+test('boutique : achat refuse si pas assez d argent', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(100); });
+  expect(await page.evaluate(() => __game.debug.shop.buy('sniper'))).toBe(false);
+  expect(await page.evaluate(() => __game.money)).toBe(100);
+  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons)).not.toContain('sniper');
+});
+
+test('boutique : equiper une arme change les stats (persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000);
+    __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
+  const s = await page.evaluate(() => __game.debug.weaponStats());
+  expect(s.dmgMult).toBe(3); expect(s.mag).toBe(5);
+  expect(await page.evaluate(() => __game.debug.save.get().selectedWeapon)).toBe('sniper');
+});
