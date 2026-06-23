@@ -805,6 +805,7 @@ test('save : le perso choisi est memorise (persiste au rechargement)', async ({ 
 });
 
 test('accueil : la page montre Jouer, Boutique et Reglages', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await expect(page.locator('#lobby')).toBeVisible();
@@ -832,6 +833,7 @@ test('accueil : argent et record affiches depuis la sauvegarde', async ({ page }
 });
 
 test('accueil : Boutique ouvre un ecran plein et le bouton fermer le ferme', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await expect(page.locator('#shop-panel')).toBeHidden();
@@ -842,6 +844,7 @@ test('accueil : Boutique ouvre un ecran plein et le bouton fermer le ferme', asy
 });
 
 test('accueil : Reglages ouvre un panneau puis Retour le ferme', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await expect(page.locator('#settings-panel')).toBeHidden();
@@ -928,6 +931,7 @@ test('boutique : equiper une autre arme reconstruit le modele au lancement', asy
 });
 
 test('boutique3d : ouvre plein ecran, masque le perso, montre l arme ; fermer restaure', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.debug?.modelVisible?.() === true, null, { timeout:20000 });  // lobby chargé (perso visible)
   await page.locator('#btn-shop').click();
@@ -942,6 +946,7 @@ test('boutique3d : ouvre plein ecran, masque le perso, montre l arme ; fermer re
 });
 
 test('boutique3d : le carrousel change l arme affichee', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.locator('#btn-shop').click();
@@ -953,6 +958,7 @@ test('boutique3d : le carrousel change l arme affichee', async ({ page }) => {
 });
 
 test('boutique3d : onglet Personnage masque les fleches et montre les ameliorations perso', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.locator('#btn-shop').click();
@@ -963,6 +969,7 @@ test('boutique3d : onglet Personnage masque les fleches et montre les ameliorati
 });
 
 test('boutique3d : acheter via la vitrine puis equiper', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
@@ -974,15 +981,18 @@ test('boutique3d : acheter via la vitrine puis equiper', async ({ page }) => {
 });
 
 test('boutique3d : ameliorer l arme possedee depuis l onglet Armes', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
   await page.locator('#btn-shop').click();   // arme equipee 'default' (possedee) affichee d'office
+  await page.locator('#shop-ameliorer').click();   // déplie les améliorations
   await page.locator('#shop-info [data-upg="damage"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().weaponUpgrades.default.damage)).toBe(1);
 });
 
 test('boutique3d : ameliorer le perso depuis l onglet Personnage', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
@@ -1061,6 +1071,7 @@ test('perso : ameliorer la vie donne plus de PV en partie', async ({ page }) => 
 });
 
 test('boutique3d : la touche fleche change l arme, Echap ferme', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.locator('#btn-shop').click();
@@ -1074,4 +1085,23 @@ test('boutique3d : la touche fleche change l arme, Echap ferme', async ({ page }
 test('accueil : le perso joue une anim idle (pas en T-pose)', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.debug?.lobbyAnimated?.() === true, null, { timeout:30000 });
+});
+
+test('boutique3d : le bouton Ameliorer deplie les ameliorations de l arme', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();   // arme equipee 'default' (possedee) affichee d'office
+  await expect(page.locator('#shop-info [data-upg="damage"]')).toBeHidden();
+  await page.locator('#shop-ameliorer').click();
+  await expect(page.locator('#shop-info [data-upg="damage"]')).toBeVisible();
+});
+
+test('boutique3d : la vitrine affiche les stats de l arme (degats, chargeur)', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();
+  await expect(page.locator('#shop-info')).toContainText('Dégâts');
+  await expect(page.locator('#shop-info')).toContainText('Chargeur');
 });
