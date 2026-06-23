@@ -389,19 +389,58 @@ test('à portée et en vue, l’ennemi passe en tir (shoot) et ne fonce pas dans
   expect(Math.hypot(p.x-q.x, p.z-q.z)).toBeGreaterThan(0.8); // il s'arrête pour tirer, ne traverse pas
 });
 
-test('cumuler des dégâts tue un ennemi (+1 score) puis il réapparaît', async ({ page }) => {
+test('vagues : tuer 1 ennemi sur 3 ne le fait pas reapparaitre (plus de respawn auto)', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   const s0 = await page.evaluate(() => __game.score);
-  await page.evaluate(() => __game.debug.damageEnemy(0, 50));            // torse
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(50);
   expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(3);   // pas encore mort (100 PV)
   await page.evaluate(() => __game.debug.damageEnemy(0, 50));            // total 100 => mort
-  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);   // reste mort (2 vivants)
   expect(await page.evaluate(() => __game.score)).toBe(s0 + 1);          // +1 score
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
-  await page.waitForFunction(() => __game.debug.enemyAlive() === 3, null, { timeout:6000 }); // respawn
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);  // toujours 2 (pas de respawn auto)
+  expect(await page.evaluate(() => __game.wave)).toBe(1);                // vague pas finie
+});
+
+test('vagues : la partie demarre vague 1 avec 3 ennemis a 100 PV', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.wave)).toBe(1);
+  expect(await page.evaluate(() => __game.bestWave)).toBe(1);
+  expect(await page.evaluate(() => __game.debug.waveState())).toBe('active');
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(100);
+});
+
+test('vagues : nettoyer une vague enchaine sur la suivante (plus nombreuse, record +1)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  expect(await page.evaluate(() => __game.debug.waveState())).toBe('cleared');
+  // enchaînement naturel après l'intermission (≤ WAVE_INTERMISSION + marge)
+  await page.waitForFunction(() => __game.wave === 2, null, { timeout:8000 });
+  expect(await page.evaluate(() => __game.debug.waveState())).toBe('active');
+  expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(4);   // enemiesForWave(2)
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(120);   // enemyHpForWave(2)
+  expect(await page.evaluate(() => __game.bestWave)).toBe(2);             // record
+});
+
+test('vagues : forceNextWave saute l intermission (debug)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.wave)).toBe(2);
+  expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(4);
+});
+
+test('vagues : le HUD affiche la vague et le nombre d ennemis', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await expect(page.locator('#wave-hud')).toBeVisible();
+  await expect(page.locator('#wave-hud')).toContainText('Vague 1');
+  await expect(page.locator('#wave-hud')).toContainText('3');
 });
 
 test('tirer sur un ennemi devant lui inflige des dégâts', async ({ page }) => {
