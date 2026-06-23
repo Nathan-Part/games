@@ -862,11 +862,22 @@ function renderShop(){
     html += `<div class="shop-item"><div class="shop-item-info"><b>${spec.name}</b>`
       + `<span class="shop-stats">Niveau ${lvl} / ${spec.max}</span></div>${btn}</div>`;
   }
+  html += `</div>`;
+  // Section personnage (#15)
+  html += `<h3 class="shop-sub">Personnage</h3><div class="shop-list">`;
+  for(const type in PLAYER_UPGRADE_SPECS){
+    const spec = PLAYER_UPGRADE_SPECS[type], lvl = playerUpgradeLevel(type), cost = playerUpgradeCost(type);
+    const btn = (cost == null) ? `<button class="shop-btn equipped" disabled>Max</button>`
+      : `<button class="shop-btn buy" data-pupg="${type}"${save.money >= cost ? '' : ' disabled'}>+ · 💰${cost}</button>`;
+    html += `<div class="shop-item"><div class="shop-item-info"><b>${spec.name}</b>`
+      + `<span class="shop-stats">Niveau ${lvl} / ${spec.max}</span></div>${btn}</div>`;
+  }
   html += `</div><button class="panel-back" data-panel="shop-panel">◀ Retour</button>`;
   card.innerHTML = html;
   card.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   card.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
   card.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(save.selectedWeapon, b.dataset.upg)) renderShop(); });
+  card.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
   card.querySelector('.panel-back').onclick = () => closePanel('shop-panel');
 }
 

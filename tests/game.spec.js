@@ -1013,3 +1013,12 @@ test('perso : ameliorer la vie donne plus de PV en partie', async ({ page }) => 
   await page.evaluate(() => __game.debug.restart());   // relance la partie => PV pleins au nouveau max
   expect(await page.evaluate(() => __game.health)).toBe(140);
 });
+
+test('perso : l UI ameliore le perso (clic)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('#shop-panel [data-pupg="health"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().playerUpgrades.health)).toBe(1);
+});
