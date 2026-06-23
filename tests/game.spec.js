@@ -702,12 +702,13 @@ test('tranche9 : un ennemi qui tire montre un flash de bouche bref et un traceur
   await page.evaluate(() => __game.debug.spawnEnemyAt(3, 0));
   expect(await page.evaluate(() => __game.debug.enemyMuzzleFlash(0))).toBe(false);
   const before = await page.evaluate(() => __game.debug.tracerCount());
-  await page.evaluate(() => __game.debug.forceEnemyShoot(0));
-  expect(await page.evaluate(() => __game.debug.enemyMuzzleFlash(0))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.tracerCount())).toBeGreaterThan(before);
-  const m = await page.evaluate(() => __game.debug.enemyMuzzle(0));
-  const s = await page.evaluate(() => __game.debug.lastTracerStart());
-  expect(Math.hypot(s.x-m.x, s.y-m.y, s.z-m.z)).toBeLessThan(0.5);
+  // tir + lecture dans le MÊME tick (le traceur ne vit que 0.08 s => éviter qu'il expire entre 2 allers-retours)
+  const d = await page.evaluate(() => { __game.debug.forceEnemyShoot(0);
+    return { flash: __game.debug.enemyMuzzleFlash(0), tracers: __game.debug.tracerCount(),
+             m: __game.debug.enemyMuzzle(0), s: __game.debug.lastTracerStart() }; });
+  expect(d.flash).toBe(true);
+  expect(d.tracers).toBeGreaterThan(before);
+  expect(Math.hypot(d.s.x-d.m.x, d.s.y-d.m.y, d.s.z-d.m.z)).toBeLessThan(0.5);   // traceur part du canon
   await page.waitForFunction(() => window.__game.debug.enemyMuzzleFlash(0) === false, null, { timeout:2000 });
 });
 
