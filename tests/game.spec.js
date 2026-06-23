@@ -799,3 +799,30 @@ test('save : le perso choisi est memorise (persiste au rechargement)', async ({ 
   await page.waitForFunction(() => window.__game?.characters?.length >= 2 && window.__game.phase === 'lobby', null, { timeout:20000 });
   await expect.poll(async () => (await page.locator('#char-name').textContent()).trim()).toBe(chosen);  // rouvre sur le perso choisi
 });
+
+test('accueil : la page montre Jouer, Boutique et Reglages', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await expect(page.locator('#lobby')).toBeVisible();
+  await expect(page.locator('#play-btn')).toBeVisible();
+  await expect(page.locator('#btn-shop')).toBeVisible();
+  await expect(page.locator('#btn-settings')).toBeVisible();
+});
+
+test('accueil : Jouer lance la partie', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1 && window.__game.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#play-btn').click();
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout:20000 });
+});
+
+test('accueil : argent et record affiches depuis la sauvegarde', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(500); });
+  await page.reload();
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await expect(page.locator('#home-money')).toContainText('500');
+  await expect(page.locator('#home-record')).toContainText('Vague');
+});

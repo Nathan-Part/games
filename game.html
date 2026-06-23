@@ -13,6 +13,19 @@
     justify-content:space-between;padding:32px 0 40px;pointer-events:none}
   #lobby.hidden{display:none}
   .lobby-title{font-size:24px;font-weight:700;text-shadow:0 2px 14px rgba(0,0,0,.6)}
+  .home-top{display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+  .home-title{font-size:40px;font-weight:800;letter-spacing:3px;
+    background:linear-gradient(135deg,#7ea2ff,#b56bff);-webkit-background-clip:text;background-clip:text;
+    color:transparent;text-shadow:0 6px 30px rgba(91,140,255,.25)}
+  .home-sub{font-size:14px;opacity:.7}
+  .home-meta{display:flex;gap:10px;margin-top:6px}
+  .chip{background:rgba(20,24,33,.7);border:1px solid rgba(120,150,220,.25);border-radius:999px;
+    padding:5px 13px;font-size:14px;font-weight:700}
+  #home-money{color:#ffd479}
+  .home-buttons{display:flex;align-items:center;gap:12px;pointer-events:auto}
+  .home-btn2{padding:13px 22px;font-size:15px;font-weight:700;border-radius:12px;cursor:pointer;
+    color:#e8ecf4;background:rgba(20,24,33,.7);border:1px solid rgba(120,150,220,.3);transition:.15s}
+  .home-btn2:hover{background:rgba(91,140,255,.18);border-color:#5b8cff;transform:translateY(-2px)}
   .lobby-bottom{display:flex;flex-direction:column;align-items:center;gap:16px}
   .select-bar{display:flex;align-items:center;gap:18px;pointer-events:auto;
     background:rgba(20,24,33,.7);backdrop-filter:blur(10px);border:1px solid rgba(120,150,220,.18);
@@ -88,14 +101,25 @@
 <div id="app"></div>
 
 <div id="lobby">
-  <div class="lobby-title">Choisis ton perso</div>
+  <div class="home-top">
+    <div class="home-title">OPÉRATION SURVIE</div>
+    <div class="home-sub">Survis aux vagues. Gagne de quoi t'équiper.</div>
+    <div class="home-meta">
+      <span id="home-money" class="chip">💰 0</span>
+      <span id="home-record" class="chip">🏆 Vague 0</span>
+    </div>
+  </div>
   <div class="lobby-bottom">
     <div class="select-bar">
       <button id="prev" class="nav" title="Précédent">‹</button>
       <div id="char-name" class="char-name">—</div>
       <button id="next" class="nav" title="Suivant">›</button>
     </div>
-    <button id="play-btn">Jouer ▶</button>
+    <div class="home-buttons">
+      <button id="play-btn">Jouer ▶</button>
+      <button id="btn-shop" class="home-btn2">🛒 Boutique</button>
+      <button id="btn-settings" class="home-btn2">⚙️ Réglages</button>
+    </div>
   </div>
 </div>
 
@@ -192,6 +216,10 @@ const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
 function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `💰 ${save.money}`; }
+function updateHomeMeta(){   // bandeau méta de l'accueil (argent + record), lu depuis la save
+  const m = document.getElementById('home-money'); if(m) m.textContent = `💰 ${save.money}`;
+  const r = document.getElementById('home-record'); if(r) r.textContent = `🏆 Vague ${save.bestWave}`;
+}
 G.money = save.money;
 G.debug.save = {
   get(){ return JSON.parse(JSON.stringify(save)); },
@@ -506,6 +534,7 @@ async function initLobby(){
     characters = filterPlayable(allCharacters);
     if(!characters.length){ showOverlay('Aucun personnage. Ajoute-en via studio.html ou vérifie /perso.'); return; }
     G.characters = characters.map(c => ({ id:c.id, label:c.label }));
+    updateHomeMeta();                                            // accueil : argent + record
     setLobbyCamera();
     const savedIdx = characters.findIndex(c => c.id === save.selectedCharacterId);   // rouvre sur le perso mémorisé
     await previewCharacter(savedIdx >= 0 ? savedIdx : 0);
