@@ -1244,3 +1244,64 @@ test('reglages : le panneau a des controles relies a la sauvegarde', async ({ pa
   await page.locator('#set-view').click();
   expect(await page.evaluate(() => __game.debug.settings.get().defaultView)).toBe('first');
 });
+
+// ====== Tranche 11 : types d'ennemis + meilleure IA ======
+test('ia : flankTarget decale l approche perpendiculairement', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const f = await page.evaluate(() => __game.debug.flankTarget(0,0, 0,-10, 1));
+  expect(f.x).toBeCloseTo(-4, 1); expect(f.z).toBeCloseTo(0, 1);   // perpendiculaire, offset 4
+});
+
+test('ia : peekTarget contourne un obstacle pour degager la vue', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const obs = [{ minX:-1, maxX:1, minZ:2, maxZ:4 }];   // caisse entre (0,0) et (0,6)
+  const blocked = await page.evaluate(o => __game.debug.segClear(0,0, 0,6, o), obs);
+  const peek = await page.evaluate(o => __game.debug.peekTarget(0,0, 0,6, o), obs);
+  const clearFromPeek = await page.evaluate(([p,o]) => __game.debug.segClear(p.x,p.z, 0,6, o), [peek, obs]);
+  expect(blocked).toBe(false);          // ligne directe coupée
+  expect(clearFromPeek).toBe(true);     // depuis le point de peek, vue dégagée
+});
+
+test('types : composition de vague (v1 shooter, v2 rusher, v3 tank)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const c1 = await page.evaluate(() => __game.debug.waveComposition(1));
+  const c2 = await page.evaluate(() => __game.debug.waveComposition(2));
+  const c3 = await page.evaluate(() => __game.debug.waveComposition(3));
+  expect(c1.every(t => t === 'shooter')).toBe(true); expect(c1.length).toBe(3);
+  expect(c2[0]).toBe('shooter'); expect(c2).toContain('rusher');
+  expect(c3).toContain('tank');
+});
+
+test('types : forceNextWave amene des rushers (et enemies[0] reste shooter)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.forceNextWave());   // vague 2
+  expect(await page.evaluate(() => __game.debug.enemyType(0))).toBe('shooter');
+  const types = await page.evaluate(() => Array.from({length:__game.debug.enemyCount()}, (_,i)=>__game.debug.enemyType(i)));
+  expect(types).toContain('rusher');
+});
+
+test('types : un rusher fonce au contact et frappe le joueur (melee)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.setPos(0,0); __game.debug.spawnEnemyTypeAt(0,'rusher',0,2.2); });
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'melee', null, { timeout:5000 });
+  await page.waitForFunction(() => __game.health < 100, null, { timeout:5000 });
+});
+
+test('types : un tank est coriace (PV+) et frappe fort', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(1); __game.debug.spawnEnemyTypeAt(0,'tank',16,0); });
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeGreaterThan(200);
+  const h0 = await page.evaluate(() => __game.health);
+  await page.evaluate(() => __game.debug.forceEnemyShoot(0));
+  expect(await page.evaluate(() => __game.health)).toBe(h0 - 18);   // ENEMY_DAMAGE(10)*1.8
+});
+
+test('types : le shooter tire en rafale (plusieurs cartouches par salve)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.enemyBurstSize(0))).toBeGreaterThanOrEqual(2);
+  expect(await page.evaluate(() => __game.debug.forceEnemyBurst(0))).toBeGreaterThanOrEqual(2);
+});
