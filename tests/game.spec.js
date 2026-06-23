@@ -901,3 +901,27 @@ test('boutique : equiper une arme change les stats (persiste)', async ({ page })
   expect(s.dmgMult).toBe(3); expect(s.mag).toBe(5);
   expect(await page.evaluate(() => __game.debug.save.get().selectedWeapon)).toBe('sniper');
 });
+
+test('boutique : equiper le sniper tue un ennemi (tete) en une balle', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0);
+    __game.debug.save.addMoney(2000); __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
+  await page.waitForTimeout(120);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(100);
+  expect(await page.evaluate(() => __game.debug.tryFire())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThanOrEqual(0);  // 60*3=180 >= 100
+});
+
+test('boutique : equiper une autre arme reconstruit le modele au lancement', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.addMoney(1000); __game.debug.shop.buy('smg'); __game.debug.shop.equip('smg'); });
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.waitForFunction(() => window.__game.phase === 'lobby', null, { timeout:5000 });
+  await page.evaluate(() => __game.debug.start(0));
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout:20000 });
+  await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.debug.weapon.equippedId())).toBe('smg');
+});
