@@ -95,6 +95,17 @@
   #go-score{font-size:18px;margin-bottom:20px;opacity:.9}
   #go-restart{padding:12px 22px;border-radius:11px;border:1px solid #5b8cff;font-size:16px;cursor:pointer;
     background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
+  #go-menu{margin-left:10px;padding:12px 22px;border-radius:11px;border:1px solid rgba(120,150,220,.4);
+    font-size:16px;cursor:pointer;background:rgba(20,24,33,.7);color:#e8ecf4}
+  .panel{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;
+    background:rgba(8,10,15,.82);backdrop-filter:blur(8px)}
+  .panel.hidden{display:none}
+  .panel-card{background:rgba(20,24,33,.92);border:1px solid rgba(120,150,220,.25);border-radius:18px;
+    padding:30px 40px;text-align:center;max-width:440px}
+  .panel-card h2{font-size:26px;margin-bottom:12px}
+  .panel-card p{opacity:.8;line-height:1.6;margin-bottom:20px}
+  .panel-back{padding:11px 20px;border-radius:11px;border:1px solid #5b8cff;font-size:15px;cursor:pointer;
+    background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
 </style>
 </head>
 <body>
@@ -139,6 +150,14 @@
 <div id="gameover" class="hidden"><div class="go-inner">
   <h1>💀 Game Over</h1><div id="go-score"></div>
   <button id="go-restart">Rejouer ▶</button>
+</div></div>
+<div id="shop-panel" class="panel hidden"><div class="panel-card">
+  <h2>🛒 Boutique</h2><p>Bientôt disponible — achat d'armes (tranche 13).</p>
+  <button class="panel-back" data-panel="shop-panel">◀ Retour</button>
+</div></div>
+<div id="settings-panel" class="panel hidden"><div class="panel-card">
+  <h2>⚙️ Réglages</h2><p>Bientôt disponible — sensibilité, volume, vue (tranche 18).</p>
+  <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
 </div></div>
 
 <script type="importmap">
@@ -583,6 +602,12 @@ G.debug.start = async (index=0) => { await previewCharacter(index); await startG
 document.getElementById('prev').onclick = () => cycleCharacter(-1);
 document.getElementById('next').onclick = () => cycleCharacter(1);
 document.getElementById('play-btn').onclick = () => startGame();
+// Accueil : panneaux Boutique / Réglages (placeholders, remplis aux tranches 13/18)
+const openPanel = id => document.getElementById(id).classList.remove('hidden');
+const closePanel = id => document.getElementById(id).classList.add('hidden');
+document.getElementById('btn-shop').onclick = () => openPanel('shop-panel');
+document.getElementById('btn-settings').onclick = () => openPanel('settings-panel');
+for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(e.code==='ArrowLeft' || e.code==='KeyA') cycleCharacter(-1);

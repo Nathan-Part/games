@@ -826,3 +826,23 @@ test('accueil : argent et record affiches depuis la sauvegarde', async ({ page }
   await expect(page.locator('#home-money')).toContainText('500');
   await expect(page.locator('#home-record')).toContainText('Vague');
 });
+
+test('accueil : Boutique ouvre un panneau puis Retour le ferme', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await expect(page.locator('#shop-panel')).toBeHidden();
+  await page.locator('#btn-shop').click();
+  await expect(page.locator('#shop-panel')).toBeVisible();
+  await page.locator('#shop-panel .panel-back').click();
+  await expect(page.locator('#shop-panel')).toBeHidden();
+});
+
+test('accueil : Reglages ouvre un panneau puis Retour le ferme', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await expect(page.locator('#settings-panel')).toBeHidden();
+  await page.locator('#btn-settings').click();
+  await expect(page.locator('#settings-panel')).toBeVisible();
+  await page.locator('#settings-panel .panel-back').click();
+  await expect(page.locator('#settings-panel')).toBeHidden();
+});
