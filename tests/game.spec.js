@@ -501,10 +501,13 @@ test('à 0 PV : Game Over, puis Rejouer remet la partie à zéro', async ({ page
 test('un ennemi en vue tire et blesse le joueur', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
-  await page.evaluate(() => { __game.debug.setEnemyAccuracy(1); __game.debug.spawnEnemyAt(0, 6); });
+  // au-delà du rayon de détection (12) => l'ennemi reste en patrouille et ne tire PAS de lui-même
+  // (sinon il entre en 'shoot' et tire en plus du forceEnemyShoot -> 2 impacts, test instable).
+  // LOS dégagée le long de z=0 ; précision forcée à 1 -> le tir forcé touche à coup sûr.
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(1); __game.debug.spawnEnemyAt(16, 0); });
   const h0 = await page.evaluate(() => __game.health);
   await page.evaluate(() => __game.debug.forceEnemyShoot(0));
-  expect(await page.evaluate(() => __game.health)).toBe(h0 - 10);
+  expect(await page.evaluate(() => __game.health)).toBe(h0 - 10);  // exactement un impact (ENEMY_DAMAGE)
 });
 
 test('ligne de vue : un obstacle bloque le tir', async ({ page }) => {
