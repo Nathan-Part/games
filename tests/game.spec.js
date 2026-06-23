@@ -1196,3 +1196,51 @@ test('skins : onglet boutique montre le tableau et permet acheter/equiper', asyn
   await page.locator('#shop-info [data-selskin="crimson"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().selectedSkin)).toBe('crimson');
 });
+
+// ====== Tranche 18 : page de réglages (sensibilité / volume / vue par défaut) ======
+test('reglages : les reglages persistent au rechargement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.settings.set('sensitivity', 2.5); __game.debug.settings.set('defaultView', 'first'); });
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  const s = await page.evaluate(() => __game.debug.settings.get());
+  expect(s.sensitivity).toBe(2.5); expect(s.defaultView).toBe('first');
+});
+
+test('reglages : la sensibilite souris multiplie le deplacement camera', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.settings.set('sensitivity', 1); __game.debug.setYaw(0); __game.debug.look(100, 0); });
+  const d1 = await page.evaluate(() => Math.abs(__game.camera().yaw));
+  await page.evaluate(() => { __game.debug.settings.set('sensitivity', 2); __game.debug.setYaw(0); __game.debug.look(100, 0); });
+  const d2 = await page.evaluate(() => Math.abs(__game.camera().yaw));
+  expect(d2).toBeGreaterThan(d1 * 1.8);
+});
+
+test('reglages : le volume regle le gain audio', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.audio.init());
+  await page.evaluate(() => __game.debug.settings.set('volume', 0.6));
+  expect(await page.evaluate(() => __game.debug.settings.gain())).toBeCloseTo(0.6, 2);
+});
+
+test('reglages : vue par defaut 1re personne lance la partie en 1re personne', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true;
+    localStorage.setItem('cod-save-v1', JSON.stringify({ settings:{ sensitivity:1, volume:0.3, defaultView:'first' } })); });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, { timeout:20000 });
+  await page.evaluate(() => __game.debug.start(0));
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout:20000 });
+  expect(await page.evaluate(() => __game.view)).toBe('first');
+});
+
+test('reglages : le panneau a des controles relies a la sauvegarde', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-settings').click();
+  await expect(page.locator('#settings-panel')).toBeVisible();
+  await expect(page.locator('#set-sensitivity')).toBeVisible();
+  await page.locator('#set-sensitivity').evaluate(el => { el.value = '2.5'; el.dispatchEvent(new Event('input', { bubbles:true })); });
+  expect(await page.evaluate(() => __game.debug.settings.get().sensitivity)).toBeCloseTo(2.5, 2);
+  await page.locator('#set-view').click();
+  expect(await page.evaluate(() => __game.debug.settings.get().defaultView)).toBe('first');
+});

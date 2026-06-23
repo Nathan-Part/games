@@ -106,6 +106,15 @@
   .panel-card p{opacity:.8;line-height:1.6;margin-bottom:20px}
   .panel-back{padding:11px 20px;border-radius:11px;border:1px solid #5b8cff;font-size:15px;cursor:pointer;
     background:linear-gradient(135deg,rgba(91,140,255,.3),rgba(181,107,255,.25));color:#e8ecf4}
+  .settings-card{max-width:420px;text-align:left}
+  .set-row{display:flex;align-items:center;gap:14px;margin:14px 0}
+  .set-row label{flex:1;font-size:15px;opacity:.92}
+  .set-row input[type=range]{flex:0 0 150px;accent-color:#6f9bff;cursor:pointer}
+  .set-val{flex:0 0 46px;text-align:right;font-weight:700;color:#b8c8ff}
+  .set-toggle{flex:0 0 150px;padding:9px 0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;
+    color:#e8ecf4;background:rgba(34,40,58,.8);border:1px solid rgba(120,150,220,.35);transition:.15s}
+  .set-toggle:hover{border-color:#6f9bff;background:rgba(91,140,255,.18)}
+  .settings-card .panel-back{margin-top:10px}
   /* ====== Boutique v2 : carrousel 3D + UI bas-centre ====== */
   #shop-panel{position:fixed;inset:0;z-index:45;
     background:radial-gradient(ellipse 95% 88% at 50% 42%, transparent 46%, rgba(18,22,34,.34) 100%)}
@@ -238,8 +247,16 @@
   <button id="shop-next" class="shop-nav-arrow right" title="Suivant">›</button>
   <div id="shop-info" class="shop-info"></div>
 </div>
-<div id="settings-panel" class="panel hidden"><div class="panel-card">
-  <h2>⚙️ Réglages</h2><p>Bientôt disponible — sensibilité, volume, vue (tranche 18).</p>
+<div id="settings-panel" class="panel hidden"><div class="panel-card settings-card">
+  <h2>⚙️ Réglages</h2>
+  <div class="set-row"><label for="set-sensitivity">🖱️ Sensibilité souris</label>
+    <input id="set-sensitivity" type="range" min="0.2" max="3" step="0.1" />
+    <span id="set-sensitivity-val" class="set-val"></span></div>
+  <div class="set-row"><label for="set-volume">🔊 Volume</label>
+    <input id="set-volume" type="range" min="0" max="1" step="0.05" />
+    <span id="set-volume-val" class="set-val"></span></div>
+  <div class="set-row"><label for="set-view">🎥 Vue par défaut</label>
+    <button id="set-view" class="set-toggle"></button></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
 </div></div>
 
@@ -307,10 +324,14 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 const SAVE_KEY = 'cod-save-v1';
 function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selectedCharacterId:null,
   ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},
-  ownedCharacters:['perso:blue-soldier'], ownedSkins:['default'], selectedSkin:'default' }; }
+  ownedCharacters:['perso:blue-soldier'], ownedSkins:['default'], selectedSkin:'default',
+  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third' } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
-    const p = JSON.parse(raw); return (p && typeof p === 'object') ? Object.assign(defaultSave(), p) : defaultSave();
+    const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
+    const s = Object.assign(defaultSave(), p);
+    s.settings = Object.assign(defaultSave().settings, p.settings || {});   // fusion fine des réglages (nouveaux champs => défaut)
+    return s;
   } catch(e){ return defaultSave(); }   // save corrompue / indisponible -> valeurs par défaut
 }
 let save = loadSave();
@@ -326,7 +347,7 @@ function updateHomeMeta(){   // bandeau méta de l'accueil (argent + record), lu
 G.money = save.money;
 G.debug.save = {
   get(){ return JSON.parse(JSON.stringify(save)); },
-  reset(){ save = defaultSave(); G.money = save.money; persist(); updateMoneyHud(); },
+  reset(){ save = defaultSave(); G.money = save.money; persist(); updateMoneyHud(); if(typeof applyAllSettings === 'function') applyAllSettings(); },
   addMoney(n){ addMoney(n); }, raw(){ try { return localStorage.getItem(SAVE_KEY); } catch(e){ return null; } },
   rates(){ return { perKill:MONEY_PER_KILL, perWave:MONEY_PER_WAVE }; },
 };
@@ -374,6 +395,25 @@ G.debug.modelTint = () => { if(!model) return null; let hex = null;
   model.traverse(o => { if(hex == null && o.isMesh && o.material){
     const m = Array.isArray(o.material) ? o.material[0] : o.material; if(m && m.color) hex = '#' + m.color.getHexString(); } });
   return hex; };
+
+// ====== Réglages (#18) : sensibilité souris / volume / vue par défaut (persistés) ======
+let lookSensitivity = 1;
+function applyVolume(){ if(masterGain && !muted) masterGain.gain.value = save.settings.volume; }   // mute prioritaire
+function applyAllSettings(){ lookSensitivity = save.settings.sensitivity; applyVolume(); }
+function setSetting(key, val){
+  if(!save.settings || !(key in save.settings)) return false;
+  save.settings[key] = val; persist();
+  if(key === 'sensitivity') lookSensitivity = val;
+  if(key === 'volume') applyVolume();
+  return true;
+}
+lookSensitivity = save.settings.sensitivity;   // init sensibilité (le volume s'applique à l'init audio, masterGain pas encore déclaré ici)
+G.debug.settings = {
+  get(){ return JSON.parse(JSON.stringify(save.settings)); },
+  set(k, v){ return setSetting(k, v); },
+  sensitivity(){ return lookSensitivity; },
+  gain(){ return masterGain ? masterGain.gain.value : null; },
+};
 
 // ====== Moteur ======
 const app = document.getElementById('app');
@@ -740,7 +780,7 @@ async function startGame(){
   const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
   G.clips = Object.keys(actions).filter(k=>actions[k]);
   curLoco = 'idle'; actions.idle.play();
-  setView('third');                                            // chaque partie démarre en 3e personne (perso visible)
+  setView(save.settings.defaultView);                          // vue de départ selon les réglages (#18 ; défaut 3e personne)
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
@@ -773,8 +813,22 @@ document.getElementById('shop-close').onclick = closeShop;
 document.getElementById('shop-prev').onclick = () => setShopWeapon(shopWeaponIndex - 1);
 document.getElementById('shop-next').onclick = () => setShopWeapon(shopWeaponIndex + 1);
 for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShopTab(t.dataset.tab);
-document.getElementById('btn-settings').onclick = () => openPanel('settings-panel');
+document.getElementById('btn-settings').onclick = () => openSettings();
 for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
+// ====== Panneau Réglages (#18) : remplit les contrôles depuis la save, applique + persiste à chaque changement ======
+function renderSettings(){
+  const s = save.settings;
+  const se = document.getElementById('set-sensitivity'), sv = document.getElementById('set-sensitivity-val');
+  if(se){ se.value = s.sensitivity; sv.textContent = (+s.sensitivity).toFixed(1) + '×'; }
+  const vo = document.getElementById('set-volume'), vv = document.getElementById('set-volume-val');
+  if(vo){ vo.value = s.volume; vv.textContent = Math.round(s.volume * 100) + '%'; }
+  const vw = document.getElementById('set-view');
+  if(vw) vw.textContent = s.defaultView === 'first' ? '1re personne' : '3e personne';
+}
+function openSettings(){ renderSettings(); openPanel('settings-panel'); }
+document.getElementById('set-sensitivity').oninput = e => { setSetting('sensitivity', parseFloat(e.target.value)); renderSettings(); };
+document.getElementById('set-volume').oninput = e => { setSetting('volume', parseFloat(e.target.value)); renderSettings(); };
+document.getElementById('set-view').onclick = () => { setSetting('defaultView', save.settings.defaultView === 'first' ? 'third' : 'first'); renderSettings(); };
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
@@ -837,10 +891,10 @@ function clampPitch(){
   camPitch = Math.max(lo, Math.min(hi, camPitch));
 }
 function applyLook(dx, dy){
-  camYaw -= dx * 0.0025;
+  camYaw -= dx * 0.0025 * lookSensitivity;
   // 1re personne : souris vers le haut (dy<0) => regarder vers le haut (pitch ↑) — non inversé.
   // 3e personne : on conserve l'orbite existante.
-  camPitch += (view === 'first' ? -dy : dy) * 0.0025;
+  camPitch += (view === 'first' ? -dy : dy) * 0.0025 * lookSensitivity;
   clampPitch();
 }
 addEventListener('mousemove', e => {
@@ -1881,7 +1935,7 @@ function initAudio(){
   if(actx) return;
   try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = actx.createGain(); masterGain.gain.value = 0.3; masterGain.connect(actx.destination);
+    masterGain = actx.createGain(); masterGain.gain.value = muted ? 0 : save.settings.volume; masterGain.connect(actx.destination);
   } catch(e){ actx = null; }
 }
 function resumeAudio(){ try { if(actx && actx.state === 'suspended') actx.resume(); } catch(e){} }
@@ -1917,7 +1971,7 @@ function playSound(type){
     }
   } catch(e){}
 }
-function setMuted(b){ muted = !!b; if(masterGain) masterGain.gain.value = muted ? 0 : 0.3; }
+function setMuted(b){ muted = !!b; if(masterGain) masterGain.gain.value = muted ? 0 : save.settings.volume; }
 G.debug.audio = {
   init(){ initAudio(); }, play(type){ playSound(type); }, muted(){ return muted; }, setMuted(b){ setMuted(b); },
   count(){ return soundLog.length; }, last(){ return soundLog[soundLog.length-1] || null; },
