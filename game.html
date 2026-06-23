@@ -335,7 +335,7 @@ const shopLight = new THREE.DirectionalLight(0xbcd0ff, 0); shopLight.position.se
 const loader = new GLTFLoader();
 
 // ====== État partagé (rempli par les tasks suivantes) ======
-let model = null, mixer = null;
+let model = null, mixer = null, lobbyIdle = false;
 let velY = 0, grounded = true, groundY = 0;
 const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
@@ -564,11 +564,22 @@ async function spawnModel(char){
   const s = 1.8/(size.y||1); m.scale.setScalar(s);
   m.position.sub(center.multiplyScalar(s)); m.position.y += (size.y*s)/2;
   m.rotation.y = 0;
-  if(mixer){ mixer.stopAllAction(); mixer = null; }   // lobby : pas d'anim, le modèle tourne sur lui-même
+  if(mixer){ mixer.stopAllAction(); mixer = null; }   // lobby : l'idle est (re)posé par playLobbyIdle
+  lobbyIdle = false;
   if(model){ scene.remove(model); heldWeapon = null; }   // nouveau modèle => l'arme se ré-attache à la partie suivante
   model = m; scene.add(model);
   groundY = m.position.y; velY = 0; grounded = true;
 }
+// joue une anim idle sur le perso du lobby (plus de T-pose) — non-bloquant ; sauté en mode test rapide
+async function playLobbyIdle(){
+  if(!model || window.__FAST_WEAPON__) return;
+  const target = model;
+  try { if(!anims.length) await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); } catch(e){ return; }
+  if(model !== target) return;                          // un autre perso a été sélectionné entre-temps
+  const clip = retargetRole('idle');
+  if(clip){ mixer = new THREE.AnimationMixer(model); mixer.clipAction(clip).play(); lobbyIdle = true; }
+}
+G.debug.lobbyAnimated = () => lobbyIdle;
 function retargetRole(role){
   const names = anims.map(a => a.key);
   const key = resolveClipRole(role, names);
@@ -596,6 +607,7 @@ async function previewCharacter(index){
   document.getElementById('char-name').textContent = c.label;   // maj immédiate du nom
   save.selectedCharacterId = c.id; persist();                  // mémorise le perso choisi (tranche 12)
   await spawnModel(c);                                          // affiche le modèle (turntable)
+  playLobbyIdle();                                              // non-bloquant : joue l'idle dès que prêt (no T-pose)
 }
 function cycleCharacter(dir){ if(G.phase==='lobby') previewCharacter(lobbyIndex + dir); }
 

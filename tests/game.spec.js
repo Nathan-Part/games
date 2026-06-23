@@ -1070,3 +1070,8 @@ test('boutique3d : la touche fleche change l arme, Echap ferme', async ({ page }
   await page.keyboard.press('Escape');
   await expect(page.locator('#shop-panel')).toBeHidden();
 });
+
+test('accueil : le perso joue une anim idle (pas en T-pose)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.debug?.lobbyAnimated?.() === true, null, { timeout:30000 });
+});
