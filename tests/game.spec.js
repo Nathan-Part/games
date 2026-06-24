@@ -1700,3 +1700,27 @@ test('combo : HUD visible avec le multiplicateur, masque a 0', async ({ page }) 
   await expect(page.locator('#combo-hud')).toBeVisible();
   await expect(page.locator('#combo-hud')).toContainText('x2');
 });
+
+// ====== Tranche 30 : nombres de dégâts flottants ======
+test('degats flottants : un tir qui touche cree un nombre (crit en tete)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);                            // laisse la caméra passer en 1re personne
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.damageNumberCount())).toBeGreaterThanOrEqual(1);
+  const last = await page.evaluate(() => __game.debug.lastDamageNumber());
+  expect(last.amount).toBeGreaterThan(0);
+  expect(last.crit).toBe(true);                              // pitch 0 = tête
+});
+
+test('degats flottants : s estompent (nettoyage)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => { __game.debug.spawnEnemyInFront(8); __game.debug.tryFire(); });
+  expect(await page.evaluate(() => __game.debug.damageNumberCount())).toBeGreaterThanOrEqual(1);
+  await page.waitForFunction(() => __game.debug.damageNumberCount() === 0, null, { timeout:3000 });
+});

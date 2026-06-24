@@ -1516,7 +1516,8 @@ function tryFire(){
     const t = targets.find(t => t.mesh === obj);
     if(t) hitTarget(t);
     else { const e = enemies.find(e => e.hitbox === obj);
-      if(e){ const relY = hits[0].point.y - e.root.position.y; damageEnemy(e, Math.round(hitZoneDamage(relY).damage * curDmgMult)); } }
+      if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
+        damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); } }
   }
   return true;
 }
@@ -1526,6 +1527,31 @@ function reload(){
 }
 // juice : trace de balle qui s'efface
 const tracers = [];
+// ====== Nombres de dégâts flottants (#30) : sprite au point d'impact, monte + fade ======
+const damageNumbers = []; let lastDmgNum = null;
+function makeNumberSprite(text, color, scale){
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+  const c = cv.getContext('2d'); c.font = 'bold 46px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineWidth = 7; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(text, 64, 32);
+  c.fillStyle = color; c.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false }));
+  sp.scale.set(scale, scale*0.5, 1); return sp;
+}
+const DMGNUM_DUR = 0.8;
+function spawnDamageNumber(pos, amount, crit){
+  const sp = makeNumberSprite(String(amount), crit ? '#ffcf3f' : '#ffffff', crit ? 1.1 : 0.8);
+  sp.position.copy(pos); sp.position.y += 0.12; sp.renderOrder = 999; scene.add(sp);
+  damageNumbers.push({ sp, start: nowS(), y0: sp.position.y }); lastDmgNum = { amount, crit };
+}
+function updateDamageNumbers(){   // expiration à l'horloge (indépendant du frame-rate / throttling)
+  const t = nowS();
+  for(let i=damageNumbers.length-1;i>=0;i--){ const d = damageNumbers[i], e = (t - d.start) / DMGNUM_DUR;
+    if(e >= 1){ scene.remove(d.sp); d.sp.material.map.dispose(); d.sp.material.dispose(); damageNumbers.splice(i,1); continue; }
+    d.sp.position.y = d.y0 + e * 0.9; d.sp.material.opacity = 1 - e; }
+}
+G.debug.damageNumberCount = () => damageNumbers.length;
+G.debug.lastDamageNumber = () => lastDmgNum;
 function spawnTracer(from, to){
   const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xfff1a8, transparent:true, opacity:0.9 }));
@@ -1553,7 +1579,7 @@ function updateCombat(dt){
   if(input.fire) tryFire();
   const t = nowS();
   for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
-  updateTracers(dt);
+  updateTracers(dt); updateDamageNumbers();
   const aiming = input.aim && G.phase==='playing';
   document.getElementById('sight').classList.toggle('show', aiming);
   document.getElementById('scope').classList.toggle('show', aiming);
