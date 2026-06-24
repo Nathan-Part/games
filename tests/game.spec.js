@@ -2030,3 +2030,15 @@ test('baril : tirer dessus le fait exploser', async ({ page }) => {
   await page.evaluate(() => __game.debug.tryFire());
   expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0);
 });
+
+// ====== Tranche 42 : power-up slow-mo ======
+test('slowmo : ralentit le temps ennemi le temps du power-up', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.enemyTimeScale())).toBe(1);
+  const pos = await page.evaluate(() => __game.position());
+  const d0 = await page.evaluate(() => __game.debug.liveDamage());
+  await page.evaluate(p => __game.debug.spawnPowerUp('slowmo', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'slowmo', null, { timeout:3000 });
+  expect(await page.evaluate(() => __game.debug.enemyTimeScale())).toBeLessThan(1);
+  expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0, 3);
+});

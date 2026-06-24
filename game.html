@@ -1252,6 +1252,8 @@ function weaponStats(id = effectiveWeaponId()){
 let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1, curPellets = 1;
 let activePower = null, powerExpireAt = 0;   // #34 power-up actif (déclaré tôt : utilisé par applyWeaponStats)
 function powerFactor(){ const f = { dmg:1, cd:1 }; if(activePower === 'dmgx2') f.dmg = 2; else if(activePower === 'rapid') f.cd = 1/1.8; return f; }   // #34
+function enemyTimeScale(){ return activePower === 'slowmo' ? 0.4 : 1; }   // #42 slow-mo : ralentit les ennemis
+G.debug.enemyTimeScale = () => enemyTimeScale();
 function applyWeaponStats(){ const s = weaponStats(), pf = powerFactor();
   curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; curPellets=s.pellets || 1; }
 G.debug.weaponStats = (id) => weaponStats(id);
@@ -2019,7 +2021,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff } };
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff } };
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -2947,7 +2949,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
