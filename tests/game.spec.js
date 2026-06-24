@@ -1766,3 +1766,38 @@ test('boss : le tuer credite un gros bonus', async ({ page }) => {
   await page.evaluate(() => __game.debug.killAllEnemies());
   expect(await page.evaluate(() => __game.money) - m0).toBeGreaterThanOrEqual(300);
 });
+
+// ====== Tranche 32 : packs de soin ======
+test('soin : drop force a la mort', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forceHealthDrop(true); __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('soin : ramasser un pack au contact soigne et le retire', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(50));
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnHealthPack(p.x, p.z), pos);
+  await page.waitForFunction(h => __game.debug.playerHealth() > h, h0, { timeout:3000 });
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(0);
+});
+
+test('soin : plein de vie = pas de ramassage', async ({ page }) => {
+  await startPlaying(page);   // PV plein
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnHealthPack(p.x, p.z), pos);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(1);   // reste (PV plein)
+});
+
+test('soin : pack trop loin ne soigne pas', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(40));
+  await page.evaluate(() => __game.debug.spawnHealthPack(60, 60));            // loin
+  const before = await page.evaluate(() => __game.debug.playerHealth());
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBeLessThanOrEqual(before + 2);  // régén lente seule, pas le pack
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(1);
+});
