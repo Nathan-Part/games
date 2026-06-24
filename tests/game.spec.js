@@ -1406,6 +1406,7 @@ test('rarete : la boutique affiche la couleur de rarete (armes + perso)', async 
   let html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
   expect(html).toContain('#9aa3b2');                                        // default = commun
   await page.locator('.shop-tab[data-tab="player"]').click();
+  await page.evaluate(() => __game.debug.shop.setChar('perso:robot'));      // carrousel centré sur Cyborg (#25)
   await expect(page.locator('#shop-info')).toContainText('Cyborg');
   html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
   expect(html).toMatch(/#9aa3b2|#4f9dff|#b066ff/);                          // un badge de rareté perso
