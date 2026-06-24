@@ -1362,3 +1362,26 @@ test('map : un batiment bloque la ligne de vue', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.pointInObstacle(16,8))).toBe(true);          // bâtiment est
   expect(await page.evaluate(() => __game.debug.hasLineOfSight(10,8, 22,8))).toBe(false);    // vue coupée au travers
 });
+
+// ====== Tranche 24 : système de rareté (socle) ======
+test('rarete : 4 paliers ordonnes (commun<rare<epique<legendaire)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const r = await page.evaluate(() => __game.debug.shop.rarities());
+  expect(r.map(x => x.id)).toEqual(['commun','rare','epique','legendaire']);
+  expect(r.map(x => x.tier)).toEqual([0,1,2,3]);
+  expect(r.map(x => x.name)).toEqual(['Commun','Rare','Épique','Légendaire']);
+  expect(new Set(r.map(x => x.color)).size).toBe(4);   // couleurs distinctes
+});
+
+test('rarete : chaque item de catalogue a une rarete connue', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const data = await page.evaluate(() => ({
+    keys: __game.debug.shop.rarities().map(x => x.id),
+    w: __game.debug.shop.catalog(), c: __game.debug.shop.charCatalog(), s: __game.debug.shop.skinCatalog(),
+  }));
+  for (const list of [data.w, data.c, data.s])
+    for (const it of list) expect(data.keys).toContain(it.rarity);
+  expect(data.w.find(w => w.id === 'sniper').rarity).toBe('epique');
+  expect(data.c.find(c => c.name === 'Cyborg').rarity).toBe('epique');
+  expect(data.s.find(s => s.id === 'gold').rarity).toBe('legendaire');
+});

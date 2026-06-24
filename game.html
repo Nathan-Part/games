@@ -356,13 +356,22 @@ G.debug.save = {
   rates(){ return { perKill:MONEY_PER_KILL, perWave:MONEY_PER_WAVE }; },
 };
 
+// ====== Système de rareté (socle #24) : paliers partagés par toutes les vitrines ======
+const RARITIES = {
+  commun:     { id:'commun',     name:'Commun',     color:'#9aa3b2', tier:0 },
+  rare:       { id:'rare',       name:'Rare',       color:'#4f9dff', tier:1 },
+  epique:     { id:'epique',     name:'Épique',     color:'#b066ff', tier:2 },
+  legendaire: { id:'legendaire', name:'Légendaire', color:'#ffb02e', tier:3 },
+};
+const RARITY_ORDER = ['commun','rare','epique','legendaire'];
+
 // ====== Skins / cosmétiques (#16) : teinte des matériaux du perso ======
 const SKINS = [
-  { id:'default', name:'Origine', price:0,   tint:null },
-  { id:'crimson', name:'Carmin',  price:400, tint:0xd23b3b },
-  { id:'azure',   name:'Azur',    price:400, tint:0x3b78d2 },
-  { id:'shadow',  name:'Spectre', price:600, tint:0x4a5260 },
-  { id:'gold',    name:'Doré',    price:800, tint:0xd2a93b },
+  { id:'default', name:'Origine', price:0,   tint:null,     rarity:'commun' },
+  { id:'crimson', name:'Carmin',  price:400, tint:0xd23b3b, rarity:'rare' },
+  { id:'azure',   name:'Azur',    price:400, tint:0x3b78d2, rarity:'rare' },
+  { id:'shadow',  name:'Spectre', price:600, tint:0x4a5260, rarity:'epique' },
+  { id:'gold',    name:'Doré',    price:800, tint:0xd2a93b, rarity:'legendaire' },
 ];
 function skinById(id){ return SKINS.find(s => s.id === id) || SKINS[0]; }
 function applySkin(root, skinId){
@@ -1032,11 +1041,11 @@ document.addEventListener('pointerlockchange', () => {
 
 // ====== Catalogue d'armes (boutique #13) ======
 const WEAPONS = [
-  { id:'default', name:"Fusil d'assaut", price:0, glb:true,
+  { id:'default', name:"Fusil d'assaut", price:0, glb:true, rarity:'commun',
     stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
-  { id:'smg', name:'Mitraillette', price:700,
+  { id:'smg', name:'Mitraillette', price:700, rarity:'rare',
     stats:{ mag:24, cooldown:0.07, reload:1.4, dmgMult:0.6, recoil:0.6 }, build:buildSmgMesh },
-  { id:'sniper', name:'Sniper', price:1500,
+  { id:'sniper', name:'Sniper', price:1500, rarity:'epique',
     stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2 }, build:buildSniperMesh },
 ];
 function weaponById(id){ return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
@@ -1081,7 +1090,8 @@ function equipWeapon(id){
   save.selectedWeapon = id; persist(); applyWeaponStats(); return true;
 }
 G.debug.shop = {
-  catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price })); },
+  catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price, rarity:w.rarity })); },
+  rarities(){ return RARITY_ORDER.map(k => ({ id:k, name:RARITIES[k].name, color:RARITIES[k].color, tier:RARITIES[k].tier })); },
   buy(id){ return buyWeapon(id); }, equip(id){ return equipWeapon(id); },
   upgrade(id, type){ return buyUpgrade(id, type); }, upgradeCost(id, type){ return upgradeCost(id, type); },
   playerUpgrade(type){ return buyPlayerUpgrade(type); }, playerUpgradeCost(type){ return playerUpgradeCost(type); },
@@ -1356,9 +1366,9 @@ G.health = maxHealth; G.maxHealth = maxHealth;
 // ====== Améliorations du perso (#15) ======
 // ====== Catalogue de personnages (achat ; stats de base par perso) ======
 const CHARACTERS = [
-  { id:'perso:blue-soldier', name:'Blue-Soldier', price:0,    base:{ health:100, regen:10, speed:1.00 } },
-  { id:'perso:guard',        name:'Sentinel',     price:1500, base:{ health:135, regen:13, speed:1.00 } },
-  { id:'perso:robot',        name:'Cyborg',       price:3000, base:{ health:175, regen:17, speed:1.15 } },
+  { id:'perso:blue-soldier', name:'Blue-Soldier', price:0,    rarity:'commun', base:{ health:100, regen:10, speed:1.00 } },
+  { id:'perso:guard',        name:'Sentinel',     price:1500, rarity:'rare',   base:{ health:135, regen:13, speed:1.00 } },
+  { id:'perso:robot',        name:'Cyborg',       price:3000, rarity:'epique', base:{ health:175, regen:17, speed:1.15 } },
 ];
 function characterById(id){ return CHARACTERS.find(c => c.id === id) || CHARACTERS[0]; }
 const PLAYER_UPGRADE_SPECS = {
@@ -1396,10 +1406,10 @@ function selectCharacter(id){
 }
 applyPlayerStats();   // reflète les améliorations sauvegardées dès le chargement
 G.debug.playerStats = () => ({ maxHealth, regenRate, speedMult });
-G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base }));
+G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
-G.debug.shop.skinCatalog = () => SKINS.map(s => ({ id:s.id, name:s.name, price:s.price }));
+G.debug.shop.skinCatalog = () => SKINS.map(s => ({ id:s.id, name:s.name, price:s.price, rarity:s.rarity }));
 G.debug.shop.buySkin = (id) => buySkin(id);
 G.debug.shop.selectSkin = (id) => selectSkin(id);
 function updateHealthHud(){
