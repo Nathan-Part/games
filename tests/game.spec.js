@@ -2100,3 +2100,31 @@ test('melee : rien si aucun ennemi a portee', async ({ page }) => {
   await page.evaluate(() => { for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40); });
   expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(false);
 });
+
+// ====== Tranche 46 : difficulté ======
+test('difficulte : ajuste PV ennemis et degats recus', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.difficulty())).toBe('normal');
+  const hpN = await page.evaluate(() => __game.debug.enemyHpForWave(3));
+  await page.evaluate(() => __game.debug.setDifficulty('difficile'));
+  expect(await page.evaluate(() => __game.debug.enemyHpForWave(3))).toBeGreaterThan(hpN);
+  await page.evaluate(() => __game.debug.setDifficulty('facile'));
+  expect(await page.evaluate(() => __game.debug.enemyHpForWave(3))).toBeLessThan(hpN);
+});
+
+test('difficulte : facile reduit les degats recus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setDifficulty('facile'));
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.damagePlayer(20));
+  const lost = h0 - await page.evaluate(() => __game.debug.playerHealth());
+  expect(lost).toBeLessThan(20); expect(lost).toBeGreaterThan(0);
+});
+
+test('difficulte : le selecteur des reglages applique le mode', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await page.locator('#btn-settings').click();
+  await page.locator('#set-diff [data-diff="facile"]').click();
+  expect(await page.evaluate(() => __game.debug.difficulty())).toBe('facile');
+  await expect(page.locator('#set-diff [data-diff="facile"]')).toHaveClass(/on/);
+});

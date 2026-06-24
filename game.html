@@ -164,6 +164,11 @@
   .set-toggle{flex:0 0 150px;padding:9px 0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;
     color:#e8ecf4;background:rgba(34,40,58,.8);border:1px solid rgba(120,150,220,.35);transition:.15s}
   .set-toggle:hover{border-color:#6f9bff;background:rgba(91,140,255,.18)}
+  .set-diff{flex:0 0 220px;display:flex;gap:6px}
+  .set-diff-btn{flex:1;padding:8px 0;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;
+    color:#cdd6ea;background:rgba(34,40,58,.8);border:1px solid rgba(120,150,220,.3);transition:.15s}
+  .set-diff-btn:hover{border-color:#6f9bff}
+  .set-diff-btn.on{color:#0b0e16;background:#6f9bff;border-color:#6f9bff}
   .settings-card .panel-back{margin-top:10px}
   /* ====== Boutique v2 : carrousel 3D + UI bas-centre ====== */
   #shop-panel{position:fixed;inset:0;z-index:45;
@@ -334,6 +339,12 @@
     <span id="set-volume-val" class="set-val"></span></div>
   <div class="set-row"><label for="set-view">🎥 Vue par défaut</label>
     <button id="set-view" class="set-toggle"></button></div>
+  <div class="set-row"><label>🎯 Difficulté</label>
+    <div id="set-diff" class="set-diff">
+      <button class="set-diff-btn" data-diff="facile">Facile</button>
+      <button class="set-diff-btn" data-diff="normal">Normal</button>
+      <button class="set-diff-btn" data-diff="difficile">Difficile</button>
+    </div></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
 </div></div>
 
@@ -405,7 +416,7 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
   ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
-  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third' } }; }
+  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal' } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -417,6 +428,15 @@ function loadSave(){
 let save = loadSave();
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
 const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
+// ====== Modes de difficulté (#46) ======
+const DIFFICULTIES = {
+  facile:    { id:'facile',    name:'Facile',    hp:0.7, dmg:0.7, money:1.2 },
+  normal:    { id:'normal',    name:'Normal',    hp:1.0, dmg:1.0, money:1.0 },
+  difficile: { id:'difficile', name:'Difficile', hp:1.4, dmg:1.5, money:0.9 },
+};
+function curDiff(){ return DIFFICULTIES[(save.settings && save.settings.difficulty) || 'normal'] || DIFFICULTIES.normal; }
+G.debug.difficulty = () => curDiff().id;
+G.debug.setDifficulty = (id) => { if(DIFFICULTIES[id]){ save.settings.difficulty = id; persist(); if(typeof renderSettings === 'function') renderSettings(); } };
 function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `💰 ${save.money}`; }
@@ -1003,11 +1023,14 @@ function renderSettings(){
   if(vo){ vo.value = s.volume; vv.textContent = Math.round(s.volume * 100) + '%'; }
   const vw = document.getElementById('set-view');
   if(vw) vw.textContent = s.defaultView === 'first' ? '1re personne' : '3e personne';
+  const cur = (s.difficulty || 'normal');                       // surlignage difficulté (#46)
+  document.querySelectorAll('#set-diff .set-diff-btn').forEach(b => b.classList.toggle('on', b.dataset.diff === cur));
 }
 function openSettings(){ renderSettings(); openPanel('settings-panel'); }
 document.getElementById('set-sensitivity').oninput = e => { setSetting('sensitivity', parseFloat(e.target.value)); renderSettings(); };
 document.getElementById('set-volume').oninput = e => { setSetting('volume', parseFloat(e.target.value)); renderSettings(); };
 document.getElementById('set-view').onclick = () => { setSetting('defaultView', save.settings.defaultView === 'first' ? 'third' : 'first'); renderSettings(); };
+document.getElementById('set-diff').addEventListener('click', e => { const b = e.target.closest('.set-diff-btn'); if(b) G.debug.setDifficulty(b.dataset.diff); });   // #46
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
@@ -2034,6 +2057,7 @@ function flashDamage(){
 }
 function damagePlayer(amount){
   if(G.phase !== 'playing') return;
+  amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
   health = Math.max(0, health - amount); G.health = health; lastDamageAt = nowS();
   flashDamage(); updateHealthHud(); playSound('playerHit');
   if(health <= 0) playerDie();
@@ -2168,7 +2192,7 @@ function meshMaxZ(obj){ obj.updateMatrixWorld(true); const b = new THREE.Box3().
 // courbes de progression des vagues (pures) : nombre + PV croissants, plafonnés
 function isBossWave(w){ return w > 0 && w % 5 === 0; }                          // #31 : boss tous les 5 niveaux
 function enemiesForWave(w){ return isBossWave(w) ? 3 : Math.min(2 + w, MAX_PER_WAVE); }
-function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1))); }
+function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1)) * curDiff().hp); }   // #46 difficulté
 // composition d'une vague (pure) : boss tous les 5 niveaux ; sinon shooter[0], rusher dès v2, tank dès v3
 function waveComposition(w){
   if(isBossWave(w)) return ['boss', 'shooter', 'shooter'];                      // boss + 2 sbires (#31)
@@ -2640,7 +2664,7 @@ function killEnemy(e){
   score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
   checkAchievements(mult);                             // succès (#44)
   flashHitMarker(); playSound('enemyDie');
-  addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
+  addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money));   // argent par kill × combo × difficulté (#46)
   if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)
   maybeDropPower(e);                                   // chance de power-up (#34 ; boss garanti)
@@ -2659,7 +2683,7 @@ function startWave(w){
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
-  addMoney(MONEY_PER_WAVE * wave); recordScore();      // bonus de vague (croissant) + record du score
+  addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 function updateWaves(dt){
