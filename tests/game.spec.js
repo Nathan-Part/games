@@ -1292,6 +1292,20 @@ test('boost : sans boost = stats de base (compat #15)', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.boostBonuses())).toEqual({ health:0, regen:0, speed:0 });
 });
 
+test('boost : onglet boutique achete et equipe', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(3000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="boost"]').click();
+  await expect(page.locator('#shop-info')).toContainText('Gilet');
+  await page.locator('#shop-info [data-buyboost="boost:vest2"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().ownedBoosts)).toContain('boost:vest2');
+  await page.locator('#shop-info [data-equipboost="boost:vest2"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().equippedBoosts.vest)).toBe('boost:vest2');
+});
+
 // ====== Tranche 26 : onglet Accessoires (remplace l'onglet Skins) ======
 test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });

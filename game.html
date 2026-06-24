@@ -256,6 +256,7 @@
       <button class="shop-tab active" data-tab="weapons">🔫 Armes</button>
       <button class="shop-tab" data-tab="player">🧍 Personnage</button>
       <button class="shop-tab" data-tab="accessories">🎽 Accessoires</button>
+      <button class="shop-tab" data-tab="boost">💪 Boost</button>
     </div>
     <div class="shop-money2">💰 <span id="shop-money-val">0</span></div>
     <button id="shop-close" class="shop-close" title="Fermer">✕</button>
@@ -1283,7 +1284,7 @@ function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, 
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
   else if(shopOpen && shopTab === 'player'){ camera.position.set(0, 1.25, 4.7); camera.lookAt(0, 1.05, 0); }  // carrousel perso centré (#25)
-  else if(shopOpen && shopTab === 'accessories'){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche (#26)
+  else if(shopOpen && (shopTab === 'accessories' || shopTab === 'boost')){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche (#26/#28)
   else setLobbyCamera();
 }
 function updateShopTabs(){
@@ -1310,7 +1311,7 @@ function closeShop(){
 }
 function disposeCharCarousel(){ disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR); shopCharObj = shopCharL = shopCharR = null; }
 function setShopTab(name){
-  shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : 'weapons';
+  shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : (name === 'boost') ? 'boost' : 'weapons';
   if(shopTab !== 'player') disposeCharCarousel();        // libère le carrousel perso en quittant l'onglet
   updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera();
   if(shopTab === 'player'){ const i = CHARACTERS.findIndex(c => c.id === save.selectedCharacterId); setShopChar(i >= 0 ? i : 0); }   // construit la vitrine perso
@@ -1370,6 +1371,18 @@ function renderShop(){
     if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades">`;
       for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
       html += `</div>`; }
+  } else if(shopTab === 'boost'){   // onglet Boost (#28) : équipement à stats permanent
+    html += `<div class="shop-wname">Boost</div>`;
+    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Équipement</span><span>Bonus</span><span></span><span></span><span></span></div>`;
+    for(const bo of BOOSTS){
+      const owned = save.ownedBoosts.includes(bo.id), eq = save.equippedBoosts[bo.slot] === bo.id;
+      const statTxt = bo.stat === 'health' ? `+${bo.bonus} Vie` : bo.stat === 'speed' ? `+${Math.round(bo.bonus*100)}% Vit.` : `+${bo.bonus} Régén`;
+      const act = eq ? `<span class="shop-chartag">✓</span>`
+        : owned ? `<button class="shop-charbtn" data-equipboost="${bo.id}">Équiper</button>`
+        : `<button class="shop-charbtn buy" data-buyboost="${bo.id}"${save.money >= bo.price ? '' : ' disabled'}>💰${bo.price}</button>`;
+      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${bo.name} ${rarityBadge(bo.rarity)}</span><span>${statTxt}</span><span></span><span></span><span>${act}</span></div>`;
+    }
+    html += `</div>`;
   } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
     const slot = shopAccSlot;
     html += `<div class="shop-wname">Accessoires</div>`;
@@ -1399,7 +1412,7 @@ function renderShop(){
       html += `</div>`;
     }
   }
-  info.classList.toggle('left', shopTab === 'accessories');   // bloc à gauche pour accessoires ; perso = carte bas-centre (carrousel #25)
+  info.classList.toggle('left', shopTab === 'accessories' || shopTab === 'boost');   // bloc à gauche pour accessoires/boost ; perso = carte bas-centre (carrousel #25)
   info.innerHTML = html;
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
@@ -1410,6 +1423,8 @@ function renderShop(){
   info.querySelectorAll('[data-accslot]').forEach(b => b.onclick = () => { shopAccSlot = b.dataset.accslot; renderShop(); });
   info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = () => { if(buyAccessory(b.dataset.buyacc)) renderShop(); });
   info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = () => { if(selectAccessory(shopAccSlot, b.dataset.selacc)) renderShop(); });
+  info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
+  info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
   info.querySelectorAll('[data-assigndance]').forEach(b => b.onclick = () => { const v = b.dataset.assigndance, k = v.lastIndexOf(':'); if(assignDance(+v.slice(k+1), v.slice(0, k))) renderShop(); });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
