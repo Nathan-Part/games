@@ -1869,3 +1869,22 @@ test('power : l effet expire', async ({ page }) => {
   await page.waitForFunction(() => __game.debug.activePowerUp() === null, null, { timeout:12000 });   // ~8 s
   expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0, 3);
 });
+
+// ====== Tranche 35 : dash ======
+test('dash : deplace nettement et respecte le cooldown', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ forward:true }));
+  const p0 = await page.evaluate(() => __game.position());
+  expect(await page.evaluate(() => __game.debug.dash())).toBe(true);
+  await page.waitForFunction(() => __game.debug.isDashing() === false, null, { timeout:3000 });
+  const p1 = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p1.x-p0.x, p1.z-p0.z)).toBeGreaterThan(1.8);
+  expect(await page.evaluate(() => __game.debug.dash())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.dashReady())).toBe(false);
+  await page.waitForFunction(() => __game.debug.dashReady() === true, null, { timeout:3000 });
+});
+
+test('dash : HUD present en jeu', async ({ page }) => {
+  await startPlaying(page);
+  await expect(page.locator('#dash-hud')).toBeVisible();
+});
