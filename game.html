@@ -79,6 +79,12 @@
   #combo-hud .cbar{height:3px;margin-top:5px;border-radius:2px;background:#ffb02e}
   #combo-hud.pulse{animation:comboPulse .22s ease-out}
   @keyframes comboPulse{0%{transform:translateX(-50%) scale(1.18)}100%{transform:translateX(-50%) scale(1)}}
+  #boss-hud{position:fixed;left:50%;top:92px;transform:translateX(-50%);z-index:11;width:min(420px,70vw);
+    height:16px;background:rgba(20,10,10,.7);border:1px solid #ff5a1e88;border-radius:9px;overflow:hidden}
+  #boss-hud.hidden{display:none}
+  #boss-fill{position:absolute;inset:0;background:linear-gradient(90deg,#ff7a3e,#ff2a0e);transition:width .12s}
+  #boss-hud span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;letter-spacing:.12em;color:#fff;text-shadow:0 1px 2px #000}
   #pickup-prompt kbd{display:inline-block;background:#eef2fb;color:#10131a;border-radius:5px;
     padding:0 6px;font-weight:800;margin-right:6px}
   #wave-hud{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10;
@@ -254,6 +260,7 @@
 <div id="pickup-prompt" class="hidden"></div>
 <div id="wave-hud" class="hidden"></div>
 <div id="combo-hud" class="hidden"></div>
+<div id="boss-hud" class="hidden"><div id="boss-fill"></div><span>BOSS</span></div>
 <div id="money-hud" class="hidden"></div>
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
@@ -1585,6 +1592,7 @@ function updateCombat(dt){
   document.getElementById('scope').classList.toggle('show', aiming);
   document.getElementById('crosshair').style.visibility = aiming ? 'hidden' : 'visible';
   updateCombo(); if(comboCount > 0) updateComboHud();                          // combo (#29) : rupture + barre de temps
+  updateBossHud();                                                             // barre de vie boss live (#31)
   const pk = nearestPickup(), pe = document.getElementById('pickup-prompt');   // invite de ramassage (#23)
   if(pe){ if(pk){ pe.innerHTML = `<kbd>G</kbd>Ramasser : ${pk.name} ${rarityBadge(pk.rarity)}`; pe.classList.remove('hidden'); }
           else pe.classList.add('hidden'); }
@@ -1829,7 +1837,7 @@ G.debug.restart = () => restartGame();
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
   resetCombo();
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -1846,7 +1854,7 @@ const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE
       ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
       ENEMY_R = 0.45, ENEMY_FLASH = 0.08, ENEMY_TURN = 8,
       SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
-const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5;
+const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5, BOSS_BONUS = 300;   // #31 : bonus à la mort d'un boss
 // ====== Types d'ennemis (#11) : rusher (mêlée rapide), shooter (tireur rafale), tank (lourd) ======
 const ENEMY_TYPES = {
   shooter: { id:'shooter', hpMult:1.0, speedMult:1.0,  scale:1.0,  melee:false, damageMult:1.0, burst:3, glow:null },
@@ -2263,6 +2271,15 @@ const COMBO_WINDOW = 3.5;
 let comboCount = 0, comboExpireAt = 0;
 function comboMultiplier(n){ return Math.min(5, 1 + Math.floor(n/3)); }
 function comboTimeFrac(){ return comboCount > 0 ? Math.max(0, (comboExpireAt - nowS()) / COMBO_WINDOW) : 0; }
+// ====== Boss (#31) : barre de vie + helpers ======
+function bossEnemy(){ return enemies.find(e => e.type === 'boss' && e.alive) || null; }
+function bossHpFrac(){ const b = bossEnemy(); return b ? Math.max(0, b.hp / b.maxHp) : 0; }
+function updateBossHud(){ const el = document.getElementById('boss-hud'); if(!el) return;
+  const b = bossEnemy(); if(!b){ el.classList.add('hidden'); return; }
+  document.getElementById('boss-fill').style.width = Math.round(bossHpFrac()*100) + '%'; el.classList.remove('hidden'); }
+G.debug.bossAlive = () => !!bossEnemy();
+G.debug.bossHpFrac = () => bossHpFrac();
+G.debug.forceWave = (w) => startWave(w);
 function registerKill(){
   comboCount++; comboExpireAt = nowS() + COMBO_WINDOW;
   if(comboCount > (save.bestCombo || 0)){ save.bestCombo = comboCount; persist(); }
@@ -2298,8 +2315,9 @@ function killEnemy(e){
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   score += mult; G.score = score; flashHitMarker(); playSound('enemyDie');
   addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
+  if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
-  checkWaveCleared(); updateWaveHud();                 // vague : un mort de moins (plus de respawn auto)
+  checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
@@ -2307,7 +2325,7 @@ function startWave(w){
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   waveState = 'active';
-  updateWaveHud(); showWaveBanner('Vague ' + w);
+  updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
 }
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;

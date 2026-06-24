@@ -1740,3 +1740,29 @@ test('boss : composition de la vague 5 (boss + sbires)', async ({ page }) => {
   const c4 = await page.evaluate(() => __game.debug.waveComposition(4));
   expect(c4).not.toContain('boss');
 });
+
+test('boss : la vague 5 fait apparaitre un boss vivant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  expect(await page.evaluate(() => __game.debug.bossAlive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.bossHpFrac())).toBeGreaterThan(0.9);
+  const types = await page.evaluate(() => { const n = __game.debug.enemyCount(); const a=[]; for(let i=0;i<n;i++) a.push(__game.debug.enemyType(i)); return a; });
+  expect(types).toContain('boss');
+});
+
+test('boss : HUD visible en vague de boss, masque apres', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await expect(page.locator('#boss-hud')).toBeVisible();
+  await expect(page.locator('#boss-hud')).toContainText('BOSS');
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await expect(page.locator('#boss-hud')).toBeHidden();
+});
+
+test('boss : le tuer credite un gros bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.forceWave(5); });
+  const m0 = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  expect(await page.evaluate(() => __game.money) - m0).toBeGreaterThanOrEqual(300);
+});
