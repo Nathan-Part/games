@@ -1724,3 +1724,19 @@ test('degats flottants : s estompent (nettoyage)', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.damageNumberCount())).toBeGreaterThanOrEqual(1);
   await page.waitForFunction(() => __game.debug.damageNumberCount() === 0, null, { timeout:3000 });
 });
+
+// ====== Tranche 31 : vagues de boss ======
+test('boss : isBossWave tous les 5 niveaux', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const f = (w) => page.evaluate(x => __game.debug.isBossWave(x), w);
+  for(const w of [5,10,15]) expect(await f(w)).toBe(true);
+  for(const w of [1,4,6,9]) expect(await f(w)).toBe(false);
+});
+
+test('boss : composition de la vague 5 (boss + sbires)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const c5 = await page.evaluate(() => __game.debug.waveComposition(5));
+  expect(c5[0]).toBe('boss'); expect(c5.length).toBe(3);
+  const c4 = await page.evaluate(() => __game.debug.waveComposition(4));
+  expect(c4).not.toContain('boss');
+});
