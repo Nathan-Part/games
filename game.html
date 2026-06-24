@@ -1120,7 +1120,20 @@ const CHAR_CENTER_POS = new THREE.Vector3(0, 0.98, 0);
 const CHAR_SIDE_L = new THREE.Vector3(-2.5, 0.78, -1.0), CHAR_SIDE_R = new THREE.Vector3(2.5, 0.78, -1.0);
 function charNeighbors(){ const n = CHARACTERS.length;
   return { left:CHARACTERS[(shopCharIndex-1+n)%n].id, center:CHARACTERS[shopCharIndex].id, right:CHARACTERS[(shopCharIndex+1)%n].id }; }
-async function setShopChar(i){ const n = CHARACTERS.length; shopCharIndex = ((i % n) + n) % n; renderShop(); }
+async function setShopChar(i){
+  const n = CHARACTERS.length; shopCharIndex = ((i % n) + n) % n; shopAmeliorerOpen = false;
+  const seq = ++shopCharSeq;
+  disposeShopObj(shopCharL); disposeShopObj(shopCharR);
+  shopCharL = placeShopModel(buildCharMannequin(rarityColorInt(CHARACTERS[(shopCharIndex-1+n)%n].rarity)), 0.72, CHAR_SIDE_L);
+  shopCharR = placeShopModel(buildCharMannequin(rarityColorInt(CHARACTERS[(shopCharIndex+1)%n].rarity)), 0.72, CHAR_SIDE_R);
+  renderShop();                                          // carte + stats tout de suite (le centre suit)
+  const center = await buildCharDisplay(CHARACTERS[shopCharIndex].id);
+  if(seq !== shopCharSeq) return;                        // un changement plus récent a eu lieu
+  disposeShopObj(shopCharObj);
+  shopCharObj = placeShopModel(center, 1.0, CHAR_CENTER_POS);
+  applyShopVisibility();
+}
+G.debug.shopCharObjCount = () => [shopCharObj, shopCharL, shopCharR].filter(Boolean).length;
 // modèle de vitrine : vrai GLB pour le fusil (sauf mode test rapide), primitive pour les autres armes
 async function buildPreviewModel(id){
   const w = weaponById(id);
@@ -1146,6 +1159,42 @@ function placeShopModel(m, scale, pos){
   const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()); m.position.sub(c);   // centré
   const grp = new THREE.Group(); grp.add(m); grp.position.copy(pos); scene.add(grp); return grp;
 }
+// ====== Vitrine perso (#25) : mannequin primitif (voisins + mode test) / vrai GLB cloné (centre, jeu) ======
+function rarityColorInt(key){ return parseInt(rarityInfo(key).color.slice(1), 16); }
+function buildCharMannequin(tint){
+  const g = new THREE.Group();
+  const body = new THREE.MeshStandardMaterial({ color:tint, roughness:0.7, metalness:0.1 });
+  const dark = new THREE.MeshStandardMaterial({ color:0x20242c, roughness:0.8 });
+  const skin = new THREE.MeshStandardMaterial({ color:0xddc0a8, roughness:0.6 });
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.26, 0.72, 16), body); torso.position.y = 1.12;
+  const hips  = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.22), dark); hips.position.y = 0.72;
+  const legL  = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.66, 12), dark); legL.position.set(-0.1, 0.33, 0);
+  const legR  = legL.clone(); legR.position.x = 0.1;
+  const head  = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 16), skin); head.position.y = 1.66;
+  const armL  = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 12), body); armL.position.set(-0.31, 1.12, 0); armL.rotation.z = 0.12;
+  const armR  = armL.clone(); armR.position.x = 0.31; armR.rotation.z = -0.12;
+  g.add(torso, hips, legL, legR, head, armL, armR);
+  g.traverse(o => { if(o.isMesh) o.castShadow = true; });
+  return g;
+}
+const charSceneCache = new Map();
+async function loadCharScene(id){
+  if(charSceneCache.has(id)) return charSceneCache.get(id);
+  const rec = allCharacters.find(a => a.id === id); if(!rec) return null;
+  const url = URL.createObjectURL(new Blob([rec.bytes]));
+  const gltf = await loader.loadAsync(url); URL.revokeObjectURL(url);
+  const sc = gltf.scene; sc.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+  charSceneCache.set(id, sc); return sc;
+}
+async function buildCharDisplay(id){
+  const c = characterById(id);
+  if(window.__FAST_WEAPON__) return buildCharMannequin(rarityColorInt(c.rarity));   // test : pas de GLB lourd
+  const sc = await loadCharScene(id); if(!sc) return buildCharMannequin(rarityColorInt(c.rarity));
+  const m = cloneSkeleton(sc);
+  const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
+  m.scale.setScalar(1.8 / (size.y || 1));
+  return m;
+}
 async function setShopWeapon(i){
   const n = WEAPONS.length; shopWeaponIndex = ((i % n) + n) % n; shopAmeliorerOpen = false;
   const seq = ++shopBuildSeq;
@@ -1161,15 +1210,18 @@ async function setShopWeapon(i){
 }
 function applyShopVisibility(){
   const weaponsView = shopOpen && shopTab === 'weapons';
-  if(model) model.visible = !weaponsView;               // perso caché en vitrine d'arme (lobby = toujours 3e pers.)
+  const charView = shopOpen && shopTab === 'player';     // vitrine carrousel perso (#25)
+  if(model) model.visible = !weaponsView && !charView;   // perso lobby caché en vitrine arme ET perso
   for(const o of [shopWeaponObj, shopSideL, shopSideR]) if(o) o.visible = weaponsView;
+  for(const o of [shopCharObj, shopCharL, shopCharR]) if(o) o.visible = charView;
 }
 function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, sans brouillard, hémisphère boostée)
   const weaponsView = shopOpen && shopTab === 'weapons';
-  ground.visible = !weaponsView; grid.visible = !shopOpen;
+  const studioView = shopOpen && (shopTab === 'weapons' || shopTab === 'player');   // vitrine 3D centrée (arme ou perso)
+  ground.visible = !studioView; grid.visible = !shopOpen;
   for(const m of obstacleMeshes) m.visible = !shopOpen;   // décor (bâtiments/murs/caisses) masqué (fond propre)
   lamp1.visible = lamp2.visible = !shopOpen;              // lampes d'accent éteintes en boutique
-  shopLight.intensity = weaponsView ? 3.0 : 0; shopFill.intensity = weaponsView ? 1.7 : 0;
+  shopLight.intensity = studioView ? 3.0 : 0; shopFill.intensity = studioView ? 1.7 : 0;
   hemi.intensity = shopOpen ? 2.3 : 0.9;
   scene.background = shopOpen ? SHOP_BG : SCENE_BG;
   scene.fog = shopOpen ? null : SCENE_FOG;
@@ -1177,12 +1229,13 @@ function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, 
 }
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
-  else if(shopOpen && (shopTab === 'player' || shopTab === 'skins')){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche
+  else if(shopOpen && shopTab === 'player'){ camera.position.set(0, 1.25, 4.7); camera.lookAt(0, 1.05, 0); }  // carrousel perso centré (#25)
+  else if(shopOpen && shopTab === 'skins'){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche
   else setLobbyCamera();
 }
 function updateShopTabs(){
   for(const t of document.querySelectorAll('.shop-tab')) t.classList.toggle('active', t.dataset.tab === shopTab);
-  const show = (shopTab === 'weapons') ? '' : 'none';
+  const show = (shopTab === 'weapons' || shopTab === 'player') ? '' : 'none';   // flèches : armes ET perso (#25)
   const pv = document.getElementById('shop-prev'), nx = document.getElementById('shop-next');
   if(pv) pv.style.display = show; if(nx) nx.style.display = show;
 }
@@ -1195,15 +1248,20 @@ function openShop(){
 function closeShop(){
   shopOpen = false; document.getElementById('shop-panel').classList.add('hidden');
   for(const o of [shopWeaponObj, shopSideL, shopSideR]) if(o) o.visible = false;
+  disposeCharCarousel();                                      // libère le carrousel perso (#25)
   if(model) model.visible = true;
   rebuildLobbyCharacters();                                   // un achat de perso a pu changer la liste
   const idx = characters.findIndex(c => c.id === save.selectedCharacterId); lobbyIndex = idx >= 0 ? idx : 0;
   const cn = document.getElementById('char-name'); if(cn && characters[lobbyIndex]) cn.textContent = characters[lobbyIndex].label;
   updateShopScene(); updateHomeMeta(); updateShopCamera();   // restaure home (méta à jour) + caméra lobby
 }
+function disposeCharCarousel(){ disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR); shopCharObj = shopCharL = shopCharR = null; }
 function setShopTab(name){
   shopTab = (name === 'player') ? 'player' : (name === 'skins') ? 'skins' : 'weapons';
-  updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera(); renderShop();
+  if(shopTab !== 'player') disposeCharCarousel();        // libère le carrousel perso en quittant l'onglet
+  updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera();
+  if(shopTab === 'player'){ const i = CHARACTERS.findIndex(c => c.id === save.selectedCharacterId); setShopChar(i >= 0 ? i : 0); }   // construit la vitrine perso
+  else renderShop();
 }
 Object.assign(G.debug.shop, {
   open(){ openShop(); }, close(){ closeShop(); }, isOpen(){ return shopOpen; },
@@ -1243,20 +1301,22 @@ function renderShop(){
     if(owned && shopAmeliorerOpen){ html += `<div class="shop-upgrades">`;
       for(const t in UPGRADE_SPECS) html += upgRow(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg');
       html += `</div>`; }
-  } else if(shopTab === 'player'){
-    const sel = save.selectedCharacterId || CHARACTERS[0].id;
-    html += `<div class="shop-wname">Personnage</div>`;
-    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Perso</span><span>Vie</span><span>Régén</span><span>Vit.</span><span></span></div>`;
-    for(const c of CHARACTERS){
-      const owned = save.ownedCharacters.includes(c.id), eq = sel === c.id;
-      const act = eq ? `<span class="shop-chartag">✓</span>`
-        : owned ? `<button class="shop-charbtn" data-selchar="${c.id}">Équiper</button>`
-        : `<button class="shop-charbtn buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>💰${c.price}</button>`;
-      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${c.name} ${rarityBadge(c.rarity)}</span><span>${c.base.health}</span><span>${c.base.regen}</span><span>${c.base.speed.toFixed(2)}×</span><span>${act}</span></div>`;
-    }
-    html += `</div><div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades nobox">`;
-    for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
+  } else if(shopTab === 'player'){   // vitrine carrousel : carte du perso centré (#25)
+    const c = CHARACTERS[shopCharIndex];
+    const owned = save.ownedCharacters.includes(c.id), eq = (save.selectedCharacterId || CHARACTERS[0].id) === c.id;
+    html += `<div class="shop-wname">${c.name} ${rarityBadge(c.rarity)}</div>`;
+    html += `<div class="shop-statcards">`
+      + shopStatCard('Vie', c.base.health) + shopStatCard('Régén', c.base.regen)
+      + shopStatCard('Vitesse', c.base.speed.toFixed(2) + '×') + `</div>`;
+    html += `<div class="shop-btns">`;
+    if(eq) html += `<div class="shop-badge">✓ Équipé</div>`;
+    else if(owned) html += `<button class="shop-cta" data-selchar="${c.id}">Équiper</button>`;
+    else html += `<button class="shop-cta buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>Acheter · 💰${c.price}</button>`;
+    html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
     html += `</div>`;
+    if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades">`;
+      for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
+      html += `</div>`; }
   } else {   // onglet Skins (#16) : teintes cosmétiques du perso
     const sel = save.selectedSkin || 'default';
     html += `<div class="shop-wname">Skins</div>`;
@@ -1271,14 +1331,14 @@ function renderShop(){
     }
     html += `</div>`;
   }
-  info.classList.toggle('left', shopTab === 'player' || shopTab === 'skins');   // bloc à gauche pour perso & skins
+  info.classList.toggle('left', shopTab === 'skins');   // bloc à gauche pour skins ; perso = carte bas-centre (carrousel #25)
   info.innerHTML = html;
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
   info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(WEAPONS[shopWeaponIndex].id, b.dataset.upg)) renderShop(); });
   info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
   info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
-  info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)){ showSelectedCharacter(); renderShop(); } });
+  info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)) renderShop(); });   // maj visuelle du lobby à la fermeture (carrousel #25)
   info.querySelectorAll('[data-buyskin]').forEach(b => b.onclick = () => { if(buySkin(b.dataset.buyskin)) renderShop(); });
   info.querySelectorAll('[data-selskin]').forEach(b => b.onclick = () => { if(selectSkin(b.dataset.selskin)) renderShop(); });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
@@ -2266,6 +2326,7 @@ function animate(){
   if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
+    else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
     else if(model){ model.rotation.y += dt*0.6; }
   }
   if (mixer) mixer.update(dt);

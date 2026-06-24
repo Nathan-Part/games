@@ -953,14 +953,14 @@ test('boutique3d : le carrousel change l arme affichee', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.shop.previewWeapon())).toBe(b);
 });
 
-test('boutique3d : onglet Personnage masque les fleches et montre les ameliorations perso', async ({ page }) => {
-  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB 13 Mo)
+test('boutique3d : onglet Personnage montre les ameliorations perso (apres ★)', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // vitrine en primitive (évite le GLB lourd)
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="player"]').click();
   expect(await page.evaluate(() => __game.debug.shop.currentTab())).toBe('player');
-  await expect(page.locator('#shop-prev')).toBeHidden();
+  await page.locator('#shop-ameliorer').click();                       // déplie les améliorations joueur
   await expect(page.locator('#shop-info [data-pupg="health"]')).toBeVisible();
 });
 
@@ -994,6 +994,7 @@ test('boutique3d : ameliorer le perso depuis l onglet Personnage', async ({ page
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="player"]').click();
+  await page.locator('#shop-ameliorer').click();                       // déplie les améliorations joueur (carrousel #25)
   await page.locator('#shop-info [data-pupg="health"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().playerUpgrades.health)).toBe(1);
 });
@@ -1131,18 +1132,20 @@ test('persos : achat refuse si pas assez d argent ; non possede non equipable', 
   expect(await page.evaluate(() => __game.debug.save.get().ownedCharacters)).not.toContain('perso:guard');
 });
 
-test('persos : l UI (onglet Personnage) montre le tableau et permet d acheter/equiper', async ({ page }) => {
+test('persos : la vitrine (onglet Personnage) montre le perso centre et permet d acheter/equiper', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(5000); });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="player"]').click();
-  await expect(page.locator('#shop-info')).toContainText('Cyborg');         // tableau des persos
-  await expect(page.locator('#shop-info')).toContainText('Sentinel');
-  await page.locator('#shop-info [data-buychar="perso:robot"]').click();    // acheter Cyborg
+  await page.evaluate(() => __game.debug.shop.setChar('perso:robot'));        // centre le carrousel sur Cyborg
+  await expect(page.locator('#shop-info')).toContainText('Cyborg');           // carte du perso centré
+  const html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
+  expect(html).toMatch(/#9aa3b2|#4f9dff|#b066ff|#ffb02e/);                    // badge rareté
+  await page.locator('#shop-info [data-buychar="perso:robot"]').click();      // acheter Cyborg
   expect(await page.evaluate(() => __game.debug.save.get().ownedCharacters)).toContain('perso:robot');
-  await page.locator('#shop-info [data-selchar="perso:robot"]').click();    // équiper
+  await page.locator('#shop-info [data-selchar="perso:robot"]').click();      // équiper
   expect(await page.evaluate(() => __game.debug.save.get().selectedCharacterId)).toBe('perso:robot');
 });
 
@@ -1469,4 +1472,15 @@ test('carrousel perso : charCarousel donne centre + voisins, nav cyclique', asyn
   expect(await page.evaluate(() => __game.debug.shop.currentChar())).toBe(cat[1]);
   await page.evaluate(() => __game.debug.shop.prevChar());
   expect(await page.evaluate(() => __game.debug.shop.currentChar())).toBe(cat[0]);
+});
+
+test('vitrine perso : onglet Personnage montre 3 persos + fleches (carrousel)', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });   // mannequins (pas de GLB)
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  expect(await page.evaluate(() => __game.debug.shop.currentTab())).toBe('player');
+  await expect(page.locator('#shop-prev')).toBeVisible();                         // flèches désormais visibles
+  await page.waitForFunction(() => __game.debug.shopCharObjCount() === 3, null, { timeout:10000 });
 });
