@@ -2065,3 +2065,21 @@ test('stats partie : reset au restart', async ({ page }) => {
   await page.evaluate(() => __game.debug.restart());
   expect(await page.evaluate(() => __game.debug.runStats().kills)).toBe(0);
 });
+
+// ====== Tranche 44 : succès ======
+test('succes : premier sang + survivant', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(false);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('survivor5'))).toBe(true);
+});
+
+test('succes : persistent apres reload', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+});
