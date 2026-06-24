@@ -1417,3 +1417,13 @@ test('cadavre : mort = dead, emissive reinitialise, hitbox desactivee', async ({
   expect(await page.evaluate(() => __game.debug.enemyEmissiveIsBase(0))).toBe(true);
   expect(await page.evaluate(() => __game.debug.enemyHitboxActive(0))).toBe(false);
 });
+
+test('cadavre : armes ennemies variees selon le type', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => __game.debug.enemyHasWeapon(0), null, { timeout:10000 });
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(1, 'tank', 6, 6); __game.debug.spawnEnemyTypeAt(2, 'rusher', -6, 6); });
+  expect(await page.evaluate(() => __game.debug.enemyWeaponId(0))).toBe('default');   // shooter
+  expect(await page.evaluate(() => __game.debug.enemyWeaponId(1))).toBe('sniper');    // tank
+  expect(await page.evaluate(() => __game.debug.enemyWeaponId(2))).toBe('smg');       // rusher
+  expect(await page.evaluate(() => __game.debug.enemyHasWeapon(1))).toBe(true);
+});
