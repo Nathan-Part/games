@@ -1306,6 +1306,36 @@ test('boost : onglet boutique achete et equipe', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.save.get().equippedBoosts.vest)).toBe('boost:vest2');
 });
 
+// ====== Correctifs UX (retours utilisateur) ======
+test('vitrine perso : les fleches naviguent les persos (pas les armes)', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  const c0 = await page.evaluate(() => __game.debug.shop.currentChar());
+  await page.locator('#shop-next').click();
+  const c1 = await page.evaluate(() => __game.debug.shop.currentChar());
+  expect(c1).not.toBe(c0);                                   // la flèche change le perso, pas l'arme
+  await page.locator('#shop-prev').click();
+  expect(await page.evaluate(() => __game.debug.shop.currentChar())).toBe(c0);
+});
+
+test('danse : apercu possible sans acheter, puis acheter', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="accessories"]').click();
+  await page.locator('#shop-info [data-accslot="dance"]').click();
+  // dance:skill1 non possédée : bouton APERÇU (preview) ET bouton ACHETER présents
+  await expect(page.locator('#shop-info [data-previewdance="dance:skill1"]')).toBeVisible();
+  await expect(page.locator('#shop-info [data-buydance="dance:skill1"]')).toBeVisible();
+  await page.locator('#shop-info [data-buydance="dance:skill1"]').click();        // puis acheter
+  expect(await page.evaluate(() => __game.debug.save.get().ownedDances)).toContain('dance:skill1');
+});
+
 // ====== Tranche 26 : onglet Accessoires (remplace l'onglet Skins) ======
 test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });

@@ -168,8 +168,13 @@
   .shop-subtabs{display:flex;gap:8px;margin:4px 0 8px}
   .shop-subtab{background:#222a38;color:#aeb6c9;border:1px solid #3a4a66;border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:700}
   .shop-subtab.on{background:#3a4a66;color:#fff}
-  .shop-charbtn.mini{padding:2px 8px;margin:0 2px;min-width:0}
+  .shop-charbtn.mini{padding:3px 9px;margin:0;min-width:0;font-size:13px}
   .shop-charbtn.on{background:#3ad17a;color:#10131a;border-color:#3ad17a}
+  .dance-list{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+  .dance-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.03)}
+  .dance-row.on{background:rgba(58,209,122,.14)}
+  .dance-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dance-act{display:flex;gap:6px;flex:none}
   .shop-upgrades{display:flex;flex-direction:column;gap:7px;width:min(420px,86vw);margin-top:2px;
     background:rgba(22,27,40,.78);border:1px solid rgba(150,175,235,.2);border-radius:14px;padding:13px 18px}
   .shop-statrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
@@ -927,8 +932,9 @@ const openPanel = id => document.getElementById(id).classList.remove('hidden');
 const closePanel = id => document.getElementById(id).classList.add('hidden');
 document.getElementById('btn-shop').onclick = openShop;
 document.getElementById('shop-close').onclick = closeShop;
-document.getElementById('shop-prev').onclick = () => setShopWeapon(shopWeaponIndex - 1);
-document.getElementById('shop-next').onclick = () => setShopWeapon(shopWeaponIndex + 1);
+function shopNav(dir){ if(shopTab === 'player') setShopChar(shopCharIndex + dir); else setShopWeapon(shopWeaponIndex + dir); }   // flèches selon l'onglet (#25)
+document.getElementById('shop-prev').onclick = () => shopNav(-1);
+document.getElementById('shop-next').onclick = () => shopNav(1);
 for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShopTab(t.dataset.tab);
 document.getElementById('btn-settings').onclick = () => openSettings();
 for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
@@ -950,8 +956,8 @@ addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
     if(e.code==='Escape') closeShop();
-    else if(shopTab==='weapons' && e.code==='ArrowLeft') setShopWeapon(shopWeaponIndex - 1);
-    else if(shopTab==='weapons' && e.code==='ArrowRight') setShopWeapon(shopWeaponIndex + 1);
+    else if((shopTab==='weapons'||shopTab==='player') && e.code==='ArrowLeft') shopNav(-1);
+    else if((shopTab==='weapons'||shopTab==='player') && e.code==='ArrowRight') shopNav(1);
     return;
   }
   if(e.code==='ArrowLeft' || e.code==='KeyA') cycleCharacter(-1);
@@ -1414,16 +1420,16 @@ function renderShop(){
     html += `<div class="shop-subtabs"><button class="shop-subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Casque</button>`
           + `<button class="shop-subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
           + `<button class="shop-subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
-    if(slot === 'dance'){   // sous-onglet Danses (#27) : posséder + sélectionner (max 3) + aperçu live
+    if(slot === 'dance'){   // sous-onglet Danses (#27) : ▶ aperçu live (même non possédée) + acheter + sélectionner (max 3)
       const sel = save.selectedDances;
-      html += `<div class="shop-sub2">Sélectionne jusqu'à 3 danses (touches 1/2/3 en jeu) · clic = aperçu live</div>`;
-      html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Danse</span><span></span><span></span><span></span><span>${sel.length}/3</span></div>`;
+      html += `<div class="shop-sub2">▶ aperçu (même non achetée) · achète puis sélectionne 3 (touches 1/2/3) · ${sel.length}/3</div>`;
+      html += `<div class="dance-list">`;
       for(const d of DANCES){
         const owned = save.ownedDances.includes(d.id), on = sel.includes(d.id);
-        const act = !owned
-          ? `<button class="shop-charbtn buy" data-buydance="${d.id}"${save.money >= d.price ? '' : ' disabled'}>💰${d.price}</button>`
-          : `<button class="shop-charbtn${on ? ' on' : ''}" data-seldance="${d.id}">${on ? '✓ Sélectionnée' : 'Sélectionner'}</button>`;
-        html += `<div class="shop-chartr${on ? ' on' : ''}"><span>${d.name} ${rarityBadge(d.rarity)}</span><span></span><span></span><span></span><span>${act}</span></div>`;
+        let act = `<button class="shop-charbtn mini" data-previewdance="${d.id}" title="Aperçu">▶</button>`;
+        if(!owned) act += `<button class="shop-charbtn buy mini" data-buydance="${d.id}"${save.money >= d.price ? '' : ' disabled'}>💰${d.price}</button>`;
+        else act += `<button class="shop-charbtn mini${on ? ' on' : ''}" data-seldance="${d.id}">${on ? '✓' : 'Sél.'}</button>`;
+        html += `<div class="dance-row${on ? ' on' : ''}"><span class="dance-name">${d.name} ${rarityBadge(d.rarity)}</span><span class="dance-act">${act}</span></div>`;
       }
       html += `</div>`;
     } else {   // Casque / Costume
@@ -1453,7 +1459,8 @@ function renderShop(){
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
-  info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { const id = b.dataset.seldance; previewDance(id); toggleDance(id); renderShop(); });
+  info.querySelectorAll('[data-previewdance]').forEach(b => b.onclick = () => { previewDance(b.dataset.previewdance); });   // aperçu live (même non possédée)
+  info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { if(toggleDance(b.dataset.seldance)) renderShop(); });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
 }
 
