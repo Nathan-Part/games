@@ -1724,3 +1724,11 @@ test('degats flottants : s estompent (nettoyage)', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.damageNumberCount())).toBeGreaterThanOrEqual(1);
   await page.waitForFunction(() => __game.debug.damageNumberCount() === 0, null, { timeout:3000 });
 });
+
+// ===== Refonte UI « OPERATOR » — invariants visuels =====
+test('refonte : typographie Barlow appliquee au body', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const ff = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  expect(ff.toLowerCase()).toContain('barlow');
+});
