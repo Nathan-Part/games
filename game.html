@@ -1281,24 +1281,49 @@ async function setShopChar(i){
 G.debug.shopCharObjCount = () => [shopCharObj, shopCharL, shopCharR].filter(Boolean).length;
 G.debug.shopCharCenterSize = () => { if(!shopCharObj) return 0; const s = new THREE.Box3().setFromObject(shopCharObj).getSize(new THREE.Vector3()); return s.y; };
 // modèle de vitrine : vrai GLB pour le fusil (sauf mode test rapide), primitive pour les autres armes
-async function buildPreviewModel(id){
-  const w = weaponById(id);
-  if(w.glb && !window.__FAST_WEAPON__){
-    if(!shopGlbCache){
-      const url = await findWeaponGlb();
-      if(url){ try {
-        const g = await loader.loadAsync(url); g.scene.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(g.scene), s = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
-        const sc = WEAPON_LEN / (Math.max(s.x, s.y, s.z) || 1);
-        g.scene.scale.setScalar(sc); g.scene.position.sub(c.multiplyScalar(sc));
-        if(s.x >= s.y && s.x >= s.z) g.scene.rotation.y = -Math.PI/2; else if(s.y >= s.x && s.y >= s.z) g.scene.rotation.x = Math.PI/2;
-        const wr = new THREE.Group(); wr.add(g.scene); shopGlbCache = wr;
-      } catch(e){} }
-    }
-    if(shopGlbCache) return shopGlbCache.clone();
-  }
-  return w.build();
+// ====== Aperçu d'article de boutique (#39) : chaîne de repli extensible ======
+// PRIORITÉ : assetDir/modelUrl (vrai GLB) > build (primitive) > previewImg (image placeholder) > cube.
+// Pour montrer un VRAI modèle 3D : déposer un .glb dans le dossier `assetDir` de l'article
+// (convention : artefact/[catégorie]/[objet]/) — AUCUN changement de code requis.
+const glbUrlCache = new Map();
+async function loadGlbUrl(url){
+  if(glbUrlCache.has(url)) return glbUrlCache.get(url).clone();
+  try { const g = await loader.loadAsync(url); g.scene.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(g.scene), s = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const sc = WEAPON_LEN / (Math.max(s.x,s.y,s.z)||1); g.scene.scale.setScalar(sc); g.scene.position.sub(c.multiplyScalar(sc));
+    g.scene.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+    if(s.x>=s.y && s.x>=s.z) g.scene.rotation.y = -Math.PI/2; else if(s.y>=s.x && s.y>=s.z) g.scene.rotation.x = Math.PI/2;
+    const wrap = new THREE.Group(); wrap.add(g.scene); glbUrlCache.set(url, wrap); return wrap.clone();
+  } catch(e){ return null; }
 }
+function buildImagePlane(url){
+  const tex = new THREE.TextureLoader().load(url); try { tex.colorSpace = THREE.SRGBColorSpace; } catch(e){}
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide }));
+  m.userData.previewImage = true; return m;
+}
+function buildPlaceholderBox(){ const m = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.4,0.4),
+  new THREE.MeshStandardMaterial({ color:0x556070, emissive:0x223040, roughness:0.6 })); m.userData.placeholder = true; return m; }
+function itemPreviewKind(item){
+  if(!item) return 'placeholder';
+  if(item.modelUrl || item.assetDir || item.glb) return 'glb';
+  if(item.build) return 'build';
+  if(item.previewImg) return 'image';
+  return 'placeholder';
+}
+async function buildItemPreview(item){
+  if(!item) return buildPlaceholderBox();
+  if(!window.__FAST_WEAPON__){
+    let url = item.modelUrl || (item.assetDir ? await findGlbInDir(item.assetDir) : null) || (item.glb ? await findWeaponGlb() : null);
+    if(url){ const o = await loadGlbUrl(url); if(o) return o; }
+  }
+  if(item.build) return item.build();
+  if(item.previewImg) return buildImagePlane(item.previewImg);
+  return buildPlaceholderBox();
+}
+G.debug.itemPreviewKind = (item) => itemPreviewKind(item);
+G.debug.shopPreviewKind = (weaponId) => itemPreviewKind(weaponById(weaponId));
+G.debug.buildItemPreviewIsImage = async (item) => { const o = await buildItemPreview(item); return !!(o && o.userData && o.userData.previewImage); };
+async function buildPreviewModel(id){ return buildItemPreview(weaponById(id)); }
 function disposeShopObj(o){ if(o) scene.remove(o); }   // pas de dispose géo (clones GLB partagent la géométrie)
 function placeShopModel(m, scale, pos){
   m.scale.multiplyScalar(scale);
@@ -1354,8 +1379,9 @@ async function setShopWeapon(i){
   const n = WEAPONS.length; shopWeaponIndex = ((i % n) + n) % n; shopAmeliorerOpen = false;
   const seq = ++shopBuildSeq;
   disposeShopObj(shopSideL); disposeShopObj(shopSideR);
-  shopSideL = placeShopModel(WEAPONS[(shopWeaponIndex - 1 + n) % n].build(), 1.55, SHOP_SIDE_L);   // voisines : primitives déco
-  shopSideR = placeShopModel(WEAPONS[(shopWeaponIndex + 1) % n].build(), 1.55, SHOP_SIDE_R);
+  const sideMesh = (w) => w.build ? w.build() : buildPlaceholderBox();   // voisines : primitive ou placeholder (#39)
+  shopSideL = placeShopModel(sideMesh(WEAPONS[(shopWeaponIndex - 1 + n) % n]), 1.55, SHOP_SIDE_L);
+  shopSideR = placeShopModel(sideMesh(WEAPONS[(shopWeaponIndex + 1) % n]), 1.55, SHOP_SIDE_R);
   renderShop();                                          // stats/boutons tout de suite (le modèle central suit)
   const centerModel = await buildPreviewModel(WEAPONS[shopWeaponIndex].id);
   if(seq !== shopBuildSeq) return;                       // un changement plus récent a eu lieu
@@ -2610,16 +2636,18 @@ function buildShotgunMesh(){   // fusil à pompe (#36) : canon large + pompe + c
   g.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
   return g;
 }
-async function findWeaponGlb(){
+// auto-découverte d'un .glb dans un dossier (1 niveau de sous-dossiers) — convention assets (#39)
+async function findGlbInDir(dir){
   try {
-    const entries = await listDir(WEAPON_DIR);
-    const direct = entries.filter(isGlb); if(direct.length) return WEAPON_DIR + direct[0];
+    const entries = await listDir(dir);
+    const direct = entries.filter(isGlb); if(direct.length) return dir + direct[0];
     for(const d of entries.filter(h => h.endsWith('/'))){
-      try { const sub = (await listDir(WEAPON_DIR + d)).filter(isGlb); if(sub.length) return WEAPON_DIR + d + sub[0]; } catch(e){}
+      try { const sub = (await listDir(dir + d)).filter(isGlb); if(sub.length) return dir + d + sub[0]; } catch(e){}
     }
   } catch(e){}
   return null;
 }
+async function findWeaponGlb(){ return findGlbInDir(WEAPON_DIR); }
 const WEAPON_LEN = 0.62;   // longueur cible du fusil (m)
 async function loadWeaponTemplate(weaponId = save.selectedWeapon){
   const w = weaponById(weaponId);

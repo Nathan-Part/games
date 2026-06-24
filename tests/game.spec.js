@@ -1959,3 +1959,27 @@ test('annonce : DOUBLE KILL sur 2 kills rapproches', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('DOUBLE');
   await expect(page.locator('#kill-callout')).toContainText('DOUBLE');
 });
+
+// ====== Tranche 39 : aperçu d'article extensible ======
+test('apercu : kind resolu par champ (chaine de repli)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const k = (o) => page.evaluate(x => __game.debug.itemPreviewKind(x), o);
+  expect(await k({ assetDir:'artefact/x/' })).toBe('glb');
+  expect(await k({ modelUrl:'x.glb' })).toBe('glb');
+  expect(await k({ build:true })).toBe('build');
+  expect(await k({ previewImg:'i.png' })).toBe('image');
+  expect(await k({})).toBe('placeholder');
+});
+
+test('apercu : armes existantes ont la bonne source', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.shopPreviewKind('default'))).toBe('glb');
+  expect(await page.evaluate(() => __game.debug.shopPreviewKind('smg'))).toBe('build');
+});
+
+test('apercu : une image placeholder devient un plan image', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const img = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  expect(await page.evaluate(u => __game.debug.buildItemPreviewIsImage({ previewImg:u }), img)).toBe(true);
+});
