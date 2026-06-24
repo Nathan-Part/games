@@ -1448,3 +1448,12 @@ test('loot : ramasser equipe l arme du cadavre pour la partie, reset au restart'
   expect(await page.evaluate(() => __game.debug.matchWeapon())).toBeNull();
   expect(await page.evaluate(() => __game.debug.weaponStats().mag)).toBe(12);    // retour arme save
 });
+
+test('loot : invite HUD a proximite + touche G ramasse', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'tank', 0, 1.5); __game.debug.damageEnemy(0, 99999); });
+  await expect(page.locator('#pickup-prompt')).toBeVisible();
+  await expect(page.locator('#pickup-prompt')).toContainText('Sniper');
+  await page.keyboard.press('KeyG');
+  expect(await page.evaluate(() => __game.debug.matchWeapon())).toBe('sniper');
+});
