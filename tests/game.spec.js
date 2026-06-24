@@ -1732,3 +1732,11 @@ test('refonte : typographie Barlow appliquee au body', async ({ page }) => {
   const ff = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
   expect(ff.toLowerCase()).toContain('barlow');
 });
+
+test('refonte : le CTA principal est orange (pas bleu legacy)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const bg = await page.evaluate(() => getComputedStyle(document.getElementById('play-btn')).backgroundImage);
+  expect(bg).toMatch(/255,\s*106,\s*26/);      // --accent #ff6a1a
+  expect(bg).not.toMatch(/91,\s*140,\s*255/);  // ancien bleu #5b8cff
+});

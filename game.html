@@ -87,33 +87,30 @@
   canvas{display:block}
   #lobby{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;
     justify-content:space-between;padding:32px 0 40px;pointer-events:none}
-  #lobby.hidden{display:none}
-  .lobby-title{font-size:24px;font-weight:700;text-shadow:0 2px 14px rgba(0,0,0,.6)}
-  .home-top{display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
-  .home-title{font-size:40px;font-weight:800;letter-spacing:3px;
-    background:linear-gradient(135deg,#7ea2ff,#b56bff);-webkit-background-clip:text;background-clip:text;
-    color:transparent;text-shadow:0 6px 30px rgba(91,140,255,.25)}
-  .home-sub{font-size:14px;opacity:.7}
-  .home-meta{display:flex;gap:10px;margin-top:6px}
-  .chip{background:rgba(20,24,33,.7);border:1px solid rgba(120,150,220,.25);border-radius:999px;
-    padding:5px 13px;font-size:14px;font-weight:700}
-  #home-money{color:#ffd479}
+  .home-top{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+  .home-title{font-family:var(--font-display);font-weight:700;font-size:54px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--text);text-shadow:0 4px 24px rgba(0,0,0,.6);line-height:1}
+  .home-title::after{content:"";display:block;width:120px;height:3px;margin:9px auto 0;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+  .home-sub{font-size:var(--t-md);color:var(--text-2);margin-top:4px}
+  .home-meta{display:flex;gap:12px;margin-top:14px}
+  .chip{display:inline-flex;align-items:center;gap:7px;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);
+    padding:7px 15px;font-family:var(--font-display);font-weight:600;font-size:var(--t-md);--ch:7px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .chip .ico{width:16px;height:16px;color:var(--accent)}
+  #home-money-v{color:var(--gold)} #home-record-v{color:var(--text)}
   .home-buttons{display:flex;align-items:center;gap:12px;pointer-events:auto}
-  .home-btn2{padding:13px 22px;font-size:15px;font-weight:700;border-radius:12px;cursor:pointer;
-    color:#e8ecf4;background:rgba(20,24,33,.7);border:1px solid rgba(120,150,220,.3);transition:.15s}
-  .home-btn2:hover{background:rgba(91,140,255,.18);border-color:#5b8cff;transform:translateY(-2px)}
-  .lobby-bottom{display:flex;flex-direction:column;align-items:center;gap:16px}
-  .select-bar{display:flex;align-items:center;gap:18px;pointer-events:auto;
-    background:rgba(20,24,33,.7);backdrop-filter:blur(10px);border:1px solid rgba(120,150,220,.18);
-    border-radius:16px;padding:10px 16px}
-  .select-bar .nav{width:44px;height:44px;border-radius:50%;font-size:24px;line-height:1;
-    background:rgba(255,255,255,.06);color:#e8ecf4;border:1px solid rgba(120,150,220,.25);cursor:pointer;transition:.15s}
-  .select-bar .nav:hover{background:#5b8cff;color:#0b0d12;border-color:#5b8cff}
-  .char-name{font-size:20px;font-weight:700;min-width:200px;text-align:center}
-  #play-btn{pointer-events:auto;padding:14px 48px;font-size:17px;font-weight:700;border-radius:12px;
-    border:1px solid #5b8cff;background:linear-gradient(135deg,#5b8cff,#b56bff);color:#0b0d12;cursor:pointer;
-    box-shadow:0 10px 30px rgba(91,140,255,.35);transition:.15s}
-  #play-btn:hover{transform:translateY(-2px)}
+  .lobby-bottom{display:flex;flex-direction:column;align-items:center;gap:18px}
+  .select-bar{display:flex;align-items:center;gap:16px;pointer-events:auto;padding:8px 14px;--ch:10px}
+  .select-bar .nav{width:42px;height:42px;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.04);color:var(--text);border:0;cursor:pointer;--ch:7px;transition:background .15s,color .15s;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .select-bar .nav:hover{background:var(--accent);color:var(--accent-ink)}
+  .select-bar .nav:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  .select-bar .nav .ico{width:20px;height:20px}
+  .char-name{font-family:var(--font-display);font-weight:600;font-size:var(--t-xl);text-transform:uppercase;
+    min-width:220px;text-align:center;letter-spacing:.04em}
+  #play-btn{pointer-events:auto;padding:15px 40px;font-size:var(--t-lg)}
   #hud{position:fixed;left:16px;bottom:16px;z-index:10;background:rgba(20,24,33,.8);
     border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.5}
   #hud.hidden,#pause.hidden,#overlay.hidden{display:none}
@@ -317,23 +314,24 @@
 
 <div id="lobby">
   <div class="home-top">
+    <div class="eyebrow">// Zone de guerre</div>
     <div class="home-title">OPÉRATION SURVIE</div>
     <div class="home-sub">Survis aux vagues. Gagne de quoi t'équiper.</div>
     <div class="home-meta">
-      <span id="home-money" class="chip">💰 0</span>
-      <span id="home-record" class="chip">🏆 Vague 0</span>
+      <span id="home-money" class="chip"><svg class="ico"><use href="#i-coin"></use></svg> <b id="home-money-v">0</b></span>
+      <span id="home-record" class="chip"><svg class="ico"><use href="#i-trophy"></use></svg> Vague <b id="home-record-v">0</b></span>
     </div>
   </div>
   <div class="lobby-bottom">
-    <div class="select-bar">
-      <button id="prev" class="nav" title="Précédent">‹</button>
+    <div class="select-bar tac lit"><span class="br tr"></span><span class="br bl"></span>
+      <button id="prev" class="nav" title="Précédent"><svg class="ico"><use href="#i-chev-l"></use></svg></button>
       <div id="char-name" class="char-name">—</div>
-      <button id="next" class="nav" title="Suivant">›</button>
+      <button id="next" class="nav" title="Suivant"><svg class="ico"><use href="#i-chev-r"></use></svg></button>
     </div>
     <div class="home-buttons">
-      <button id="play-btn">Jouer ▶</button>
-      <button id="btn-shop" class="home-btn2">🛒 Boutique</button>
-      <button id="btn-settings" class="home-btn2">⚙️ Réglages</button>
+      <button id="play-btn" class="btn btn--primary"><svg class="ico"><use href="#i-play"></use></svg> Déployer</button>
+      <button id="btn-shop" class="btn btn--ghost"><svg class="ico"><use href="#i-weapon"></use></svg> Armurerie</button>
+      <button id="btn-settings" class="btn btn--ghost"><svg class="ico"><use href="#i-gear"></use></svg> Réglages</button>
     </div>
   </div>
 </div>
@@ -470,9 +468,9 @@ const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
 function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `💰 ${save.money}`; }
-function updateHomeMeta(){   // bandeau méta de l'accueil (argent + record), lu depuis la save
-  const m = document.getElementById('home-money'); if(m) m.textContent = `💰 ${save.money}`;
-  const r = document.getElementById('home-record'); if(r) r.textContent = `🏆 Vague ${save.bestWave}`;
+function updateHomeMeta(){   // bandeau méta de l'accueil (argent + record) — C-5 : cible les <b> internes, garde l'icône SVG
+  const m = document.getElementById('home-money-v'); if(m) m.textContent = save.money;
+  const r = document.getElementById('home-record-v'); if(r) r.textContent = save.bestWave;
 }
 G.money = save.money;
 G.debug.save = {
