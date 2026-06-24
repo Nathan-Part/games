@@ -1199,14 +1199,14 @@ test('danse : catalogue (gratuites + payantes, rarete)', async ({ page }) => {
   for(const d of cat) expect(keys).toContain(d.rarity);
 });
 
-test('danse : acheter et assigner a un slot (persiste)', async ({ page }) => {
+test('danse : acheter et selectionner (persiste)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
   expect(await page.evaluate(() => __game.debug.shop.buyDance('dance:skill1'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.shop.assignDance(2, 'dance:skill1'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.selectedDances()[2])).toBe('dance:skill1');
+  expect(await page.evaluate(() => __game.debug.shop.toggleDance('dance:skill1'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.selectedDances())).toContain('dance:skill1');
   await page.reload(); await page.waitForFunction(() => window.__game?.booted);
-  expect(await page.evaluate(() => __game.debug.save.get().selectedDances[2])).toBe('dance:skill1');
+  expect(await page.evaluate(() => __game.debug.save.get().selectedDances)).toContain('dance:skill1');
 });
 
 test('danse : jouer en partie fige la loco puis revient au mouvement', async ({ page }) => {
@@ -1227,11 +1227,11 @@ test('danse : la touche 1 declenche une danse en jeu', async ({ page }) => {
 test('danse : non possedee non assignable ; achat sans argent refuse', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(50); });
-  expect(await page.evaluate(() => __game.debug.shop.assignDance(0, 'dance:combo'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.toggleDance('dance:combo'))).toBe(false);
   expect(await page.evaluate(() => __game.debug.shop.buyDance('dance:combo'))).toBe(false);
 });
 
-test('danse : sous-onglet boutique achete et assigne', async ({ page }) => {
+test('danse : sous-onglet boutique achete et selectionne', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
@@ -1242,8 +1242,8 @@ test('danse : sous-onglet boutique achete et assigne', async ({ page }) => {
   await expect(page.locator('#shop-info')).toContainText('Skill I');
   await page.locator('#shop-info [data-buydance="dance:skill1"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().ownedDances)).toContain('dance:skill1');
-  await page.locator('#shop-info [data-assigndance="dance:skill1:2"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().selectedDances[2])).toBe('dance:skill1');
+  await page.locator('#shop-info [data-seldance="dance:skill1"]').click();          // bouton Sélectionner
+  expect(await page.evaluate(() => __game.debug.save.get().selectedDances)).toContain('dance:skill1');
 });
 
 // ====== Tranche 28 : boost / équipement à stats ======
@@ -1615,4 +1615,15 @@ test('vitrine perso : onglet Personnage montre 3 persos + fleches (carrousel)', 
   expect(await page.evaluate(() => __game.debug.shop.currentTab())).toBe('player');
   await expect(page.locator('#shop-prev')).toBeVisible();                         // flèches désormais visibles
   await page.waitForFunction(() => __game.debug.shopCharObjCount() === 3, null, { timeout:10000 });
+});
+
+test('vitrine perso : le perso central a une taille correcte, pas geant (vrai GLB)', async ({ page }) => {
+  test.setTimeout(90000);                                                          // charge de vrais modèles (lourds)
+  await page.goto('/game.html');                                                  // PAS de FAST → vrais GLB (teste l'échelle squelette)
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:30000 });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  await page.waitForFunction(() => __game.debug.shopCharObjCount() === 3 && __game.debug.shopCharCenterSize() > 0, null, { timeout:60000 });
+  const h = await page.evaluate(() => __game.debug.shopCharCenterSize());
+  expect(h).toBeGreaterThan(1.2); expect(h).toBeLessThan(3.0);                     // ~1.8 m, pas géant
 });
