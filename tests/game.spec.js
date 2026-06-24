@@ -1436,3 +1436,15 @@ test('loot : cadavre lointain non ramassable, cadavre proche oui', async ({ page
   const p = await page.evaluate(() => __game.debug.nearestPickup());
   expect(p).not.toBeNull(); expect(p.weaponId).toBe('sniper');
 });
+
+test('loot : ramasser equipe l arme du cadavre pour la partie, reset au restart', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.weaponStats().mag)).toBe(12);   // arme save (fusil)
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'tank', 0, 1.5); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.pickupWeapon())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.matchWeapon())).toBe('sniper');
+  expect(await page.evaluate(() => __game.debug.weaponStats().mag)).toBe(5);     // sniper
+  await page.evaluate(() => __game.debug.restart());
+  expect(await page.evaluate(() => __game.debug.matchWeapon())).toBeNull();
+  expect(await page.evaluate(() => __game.debug.weaponStats().mag)).toBe(12);    // retour arme save
+});

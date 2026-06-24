@@ -835,6 +835,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
+  resetMatchWeapon();                                          // pas de loot conservé d'une partie à l'autre (#23)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1073,7 +1074,7 @@ function buyUpgrade(weaponId, type){
   if(weaponId === save.selectedWeapon) applyWeaponStats();   // effet immédiat si arme équipée
   return true;
 }
-function weaponStats(id = save.selectedWeapon){
+function weaponStats(id = effectiveWeaponId()){
   const b = weaponById(id).stats;
   const s = { mag:b.mag, cooldown:b.cooldown, reload:b.reload, dmgMult:b.dmgMult, recoil:b.recoil };
   for(const type in UPGRADE_SPECS){ const l = upgradeLevel(id, type); if(l > 0) UPGRADE_SPECS[type].apply(s, l); }
@@ -1451,7 +1452,9 @@ function restartGame(){
   document.getElementById('gameover').classList.add('hidden');
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
+  resetMatchWeapon();                                          // restart = arme de la save (#23)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
+  ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
   G.phase = 'playing';
   startWave(1);
@@ -2018,15 +2021,15 @@ async function loadWeaponTemplate(weaponId = save.selectedWeapon){
 }
 let equippedWeaponId = null;
 async function ensureWeapon(){
-  if(heldWeapon && equippedWeaponId === save.selectedWeapon){ for(const e of enemies) attachWeaponToEnemy(e); return; }
+  if(heldWeapon && equippedWeaponId === effectiveWeaponId()){ for(const e of enemies) attachWeaponToEnemy(e); return; }
   if(heldWeapon && heldWeapon.parent) heldWeapon.parent.remove(heldWeapon);   // modèle (ré)attaché plus bas
   heldWeapon = null;
-  const weaponChanged = (equippedWeaponId !== save.selectedWeapon);
+  const weaponChanged = (equippedWeaponId !== effectiveWeaponId());
   if(weaponChanged || !weaponTemplate){           // ne recharge le template (ni le GLB 13 Mo) que si l'arme a changé
     if(viewModel && viewModel.parent) viewModel.parent.remove(viewModel);
     viewModel = null; weaponMuzzleZ = null;
-    weaponTemplate = await loadWeaponTemplate();
-    equippedWeaponId = save.selectedWeapon;
+    weaponTemplate = await loadWeaponTemplate(effectiveWeaponId());
+    equippedWeaponId = effectiveWeaponId();
   }
   if(model && !heldWeapon) attachWeaponToHand(weaponTemplate);
   for(const e of enemies) attachWeaponToEnemy(e);   // rattrape les ennemis créés avant le chargement
@@ -2143,6 +2146,8 @@ G.debug.weapon = {
 // ====== Loot d'arme (run-based #23) : ramasser l'arme d'un cadavre pour la partie en cours ======
 const PICKUP_R = 2.5;
 let matchWeaponId = null;
+function effectiveWeaponId(){ return matchWeaponId || save.selectedWeapon; }   // arme du loot (partie) sinon arme de la save
+function resetMatchWeapon(){ matchWeaponId = null; }
 function nearestPickup(){
   if(!model) return null;
   const px = model.position.x, pz = model.position.z; let best = null, bd = PICKUP_R;
@@ -2155,7 +2160,17 @@ function nearestPickup(){
   const w = weaponById(best.weaponId);
   return { enemyId:best.id, weaponId:best.weaponId, name:w.name, rarity:w.rarity, dist:bd };
 }
+function pickupWeapon(){
+  const p = nearestPickup(); if(!p) return false;
+  matchWeaponId = p.weaponId;
+  const e = enemies[p.enemyId]; if(e){ e.looted = true; if(e.weapon) e.weapon.visible = false; }   // cadavre vidé (arme prise)
+  applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false;   // stats immédiates (le modèle 3D suit, async)
+  ensureWeapon(); playSound('reload'); updateCombatHud();
+  return true;
+}
 G.debug.nearestPickup = () => nearestPickup();
+G.debug.pickupWeapon = () => pickupWeapon();
+G.debug.matchWeapon = () => matchWeaponId;
 
 // ====== Audio (synthèse Web Audio, aucun fichier) ======
 let actx = null, masterGain = null, muted = false; const soundLog = [];
