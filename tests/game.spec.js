@@ -1149,6 +1149,46 @@ test('persos : la vitrine (onglet Personnage) montre le perso centre et permet d
   expect(await page.evaluate(() => __game.debug.save.get().selectedCharacterId)).toBe('perso:robot');
 });
 
+// ====== Tranche 26 : accessoires (casque/costume) ======
+test('accessoires : catalogue casque/costume (none gratuit, prix croissants, rarete)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const keys = await page.evaluate(() => __game.debug.shop.rarities().map(r => r.id));
+  for(const slot of ['helmet','costume']){
+    const cat = await page.evaluate(s => __game.debug.shop.accessoryCatalog(s), slot);
+    expect(cat[0].price).toBe(0);                                  // « Aucun » gratuit
+    expect(cat[cat.length-1].price).toBeGreaterThan(cat[1].price); // payants croissants
+    for(const a of cat) expect(keys).toContain(a.rarity);
+  }
+});
+
+test('accessoires : acheter+equiper un casque attache un mesh a la tete (persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
+  expect(await page.evaluate(() => __game.debug.accessoryAttached('helmet'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.buyAccessory('helm:visor'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:visor'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.accessoryAttached('helmet'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.playerAccessory('helmet'))).toBe('helm:visor');
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:visor');
+});
+
+test('accessoires : equiper un costume attache un mesh au torse ; retrait avec none', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); __game.debug.shop.buyAccessory('cost:plate'); });
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('costume','cost:plate'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.accessoryAttached('costume'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('costume','cost:none'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.accessoryAttached('costume'))).toBe(false);
+});
+
+test('accessoires : achat refuse sans argent ; non possede non equipable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(50); });
+  expect(await page.evaluate(() => __game.debug.shop.buyAccessory('helm:crown'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:crown'))).toBe(false);
+});
+
 // ====== Tranche 16 : skins / cosmétiques (teintes du perso) ======
 test('skins : catalogue (Origine gratuit, prix croissants)', async ({ page }) => {
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
