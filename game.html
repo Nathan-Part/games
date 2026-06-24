@@ -85,22 +85,16 @@
   .icard .ic-foot{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap}
   #app{position:fixed;inset:0}
   canvas{display:block}
-  #lobby{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;
-    justify-content:space-between;padding:32px 0 40px;pointer-events:none}
-  .home-top{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
-  .home-title{font-family:var(--font-display);font-weight:700;font-size:54px;letter-spacing:.04em;
+  #lobby{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
+  .home-title{font-family:var(--font-display);font-weight:700;font-size:46px;letter-spacing:.04em;
     text-transform:uppercase;color:var(--text);text-shadow:0 4px 24px rgba(0,0,0,.6);line-height:1}
-  .home-title::after{content:"";display:block;width:120px;height:3px;margin:9px auto 0;
+  .home-title::after{content:"";display:block;width:120px;height:3px;margin:8px auto 0;
     background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-  .home-sub{font-size:var(--t-md);color:var(--text-2);margin-top:4px}
-  .home-meta{display:flex;gap:12px;margin-top:14px}
   .chip{display:inline-flex;align-items:center;gap:7px;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);
     padding:7px 15px;font-family:var(--font-display);font-weight:600;font-size:var(--t-md);--ch:7px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   .chip .ico{width:16px;height:16px;color:var(--accent)}
   #home-money-v{color:var(--gold)} #home-record-v{color:var(--text)}
-  .home-buttons{display:flex;align-items:center;gap:12px;pointer-events:auto}
-  .lobby-bottom{display:flex;flex-direction:column;align-items:center;gap:18px}
   .select-bar{display:flex;align-items:center;gap:16px;pointer-events:auto;padding:8px 14px;--ch:10px}
   .select-bar .nav{width:42px;height:42px;display:flex;align-items:center;justify-content:center;
     background:rgba(255,255,255,.04);color:var(--text);border:0;cursor:pointer;--ch:7px;transition:background .15s,color .15s;
@@ -109,8 +103,39 @@
   .select-bar .nav:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
   .select-bar .nav .ico{width:20px;height:20px}
   .char-name{font-family:var(--font-display);font-weight:600;font-size:var(--t-xl);text-transform:uppercase;
-    min-width:220px;text-align:center;letter-spacing:.04em}
-  #play-btn{pointer-events:auto;padding:15px 40px;font-size:var(--t-lg)}
+    min-width:200px;text-align:center;letter-spacing:.04em}
+  /* ===== centre de commandement (accueil restructuré) ===== */
+  .hub-top{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;pointer-events:none}
+  .hub-id{display:flex;align-items:center;gap:12px;pointer-events:auto}
+  .hub-av{width:46px;height:46px;display:flex;align-items:center;justify-content:center;color:var(--accent);
+    background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);--ch:9px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .hub-av .ico{width:26px;height:26px}
+  .hub-rank{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.08em;font-size:var(--t-xs);color:var(--text-2)}
+  .hub-rank b{color:var(--accent)}
+  .hub-xp{width:160px;height:6px;margin-top:5px;background:var(--bg-600);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;
+    clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%)}
+  .hub-xp i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .3s}
+  .hub-cur{display:flex;gap:10px;pointer-events:auto}
+  .hub-main{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:8px 0 0}
+  .hub-intel{position:absolute;left:24px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:14px;pointer-events:none}
+  .intel-card{width:244px;padding:14px 16px;--ch:11px}
+  .intel-card>*{position:relative;z-index:1}
+  .intel-h{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.14em;font-size:var(--t-xs);color:var(--accent);margin-bottom:9px}
+  .intel-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:var(--t-sm);color:var(--text-2);padding:3px 0}
+  .intel-row b{font-family:var(--font-display);font-weight:700;color:var(--text);font-size:var(--t-md)}
+  .intel-row b.gold{color:var(--gold)}
+  .stage-head{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:4px}
+  .stage-plate{margin-bottom:16px}
+  .hub-deploy{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;padding:16px 28px 28px;pointer-events:none}
+  .deploy-side{display:flex;gap:12px;pointer-events:auto}
+  .deploy-side-r{justify-content:flex-end}
+  .deploy-hint{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.06em;font-size:var(--t-xs);color:var(--text-3);text-align:right;line-height:1.5}
+  .deploy-hint b{display:block;color:var(--text-2);font-size:var(--t-sm)}
+  .deploy-btn{pointer-events:auto;padding:16px 44px;font-size:var(--t-xl)}
+  .deploy-btn .ico{width:22px;height:22px}
+  .deploy-lbl{display:flex;flex-direction:column;align-items:flex-start;line-height:1}
+  .deploy-lbl small{font-family:var(--font-ui);font-weight:600;text-transform:none;letter-spacing:0;font-size:10px;opacity:.75;margin-top:3px}
   #hud{position:fixed;left:16px;bottom:16px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
     padding:9px 13px;font-size:var(--t-xs);line-height:1.55;color:var(--text-2);--ch:8px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
@@ -393,25 +418,56 @@
 </defs></svg>
 
 <div id="lobby">
-  <div class="home-top">
-    <div class="eyebrow">// Zone de guerre</div>
-    <div class="home-title">OPÉRATION SURVIE</div>
-    <div class="home-sub">Survis aux vagues. Gagne de quoi t'équiper.</div>
-    <div class="home-meta">
+  <!-- ===== barre de statut (profil + monnaies) ===== -->
+  <div class="hub-top">
+    <div class="hub-id">
+      <div class="hub-av"><svg class="ico"><use href="#i-soldier"></use></svg></div>
+      <div>
+        <div class="hub-rank">Opérateur · Rang <b id="hub-rank-v">1</b></div>
+        <div class="hub-xp"><i id="hub-xp-fill"></i></div>
+      </div>
+    </div>
+    <div class="hub-cur">
       <span id="home-money" class="chip"><svg class="ico"><use href="#i-coin"></use></svg> <b id="home-money-v">0</b></span>
       <span id="home-record" class="chip"><svg class="ico"><use href="#i-trophy"></use></svg> Vague <b id="home-record-v">0</b></span>
     </div>
   </div>
-  <div class="lobby-bottom">
-    <div class="select-bar tac lit"><span class="br tr"></span><span class="br bl"></span>
+  <!-- ===== zone principale : intel (gauche) + scène perso (centre) ===== -->
+  <div class="hub-main">
+    <div class="hub-intel">
+      <div class="intel-card tac"><span class="br tr"></span><span class="br bl"></span>
+        <div class="intel-h">// Intel</div>
+        <div class="intel-row"><span>Record vague</span><b id="intel-wave">0</b></div>
+        <div class="intel-row"><span>Meilleur combo</span><b id="intel-combo">x1</b></div>
+        <div class="intel-row"><span>Crédits</span><b id="intel-money" class="gold">0</b></div>
+      </div>
+      <div class="intel-card tac"><span class="br tr"></span><span class="br bl"></span>
+        <div class="intel-h">// Équipement</div>
+        <div class="intel-row"><span>Arme</span><b id="intel-weapon">—</b></div>
+        <div class="intel-row"><span>Masque</span><b id="intel-mask">—</b></div>
+        <div class="intel-row"><span>Costume</span><b id="intel-cost">—</b></div>
+      </div>
+    </div>
+    <div class="stage-head">
+      <div class="eyebrow">// Zone de guerre</div>
+      <div class="home-title">OPÉRATION SURVIE</div>
+    </div>
+    <div class="stage-plate select-bar tac lit"><span class="br tr"></span><span class="br bl"></span>
       <button id="prev" class="nav" title="Précédent"><svg class="ico"><use href="#i-chev-l"></use></svg></button>
       <div id="char-name" class="char-name">—</div>
       <button id="next" class="nav" title="Suivant"><svg class="ico"><use href="#i-chev-r"></use></svg></button>
     </div>
-    <div class="home-buttons">
-      <button id="play-btn" class="btn btn--primary"><svg class="ico"><use href="#i-play"></use></svg> Déployer</button>
+  </div>
+  <!-- ===== barre de déploiement ===== -->
+  <div class="hub-deploy">
+    <div class="deploy-side">
       <button id="btn-shop" class="btn btn--ghost"><svg class="ico"><use href="#i-weapon"></use></svg> Armurerie</button>
       <button id="btn-settings" class="btn btn--ghost"><svg class="ico"><use href="#i-gear"></use></svg> Réglages</button>
+    </div>
+    <button id="play-btn" class="btn btn--primary deploy-btn"><svg class="ico"><use href="#i-play"></use></svg>
+      <span class="deploy-lbl">Déployer<small>// Survie — vagues infinies</small></span></button>
+    <div class="deploy-side deploy-side-r">
+      <div class="deploy-hint">Difficulté<b>Croissante</b></div>
     </div>
   </div>
 </div>
@@ -560,9 +616,21 @@ const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
 function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `${ico('coin')} ${save.money}`; }
-function updateHomeMeta(){   // bandeau méta de l'accueil (argent + record) — C-5 : cible les <b> internes, garde l'icône SVG
-  const m = document.getElementById('home-money-v'); if(m) m.textContent = save.money;
-  const r = document.getElementById('home-record-v'); if(r) r.textContent = save.bestWave;
+function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b> internes, garde l'icône SVG)
+  const set = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
+  const bw = save.bestWave || 0;
+  set('home-money-v', save.money); set('home-record-v', bw);
+  set('hub-rank-v', Math.floor(bw / 2) + 1);                                  // rang dérivé du record
+  const xf = document.getElementById('hub-xp-fill'); if(xf) xf.style.width = ((bw % 2) / 2 * 100) + '%';
+  set('intel-wave', bw);
+  let combo = 1; try { combo = comboMultiplier(save.bestCombo || 0); } catch(e){}
+  set('intel-combo', 'x' + combo);
+  set('intel-money', save.money);
+  let wName = '—'; try { wName = weaponById(save.selectedWeapon).name; } catch(e){}
+  set('intel-weapon', wName);
+  const accName = (slot) => { try { const a = accessoryItemById(save.equipped && save.equipped[slot]); return a ? a.name : 'Aucun'; } catch(e){ return '—'; } };
+  set('intel-mask', accName('helmet'));
+  set('intel-cost', accName('costume'));
 }
 G.money = save.money;
 G.debug.save = {
