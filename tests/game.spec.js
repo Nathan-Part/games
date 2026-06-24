@@ -1407,3 +1407,13 @@ test('rarete : la boutique affiche la couleur de rarete (armes + perso)', async 
   html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
   expect(html).toMatch(/#9aa3b2|#4f9dff|#b066ff/);                          // un badge de rareté perso
 });
+
+// ====== Tranche 23 : cadavres + loot d'arme ======
+test('cadavre : mort = dead, emissive reinitialise, hitbox desactivee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+  expect(await page.evaluate(() => __game.debug.corpseCount())).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => __game.debug.enemyEmissiveIsBase(0))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHitboxActive(0))).toBe(false);
+});

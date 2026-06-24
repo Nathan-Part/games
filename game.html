@@ -1881,6 +1881,8 @@ function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
   e.mixer.stopAllAction();
   if(e.muzzleFlash){ e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
+  setEnemyEmissive(e, false); e.flashUntil = 0;                 // fin du flash rouge bloqué (corps propre)
+  if(e.hitbox && e.hitbox.parent) e.hitbox.parent.remove(e.hitbox);  // hitbox off (corps non ciblable / traversable)
   if(e.actions.dead){                                  // joue l'anim de mort (Dead) et garde la pose finale
     e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
   }
@@ -1922,6 +1924,10 @@ G.debug.waveState = () => waveState;
 G.debug.forceNextWave = () => startWave(wave + 1);
 G.debug.killAllEnemies = () => { for(const e of enemies) if(e.alive) killEnemy(e); };
 G.debug.damageEnemy = (i, amount) => damageEnemy(enemies[i], amount);
+G.debug.corpseCount = () => enemies.filter(e => e.state === 'dead').length;
+G.debug.enemyEmissiveIsBase = (i) => { const e = enemies[i]; if(!e || !e.mats[0]) return null;
+  return e.mats[0].mat.emissive.getHex() === e.mats[0].base.getHex(); };
+G.debug.enemyHitboxActive = (i) => !!(enemies[i] && enemies[i].hitbox && enemies[i].hitbox.parent);
 G.debug.setPitch = (p) => { camPitch = p; clampPitch(); };
 G.debug.spawnEnemyInFront = (dist=8) => {
   _ray.setFromCamera({ x:0, y:0 }, camera);
