@@ -2083,3 +2083,20 @@ test('succes : persistent apres reload', async ({ page }) => {
   await page.reload(); await page.waitForFunction(() => window.__game?.booted);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
 });
+
+// ====== Tranche 45 : corps-à-corps ======
+test('melee : coup blesse un ennemi proche devant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=1;i<3;i++) __game.debug.moveEnemy(i,40,40); __game.debug.setView('first'); __game.debug.setYaw(0); __game.debug.setPitch(0); });
+  await page.waitForTimeout(120);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(2));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
+});
+
+test('melee : rien si aucun ennemi a portee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40); });
+  expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(false);
+});

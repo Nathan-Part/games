@@ -1036,6 +1036,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
   if(e.code==='KeyB' && G.phase==='playing') throwGrenade();                          // B = lancer une grenade (#33)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
+  if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
   if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); }
   if(e.code==='KeyM'){ setMuted(!muted); }
@@ -1678,6 +1679,24 @@ function tryFire(){
   if(_fireConnected) runHits++;                             // ce tir a touché ≥1 ennemi (#43)
   return true;
 }
+// ====== Corps-à-corps (#45) : couteau, touche X ======
+const PLAYER_MELEE_REACH = 2.6, PLAYER_MELEE_DAMAGE = 150;
+let playerMeleeCd = 0;
+function playerMelee(){
+  if(G.phase !== 'playing' || playerMeleeCd > 0) return false;
+  playerMeleeCd = 0.6;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0;
+  if(dir.lengthSq() < 1e-6) return false; dir.normalize();
+  let best = null, bestD = PLAYER_MELEE_REACH;
+  for(const e of enemies){ if(!e.alive) continue;
+    const dx = e.root.position.x - model.position.x, dz = e.root.position.z - model.position.z;
+    const d = Math.hypot(dx, dz); if(d > PLAYER_MELEE_REACH) continue;
+    const dot = (dx*dir.x + dz*dir.z) / (d || 1); if(dot < 0.2) continue;   // grossièrement devant
+    if(d < bestD){ best = e; bestD = d; } }
+  if(best){ playSound('shot'); damageEnemy(best, PLAYER_MELEE_DAMAGE); flashHitMarker(); return true; }
+  return false;
+}
+G.debug.playerMelee = () => playerMelee();
 function reload(){
   if(reloading || ammo === curMag || G.phase!=='playing') return;
   reloading = true; reloadAt = nowS() + curReload; playSound('reload');
@@ -1798,6 +1817,7 @@ function updateCombatHud(){
 }
 function updateCombat(dt){
   if(G.phase!=='playing') return;
+  if(playerMeleeCd > 0) playerMeleeCd -= dt;                 // cooldown couteau (#45)
   if(reloading && nowS() >= reloadAt){ ammo = curMag; reloading = false; G.ammo = ammo; }
   if(input.fire) tryFire();
   const t = nowS();
