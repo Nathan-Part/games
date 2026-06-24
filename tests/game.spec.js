@@ -1344,7 +1344,7 @@ test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ p
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(3000); });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="accessories"]').click();
-  await expect(page.locator('#shop-info')).toContainText('Visière');                 // sous-onglet Casque par défaut
+  await expect(page.locator('#shop-info')).toContainText('Visière');                 // sous-onglet Masque par défaut
   await page.locator('#shop-info [data-buyacc="helm:visor"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().ownedAccessories)).toContain('helm:visor');
   await page.locator('#shop-info [data-selacc="helm:visor"]').click();

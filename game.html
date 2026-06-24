@@ -1487,7 +1487,7 @@ function renderShop(){
   } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
     const slot = shopAccSlot;
     html += `<div class="shop-wname">Accessoires</div>`;
-    html += `<div class="shop-subtabs"><button class="shop-subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Casque</button>`
+    html += `<div class="shop-subtabs"><button class="shop-subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Masque</button>`
           + `<button class="shop-subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
           + `<button class="shop-subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
     if(slot === 'dance'){   // sous-onglet Danses (#27) : ▶ aperçu live (même non possédée) + acheter + sélectionner (max 3)
@@ -1504,7 +1504,7 @@ function renderShop(){
       html += `</div>`;
     } else {   // Casque / Costume
       const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot];
-      html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>${slot==='helmet'?'Casque':'Costume'}</span><span></span><span></span><span></span><span></span></div>`;
+      html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>${slot==='helmet'?'Masque':'Costume'}</span><span></span><span></span><span></span><span></span></div>`;
       for(const a of cat){
         const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
         const act = eq ? `<span class="shop-chartag">✓</span>`
