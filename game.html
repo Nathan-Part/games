@@ -205,89 +205,104 @@
     color:#e8ecf4;background:rgba(34,40,58,.8);border:1px solid rgba(120,150,220,.35);transition:.15s}
   .set-toggle:hover{border-color:#6f9bff;background:rgba(91,140,255,.18)}
   .settings-card .panel-back{margin-top:10px}
-  /* ====== Boutique v2 : carrousel 3D + UI bas-centre ====== */
-  #shop-panel{position:fixed;inset:0;z-index:45;
-    background:radial-gradient(ellipse 95% 88% at 50% 42%, transparent 46%, rgba(18,22,34,.34) 100%)}
-  #shop-panel.hidden{display:none}
-  .shop-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;padding:16px 22px;z-index:3}
-  .shop-tabs{display:flex;gap:8px}
-  .shop-tab{padding:10px 20px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;
-    color:#cdd6e6;background:rgba(34,40,58,.7);border:1px solid rgba(150,175,235,.25);transition:.15s}
-  .shop-tab:hover{color:#fff}
-  .shop-tab.active{color:#0b0d12;background:linear-gradient(135deg,#6f9bff,#c07bff);border-color:#6f9bff}
-  .shop-money2{margin-left:auto;font-size:18px;font-weight:800;color:#ffd479;
-    background:rgba(34,40,58,.7);border:1px solid rgba(150,175,235,.28);border-radius:999px;padding:7px 16px}
-  .shop-close{width:42px;height:42px;border-radius:50%;font-size:17px;cursor:pointer;
-    color:#e8ecf4;background:rgba(34,40,58,.7);border:1px solid rgba(150,175,235,.28);transition:.15s}
-  .shop-close:hover{background:#ff5b5b;color:#0b0d12;border-color:#ff5b5b}
-  .shop-nav-arrow{position:absolute;top:40%;transform:translateY(-50%);z-index:3;
-    width:58px;height:58px;border-radius:50%;font-size:32px;line-height:1;cursor:pointer;
-    color:#e8ecf4;background:rgba(34,40,58,.62);border:1px solid rgba(150,175,235,.32);transition:.15s}
-  .shop-nav-arrow.left{left:6%}
-  .shop-nav-arrow.right{right:6%}
-  .shop-nav-arrow:hover{background:#6f9bff;color:#0b0d12;border-color:#6f9bff}
-  .shop-info{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;flex-direction:column;align-items:center;
-    gap:12px;padding:16px 22px 24px;text-align:center;
-    background:linear-gradient(0deg, rgba(12,15,23,.94), rgba(12,15,23,.55) 72%, transparent)}
-  .shop-wname{font-size:26px;font-weight:800;letter-spacing:.5px}
-  .shop-rating{font-size:15px;color:#ffd479;margin-left:6px;vertical-align:middle}
-  .shop-statcards{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-  .shop-statcard{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:84px;
-    background:rgba(34,40,58,.72);border:1px solid rgba(150,175,235,.2);border-radius:12px;padding:8px 14px}
-  .shop-statcard>span{font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.65}
-  .shop-statcard>b{font-size:22px;font-weight:800;color:#dbe6ff}
-  .shop-btns{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
-  .shop-cta{padding:13px 30px;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;
-    color:#e8ecf4;background:rgba(34,40,58,.8);border:1px solid rgba(150,175,235,.4);transition:.15s}
-  .shop-cta.buy{border-color:#6f9bff;background:linear-gradient(135deg,#6f9bff,#c07bff);color:#0b0d12}
-  .shop-cta.ameliorer{border-color:#ff5b6e;background:linear-gradient(135deg,#ff5b6e,#ff8a4b);color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.4)}
-  .shop-cta.ameliorer.open{filter:brightness(1.12)}
+  /* ====== Boutique « ARMURERIE » (refonte) ====== */
+  #shop-panel{position:fixed;inset:0;z-index:45;background:var(--bg-800)}
+  .shop-bg{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse 90% 80% at 50% 36%, transparent 52%, rgba(0,0,0,.5)),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px)}
+  .shop-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:flex-end;gap:12px;padding:14px 22px 12px;z-index:3}
+  .shop-header .eyebrow{position:absolute;top:6px;left:24px}
+  .shop-tabs{display:flex;gap:8px;margin-top:12px}
+  .shop-tab{font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:var(--t-md);
+    display:inline-flex;align-items:center;gap:7px;padding:10px 18px;cursor:pointer;border:0;color:var(--text-2);
+    background:var(--bg-700);transition:background .15s,color .15s;--ch:8px;clip-path:polygon(var(--ch) 0,100% 0,100% 100%,0 100%)}
+  .shop-tab .ico{width:17px;height:17px}
+  .shop-tab:hover{color:var(--text)}
+  .shop-tab:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  .shop-tab.active{color:var(--accent-ink);background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 6px 20px var(--accent-glow)}
+  .shop-money2{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;
+    font-size:var(--t-lg);color:var(--gold);background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);padding:8px 16px;--ch:8px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .shop-money2 .ico{width:18px;height:18px;color:var(--gold)}
+  .shop-close{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;border:0;cursor:pointer;
+    color:var(--text);background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);transition:.15s;--ch:8px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .shop-close .ico{width:18px;height:18px}
+  .shop-close:hover{background:var(--danger);color:#fff}
+  .shop-close:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  .shop-nav-arrow{position:absolute;top:44%;transform:translateY(-50%);z-index:3;width:54px;height:54px;border:0;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;color:var(--text);background:rgba(20,24,31,.72);
+    box-shadow:inset 0 0 0 1px var(--line-2);transition:.15s;--ch:10px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .shop-nav-arrow .ico{width:26px;height:26px}
+  .shop-nav-arrow.left{left:5%} .shop-nav-arrow.right{right:5%}
+  .shop-nav-arrow:hover{background:var(--accent);color:var(--accent-ink)}
+  .shop-nav-arrow:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  /* détail bas-centre (armes/perso) */
+  .shop-info{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;flex-direction:column;align-items:center;gap:11px;
+    padding:18px 22px 26px;text-align:center;background:linear-gradient(0deg, var(--bg-900), rgba(11,12,14,.55) 72%, transparent)}
+  .shop-wname{font-family:var(--font-display);font-weight:700;font-size:var(--t-2xl);text-transform:uppercase;letter-spacing:.03em;
+    display:flex;align-items:center;gap:10px;justify-content:center}
+  .shop-rating{font-family:var(--font-ui);font-size:13px;color:var(--gold);font-weight:600}
+  .shop-statcards{display:flex;flex-direction:column;gap:3px;width:min(440px,86vw)}
+  .shop-btns{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:4px}
+  .shop-cta{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:var(--t-md);
+    padding:12px 26px;cursor:pointer;border:0;color:var(--text);background:var(--bg-600);box-shadow:inset 0 0 0 1px var(--line-2);
+    display:inline-flex;align-items:center;gap:8px;transition:transform .15s,box-shadow .15s,background .15s;--ch:9px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .shop-cta .ico{width:16px;height:16px}
   .shop-cta:not(:disabled):hover{transform:translateY(-2px)}
+  .shop-cta:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
   .shop-cta:disabled{opacity:.45;cursor:default}
-  .shop-badge{padding:13px 26px;border-radius:12px;font-size:16px;font-weight:800;color:#8fe07a;border:1px solid #3ad17a}
-  .rarity-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:7px;border:1px solid;vertical-align:middle}
-  .shop-subtabs{display:flex;gap:8px;margin:4px 0 8px}
-  .shop-subtab{background:#222a38;color:#aeb6c9;border:1px solid #3a4a66;border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:700}
-  .shop-subtab.on{background:#3a4a66;color:#fff}
-  .shop-charbtn.mini{padding:3px 9px;margin:0;min-width:0;font-size:13px}
-  .shop-charbtn.on{background:#3ad17a;color:#10131a;border-color:#3ad17a}
-  .dance-list{display:flex;flex-direction:column;gap:4px;margin-top:6px}
-  .dance-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.03)}
-  .dance-row.on{background:rgba(58,209,122,.14)}
-  .dance-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .dance-act{display:flex;gap:6px;flex:none}
-  .shop-upgrades{display:flex;flex-direction:column;gap:7px;width:min(420px,86vw);margin-top:2px;
-    background:rgba(22,27,40,.78);border:1px solid rgba(150,175,235,.2);border-radius:14px;padding:13px 18px}
-  .shop-statrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
-  .shop-statrow>span{opacity:.9}
-  .shop-statrow>span i{opacity:.55;font-style:normal;font-size:12px;margin-left:4px}
-  .shop-upg-btn{padding:6px 13px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
-    color:#e8ecf4;background:rgba(34,40,58,.8);border:1px solid rgba(150,175,235,.3);transition:.15s}
-  .shop-upg-btn.buy{border-color:#6f9bff;background:linear-gradient(135deg,rgba(111,155,255,.4),rgba(192,123,255,.3))}
-  .shop-upg-btn:not(:disabled):hover{transform:translateY(-1px)}
-  .shop-upg-btn:disabled{opacity:.4;cursor:default}
-  /* onglet Personnage : bloc à gauche + tableau des persos */
-  .shop-info.left{left:4%;right:auto;bottom:auto;top:50%;transform:translateY(-50%);align-items:flex-start;text-align:left;
-    width:340px;max-height:84vh;overflow-y:auto;padding:18px 20px;border-radius:18px;
-    background:rgba(16,20,30,.9);border:1px solid rgba(150,175,235,.22);backdrop-filter:blur(8px)}
-  .shop-info.left .shop-wname{font-size:22px;margin-bottom:12px}
-  .shop-chartable{display:flex;flex-direction:column;gap:4px;width:100%;margin-bottom:8px}
-  .shop-chartr{display:grid;grid-template-columns:1fr 34px 42px 46px 66px;align-items:center;gap:6px;
-    font-size:13px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.04)}
-  .shop-chartr.on{background:rgba(111,155,255,.20);border:1px solid rgba(111,155,255,.45)}
-  .shop-charhead{background:transparent;opacity:.6;font-size:10px;text-transform:uppercase;letter-spacing:.4px}
-  .shop-chartr>span:not(:first-child){text-align:center}
-  .shop-chartr>span:last-child{text-align:right}
-  .shop-chartag{color:#8fe07a;font-weight:800}
-  .shop-charbtn{padding:5px 9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;
-    color:#e8ecf4;background:rgba(34,40,58,.85);border:1px solid rgba(150,175,235,.35);transition:.15s}
-  .shop-charbtn.buy{border-color:#ffd479;color:#ffd479}
-  .shop-charbtn:not(:disabled):hover{transform:translateY(-1px)}
-  .shop-charbtn:disabled{opacity:.4;cursor:default}
-  .shop-sub2{font-size:12px;font-weight:700;opacity:.8;width:100%;margin:8px 0 8px;
-    border-top:1px solid rgba(150,175,235,.18);padding-top:10px}
-  .shop-upgrades.nobox{background:transparent;border:none;padding:0;width:100%;margin-top:0}
-  .shop-swatch{display:inline-block;width:20px;height:20px;border-radius:6px;border:1px solid rgba(255,255,255,.35);vertical-align:middle}
+  .shop-cta.buy{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--accent-ink);box-shadow:0 8px 22px var(--accent-glow)}
+  .shop-cta.buy .ico{color:var(--accent-ink)}
+  .shop-cta.ameliorer{background:linear-gradient(135deg,#ffb02e,#ff7d2e);color:#231405}
+  .shop-cta.ameliorer.open{filter:brightness(1.08)}
+  .shop-badge{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:var(--t-md);
+    padding:12px 22px;color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);display:inline-flex;align-items:center;gap:7px;--ch:9px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .shop-badge .ico{width:16px;height:16px}
+  /* améliorations : pips + bouton (C-4 garde data-upg/data-pupg) */
+  .shop-upgrades{display:flex;flex-direction:column;gap:8px;width:min(440px,86vw);background:var(--bg-700);
+    box-shadow:inset 0 0 0 1px var(--line);padding:13px 16px;--ch:11px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .shop-sub2{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.06em;font-size:var(--t-xs);color:var(--text-2);width:100%}
+  .upg-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .upg-name{display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--text)}
+  .upg-pips{display:inline-flex;gap:3px}
+  .upg-pips i{width:10px;height:9px;background:var(--bg-500);clip-path:polygon(2px 0,100% 0,calc(100% - 2px) 100%,0 100%)}
+  .upg-pips i.on{background:var(--accent)}
+  .upg-max{font-family:var(--font-display);font-size:12px;color:var(--ok);letter-spacing:.06em}
+  .upg-btn{font-family:var(--font-display);font-weight:700;font-size:12px;padding:6px 12px;cursor:pointer;border:0;color:#231405;
+    background:linear-gradient(135deg,#ffb02e,#ff7d2e);display:inline-flex;align-items:center;gap:5px;--ch:5px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .upg-btn .ico{width:12px;height:12px}
+  .upg-btn:disabled{opacity:.4;cursor:default;filter:grayscale(.4)}
+  .upg-btn:focus-visible{outline:none;box-shadow:inset 0 0 0 2px #231405}
+  /* grille de cartes (accessoires/boost/danses) — C-3 : panneau docké à GAUCHE, perso visible à droite */
+  .shop-info.grid{position:absolute;top:64px;bottom:24px;left:3%;right:auto;width:420px;max-width:42vw;
+    overflow-y:auto;align-items:stretch;text-align:left;padding:14px;gap:12px;
+    background:linear-gradient(180deg, rgba(16,18,22,.94), rgba(16,18,22,.82))}
+  .shop-info.grid .shop-wname{font-size:var(--t-xl);justify-content:flex-start}
+  .shop-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;width:100%}
+  .subtabs{display:flex;gap:8px}
+  .subtab{font-family:var(--font-display);text-transform:uppercase;font-weight:600;letter-spacing:.05em;font-size:var(--t-sm);
+    padding:7px 14px;cursor:pointer;border:0;color:var(--text-2);background:var(--bg-700);--ch:6px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% 100%,0 100%)}
+  .subtab.on{color:var(--accent-ink);background:var(--accent)}
+  .subtab:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  .ic-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ic-sub{font-size:12px;color:var(--text-2);font-weight:600}
+  .icbtn{font-family:var(--font-display);font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.03em;
+    padding:6px 10px;cursor:pointer;border:0;color:var(--text);background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);
+    display:inline-flex;align-items:center;gap:5px;transition:box-shadow .15s;--ch:5px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .icbtn .ico{width:13px;height:13px}
+  .icbtn:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+  .icbtn:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  .icbtn:disabled{opacity:.4;cursor:default}
+  .icbtn.buy{color:var(--gold)} .icbtn.buy .ico{color:var(--gold)}
+  .icbtn.on{color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
 </style>
 </head>
 <body>
@@ -310,6 +325,7 @@
   <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 18a8 8 0 1116 0" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 18l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-emote" viewBox="0 0 24 24"><path d="M9 18V5l10-2v13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16.5" cy="16" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
 </defs></svg>
 
 <div id="lobby">
@@ -358,18 +374,20 @@
   <button id="go-menu">Menu ◀</button>
 </div></div>
 <div id="shop-panel" class="hidden">
+  <div class="shop-bg"></div>
   <div class="shop-header">
+    <div class="eyebrow">// Armurerie</div>
     <div class="shop-tabs">
-      <button class="shop-tab active" data-tab="weapons">🔫 Armes</button>
-      <button class="shop-tab" data-tab="player">🧍 Personnage</button>
-      <button class="shop-tab" data-tab="accessories">🎽 Accessoires</button>
-      <button class="shop-tab" data-tab="boost">💪 Boost</button>
+      <button class="shop-tab active" data-tab="weapons"><svg class="ico"><use href="#i-weapon"></use></svg> Armes</button>
+      <button class="shop-tab" data-tab="player"><svg class="ico"><use href="#i-soldier"></use></svg> Personnage</button>
+      <button class="shop-tab" data-tab="accessories"><svg class="ico"><use href="#i-helmet"></use></svg> Accessoires</button>
+      <button class="shop-tab" data-tab="boost"><svg class="ico"><use href="#i-vest"></use></svg> Boost</button>
     </div>
-    <div class="shop-money2">💰 <span id="shop-money-val">0</span></div>
-    <button id="shop-close" class="shop-close" title="Fermer">✕</button>
+    <div class="shop-money2"><svg class="ico"><use href="#i-coin"></use></svg> <span id="shop-money-val">0</span></div>
+    <button id="shop-close" class="shop-close" title="Fermer"><svg class="ico"><use href="#i-close"></use></svg></button>
   </div>
-  <button id="shop-prev" class="shop-nav-arrow left" title="Précédent">‹</button>
-  <button id="shop-next" class="shop-nav-arrow right" title="Suivant">›</button>
+  <button id="shop-prev" class="shop-nav-arrow left" title="Précédent"><svg class="ico"><use href="#i-chev-l"></use></svg></button>
+  <button id="shop-next" class="shop-nav-arrow right" title="Suivant"><svg class="ico"><use href="#i-chev-r"></use></svg></button>
   <div id="shop-info" class="shop-info"></div>
 </div>
 <div id="settings-panel" class="panel hidden"><div class="panel-card settings-card">
@@ -495,11 +513,12 @@ function rarityBadge(key){ const r = rarityInfo(key);   // M-8 : le hex litéral
 function ico(name){ return `<svg class="ico" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function statBar(label, pct, text){ const p = Math.max(4, Math.min(100, Math.round(pct)));   // M-7 : pct numérique
   return `<div class="statbar"><span class="lbl">${label}</span><span class="trk"><i style="width:${p}%"></i></span><span class="val">${text}</span></div>`; }
-function itemCard(o){   // o:{rc,icon,name,rarity,foot,on,owned,data}
-  return `<div class="icard${o.on?' on':''}"${o.data||''} style="--rc:${o.rc}">`
+function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned}
+  return `<div class="icard${o.on?' on':''}" style="--rc:${o.rc}">`
     + `${o.owned?`<span class="ribbon">${ico('check')}</span>`:''}`
     + `<div class="thumb">${ico(o.icon)}</div><div class="nm">${o.name}</div>`
-    + `<div>${rarityBadge(o.rarity)}</div><div class="ic-foot">${o.foot||''}</div></div>`; }
+    + `<div class="ic-meta">${rarityBadge(o.rarity)}${o.sub?`<span class="ic-sub">${o.sub}</span>`:''}</div>`
+    + `<div class="ic-foot">${o.foot||''}</div></div>`; }
 
 // ====== Accessoires 3D (#26) : casque/costume attachés aux os (remplace skins) ======
 function buildHelmetVisor(){ const g=new THREE.Group();
@@ -1471,12 +1490,13 @@ Object.assign(G.debug.shop, {
   nextChar(){ return setShopChar(shopCharIndex + 1); }, prevChar(){ return setShopChar(shopCharIndex - 1); },
 });
 // ====== Écran boutique (UI bas-centre, inspirée réf) ======
-function shopStatCard(label, val){ return `<div class="shop-statcard"><span>${label}</span><b>${val}</b></div>`; }
-function upgRow(type, lvl, spec, cost, attr){
-  const btn = (cost == null) ? `<button class="shop-upg-btn" disabled>Max</button>`
-    : `<button class="shop-upg-btn buy" ${attr}="${type}"${save.money >= cost ? '' : ' disabled'}>+ · 💰${cost}</button>`;
-  return `<div class="shop-statrow"><span>${spec.name} <i>Niv ${lvl}/${spec.max}</i></span>${btn}</div>`;
+function upgRow2(type, lvl, spec, cost, attr){   // C-4 : pips + vrai bouton data-* (jamais pips seuls)
+  const pips = `<span class="upg-pips">` + Array.from({length:spec.max},(_,i)=>`<i class="${i<lvl?'on':''}"></i>`).join('') + `</span>`;
+  const btn = (cost == null) ? `<span class="upg-max">MAX</span>`
+    : `<button class="upg-btn" ${attr}="${type}"${save.money >= cost ? '' : ' disabled'}>${ico('coin')}${cost}</button>`;
+  return `<div class="upg-row"><span class="upg-name">${spec.name} ${pips}</span>${btn}</div>`;
 }
+function boostIcon(slot){ return slot==='vest'?'vest':slot==='boots'?'boot':'medal'; }
 function renderShop(){
   const info = document.getElementById('shop-info'); if(!info) return;
   const mv = document.getElementById('shop-money-val'); if(mv) mv.textContent = save.money;
@@ -1484,79 +1504,79 @@ function renderShop(){
   if(shopTab === 'weapons'){
     const w = WEAPONS[shopWeaponIndex], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
     const lvlTotal = Object.keys(UPGRADE_SPECS).reduce((a,t)=>a+upgradeLevel(w.id,t),0), lvlMax = Object.keys(UPGRADE_SPECS).length*5;
+    const dmg = Math.round(60 * s.dmgMult), rpm = Math.round(60 / s.cooldown);
     html += `<div class="shop-wname">${w.name} ${rarityBadge(w.rarity)} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`;
     html += `<div class="shop-statcards">`
-      + shopStatCard('Dégâts', Math.round(60 * s.dmgMult)) + shopStatCard('Tirs/min', Math.round(60 / s.cooldown))
-      + shopStatCard('Chargeur', s.mag) + shopStatCard('Recul', s.recoil.toFixed(1)) + `</div>`;
+      + statBar('Dégâts', dmg/200*100, dmg) + statBar('Cadence', rpm/900*100, rpm)
+      + statBar('Chargeur', s.mag/40*100, s.mag) + statBar('Stabilité', (3-s.recoil)/3*100, (3-s.recoil).toFixed(1)) + `</div>`;
     html += `<div class="shop-btns">`;
-    if(equipped) html += `<div class="shop-badge">✓ Équipée</div>`;
+    if(equipped) html += `<div class="shop-badge">${ico('check')} Équipée</div>`;
     else if(owned) html += `<button class="shop-cta" data-equip="${w.id}">Équiper</button>`;
-    else html += `<button class="shop-cta buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter · 💰${w.price}</button>`;
+    else html += `<button class="shop-cta buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter ${ico('coin')}${w.price}</button>`;
     if(owned) html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
     html += `</div>`;
     if(owned && shopAmeliorerOpen){ html += `<div class="shop-upgrades">`;
-      for(const t in UPGRADE_SPECS) html += upgRow(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg');
+      for(const t in UPGRADE_SPECS) html += upgRow2(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg');
       html += `</div>`; }
   } else if(shopTab === 'player'){   // vitrine carrousel : carte du perso centré (#25)
     const c = CHARACTERS[shopCharIndex];
     const owned = save.ownedCharacters.includes(c.id), eq = (save.selectedCharacterId || CHARACTERS[0].id) === c.id;
     html += `<div class="shop-wname">${c.name} ${rarityBadge(c.rarity)}</div>`;
     html += `<div class="shop-statcards">`
-      + shopStatCard('Vie', c.base.health) + shopStatCard('Régén', c.base.regen)
-      + shopStatCard('Vitesse', c.base.speed.toFixed(2) + '×') + `</div>`;
+      + statBar('Vie', c.base.health/250*100, c.base.health) + statBar('Régén', c.base.regen/25*100, c.base.regen)
+      + statBar('Vitesse', (c.base.speed-0.8)/0.5*100, c.base.speed.toFixed(2) + '×') + `</div>`;
     html += `<div class="shop-btns">`;
-    if(eq) html += `<div class="shop-badge">✓ Équipé</div>`;
+    if(eq) html += `<div class="shop-badge">${ico('check')} Équipé</div>`;
     else if(owned) html += `<button class="shop-cta" data-selchar="${c.id}">Équiper</button>`;
-    else html += `<button class="shop-cta buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>Acheter · 💰${c.price}</button>`;
+    else html += `<button class="shop-cta buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>Acheter ${ico('coin')}${c.price}</button>`;
     html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
     html += `</div>`;
-    if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades">`;
-      for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
+    if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorations — toutes vos parties</div><div class="shop-upgrades">`;
+      for(const t in PLAYER_UPGRADE_SPECS) html += upgRow2(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
       html += `</div>`; }
-  } else if(shopTab === 'boost'){   // onglet Boost (#28) : équipement à stats permanent
-    html += `<div class="shop-wname">Boost</div>`;
-    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Équipement</span><span>Bonus</span><span></span><span></span><span></span></div>`;
+  } else if(shopTab === 'boost'){   // onglet Boost (#28) : grille de cartes (C-3 : panneau gauche, perso visible)
+    html += `<div class="shop-wname">Boost</div><div class="shop-grid">`;
     for(const bo of BOOSTS){
       const owned = save.ownedBoosts.includes(bo.id), eq = save.equippedBoosts[bo.slot] === bo.id;
       const statTxt = bo.stat === 'health' ? `+${bo.bonus} Vie` : bo.stat === 'speed' ? `+${Math.round(bo.bonus*100)}% Vit.` : `+${bo.bonus} Régén`;
-      const act = eq ? `<span class="shop-chartag">✓</span>`
-        : owned ? `<button class="shop-charbtn" data-equipboost="${bo.id}">Équiper</button>`
-        : `<button class="shop-charbtn buy" data-buyboost="${bo.id}"${save.money >= bo.price ? '' : ' disabled'}>💰${bo.price}</button>`;
-      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${bo.name} ${rarityBadge(bo.rarity)}</span><span>${statTxt}</span><span></span><span></span><span>${act}</span></div>`;
+      const foot = eq ? `<span class="icbtn on">${ico('check')} Équipé</span>`
+        : owned ? `<button class="icbtn" data-equipboost="${bo.id}">Équiper</button>`
+        : `<button class="icbtn buy" data-buyboost="${bo.id}"${save.money >= bo.price ? '' : ' disabled'}>${ico('coin')}${bo.price}</button>`;
+      html += itemCard({ rc:rarityInfo(bo.rarity).color, icon:boostIcon(bo.slot), name:bo.name, rarity:bo.rarity, sub:statTxt, foot, on:eq, owned });
     }
     html += `</div>`;
   } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
     const slot = shopAccSlot;
     html += `<div class="shop-wname">Accessoires</div>`;
-    html += `<div class="shop-subtabs"><button class="shop-subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Casque</button>`
-          + `<button class="shop-subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
-          + `<button class="shop-subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
-    if(slot === 'dance'){   // sous-onglet Danses (#27) : ▶ aperçu live (même non possédée) + acheter + sélectionner (max 3)
+    html += `<div class="subtabs"><button class="subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Casque</button>`
+          + `<button class="subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
+          + `<button class="subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
+    if(slot === 'dance'){   // Danses (#27) : C-6 — TOUJOURS aperçu ▶, PUIS acheter (si !owned) SINON sélectionner
       const sel = save.selectedDances;
-      html += `<div class="shop-sub2">▶ aperçu (même non achetée) · achète puis sélectionne 3 (touches 1/2/3) · ${sel.length}/3</div>`;
-      html += `<div class="dance-list">`;
+      html += `<div class="shop-sub2">Aperçu ▶ libre · achète puis sélectionne 3 (touches 1/2/3) — ${sel.length}/3</div>`;
+      html += `<div class="shop-grid">`;
       for(const d of DANCES){
         const owned = save.ownedDances.includes(d.id), on = sel.includes(d.id);
-        let act = `<button class="shop-charbtn mini" data-previewdance="${d.id}" title="Aperçu">▶</button>`;
-        if(!owned) act += `<button class="shop-charbtn buy mini" data-buydance="${d.id}"${save.money >= d.price ? '' : ' disabled'}>💰${d.price}</button>`;
-        else act += `<button class="shop-charbtn mini${on ? ' on' : ''}" data-seldance="${d.id}">${on ? '✓' : 'Sél.'}</button>`;
-        html += `<div class="dance-row${on ? ' on' : ''}"><span class="dance-name">${d.name} ${rarityBadge(d.rarity)}</span><span class="dance-act">${act}</span></div>`;
+        let foot = `<button class="icbtn" data-previewdance="${d.id}" title="Aperçu">${ico('play')}</button>`;
+        if(!owned) foot += `<button class="icbtn buy" data-buydance="${d.id}"${save.money >= d.price ? '' : ' disabled'}>${ico('coin')}${d.price}</button>`;
+        else foot += `<button class="icbtn${on ? ' on' : ''}" data-seldance="${d.id}">${on ? 'Sélect.' : 'Choisir'}</button>`;
+        html += itemCard({ rc:rarityInfo(d.rarity).color, icon:'emote', name:d.name, rarity:d.rarity, foot, on, owned });
       }
       html += `</div>`;
     } else {   // Casque / Costume
       const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot];
-      html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>${slot==='helmet'?'Casque':'Costume'}</span><span></span><span></span><span></span><span></span></div>`;
+      html += `<div class="shop-grid">`;
       for(const a of cat){
         const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
-        const act = eq ? `<span class="shop-chartag">✓</span>`
-          : owned ? `<button class="shop-charbtn" data-selacc="${a.id}">Équiper</button>`
-          : `<button class="shop-charbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>💰${a.price}</button>`;
-        html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${a.name} ${rarityBadge(a.rarity)}</span><span></span><span></span><span></span><span>${act}</span></div>`;
+        const foot = eq ? `<span class="icbtn on">${ico('check')} Équipé</span>`
+          : owned ? `<button class="icbtn" data-selacc="${a.id}">Équiper</button>`
+          : `<button class="icbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>${ico('coin')}${a.price}</button>`;
+        html += itemCard({ rc:rarityInfo(a.rarity).color, icon:(slot==='helmet'?'helmet':'vest'), name:a.name, rarity:a.rarity, foot, on:eq, owned });
       }
       html += `</div>`;
     }
   }
-  info.classList.toggle('left', shopTab === 'accessories' || shopTab === 'boost');   // bloc à gauche pour accessoires/boost ; perso = carte bas-centre (carrousel #25)
+  info.classList.toggle('grid', shopTab === 'accessories' || shopTab === 'boost');   // C-3 : panneau docké à gauche (accessoires/boost), perso 3D visible à droite
   info.innerHTML = html;
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
