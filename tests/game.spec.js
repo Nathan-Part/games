@@ -1344,7 +1344,7 @@ test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ p
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(3000); });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="accessories"]').click();
-  await expect(page.locator('#shop-info')).toContainText('Visière');                 // sous-onglet Casque par défaut
+  await expect(page.locator('#shop-info')).toContainText('Visière');                 // sous-onglet Masque par défaut
   await page.locator('#shop-info [data-buyacc="helm:visor"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().ownedAccessories)).toContain('helm:visor');
   await page.locator('#shop-info [data-selacc="helm:visor"]').click();
@@ -1858,4 +1858,130 @@ test('grenade : recharge a chaque vague', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
   await page.evaluate(() => __game.debug.forceNextWave());
   expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+});
+
+// ====== Tranche 34 : power-ups ======
+test('power : drop force a la mort', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forcePowerDrop(true); __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.powerUpCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('power : ramasser x2 degats double le multiplicateur', async ({ page }) => {
+  await startPlaying(page);
+  const d0 = await page.evaluate(() => __game.debug.liveDamage());
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnPowerUp('dmgx2', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'dmgx2', null, { timeout:3000 });
+  expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0 * 2, 3);
+});
+
+test('power : un seul actif a la fois (le dernier remplace)', async ({ page }) => {
+  await startPlaying(page);
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnPowerUp('dmgx2', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'dmgx2', null, { timeout:3000 });
+  await page.evaluate(p => __game.debug.spawnPowerUp('rapid', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'rapid', null, { timeout:3000 });
+});
+
+test('power : l effet expire', async ({ page }) => {
+  test.setTimeout(30000);
+  await startPlaying(page);
+  const d0 = await page.evaluate(() => __game.debug.liveDamage());
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnPowerUp('dmgx2', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'dmgx2', null, { timeout:3000 });
+  await page.waitForFunction(() => __game.debug.activePowerUp() === null, null, { timeout:12000 });   // ~8 s
+  expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0, 3);
+});
+
+// ====== Tranche 35 : dash ======
+test('dash : deplace nettement et respecte le cooldown', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ forward:true }));
+  const p0 = await page.evaluate(() => __game.position());
+  expect(await page.evaluate(() => __game.debug.dash())).toBe(true);
+  await page.waitForFunction(() => __game.debug.isDashing() === false, null, { timeout:3000 });
+  const p1 = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p1.x-p0.x, p1.z-p0.z)).toBeGreaterThan(1.8);
+  expect(await page.evaluate(() => __game.debug.dash())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.dashReady())).toBe(false);
+  await page.waitForFunction(() => __game.debug.dashReady() === true, null, { timeout:3000 });
+});
+
+test('dash : HUD present en jeu', async ({ page }) => {
+  await startPlaying(page);
+  await expect(page.locator('#dash-hud')).toBeVisible();
+});
+
+// ====== Tranche 36 : fusil à pompe ======
+test('shotgun : nouvelle arme avec plombs', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.catalog());
+  expect(cat.find(w => w.id === 'shotgun')).toBeTruthy();
+  expect(await page.evaluate(() => __game.debug.weaponStats('shotgun').pellets)).toBeGreaterThan(1);
+  expect(await page.evaluate(() => __game.debug.weaponStats('default').pellets)).toBe(1);
+});
+
+test('shotgun : tirer lache plusieurs plombs et fait mal', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('shotgun'); __game.debug.shop.equip('shotgun'); });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(4));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  const tracers = await page.evaluate(() => { __game.debug.tryFire(); return __game.debug.tracerCount(); });
+  expect(tracers).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
+});
+
+// ====== Tranche 37 : ennemi kamikaze (bomber) ======
+test('bomber : composition des vagues (des la v4)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.waveComposition(4))).toContain('bomber');
+  expect(await page.evaluate(() => __game.debug.waveComposition(1))).not.toContain('bomber');
+});
+
+test('bomber : explose proche du joueur et le blesse', async ({ page }) => {
+  await startPlaying(page);
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnEnemyTypeAt(0, 'bomber', p.x, p.z + 1), pos);
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.explodeBomberNow(0));
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBeLessThan(h0);
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+});
+
+test('bomber : explosion loin n inflige rien', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'bomber', 40, 40));
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.explodeBomberNow(0));
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(h0);
+});
+
+// ====== Tranche 38 : annonces de kill ======
+test('annonce : BOSS DOWN a la mort du boss', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 999999));   // enemies[0] = boss
+  expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('BOSS');
+});
+
+test('annonce : HEADSHOT sur un kill en tete', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.lastCallout())).toBe('HEADSHOT');
+});
+
+test('annonce : DOUBLE KILL sur 2 kills rapproches', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.damageEnemy(0, 99999); __game.debug.damageEnemy(1, 99999); });
+  expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('DOUBLE');
+  await expect(page.locator('#kill-callout')).toContainText('DOUBLE');
 });
