@@ -754,9 +754,9 @@ test('save : nettoyer une vague rapporte un bonus (par vague)', async ({ page })
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   const rates = await page.evaluate(() => __game.debug.save.rates());
   const before = await page.evaluate(() => __game.money);
-  await page.evaluate(() => __game.debug.killAllEnemies());       // 3 kills + bonus vague 1
+  await page.evaluate(() => __game.debug.killAllEnemies());       // 3 kills (combo x1,x1,x2) + bonus vague 1
   const after = await page.evaluate(() => __game.money);
-  expect(after - before).toBe(3 * rates.perKill + rates.perWave * 1);
+  expect(after - before).toBe((1 + 1 + 2) * rates.perKill + rates.perWave * 1);   // combo (#29) booste l'argent par kill
 });
 
 test('save : une sauvegarde corrompue retombe sur les valeurs par defaut', async ({ page }) => {
