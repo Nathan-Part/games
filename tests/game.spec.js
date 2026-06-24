@@ -1934,3 +1934,28 @@ test('bomber : explosion loin n inflige rien', async ({ page }) => {
   await page.evaluate(() => __game.debug.explodeBomberNow(0));
   expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(h0);
 });
+
+// ====== Tranche 38 : annonces de kill ======
+test('annonce : BOSS DOWN a la mort du boss', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 999999));   // enemies[0] = boss
+  expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('BOSS');
+});
+
+test('annonce : HEADSHOT sur un kill en tete', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.lastCallout())).toBe('HEADSHOT');
+});
+
+test('annonce : DOUBLE KILL sur 2 kills rapproches', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.damageEnemy(0, 99999); __game.debug.damageEnemy(1, 99999); });
+  expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('DOUBLE');
+  await expect(page.locator('#kill-callout')).toContainText('DOUBLE');
+});

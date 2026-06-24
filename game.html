@@ -115,6 +115,11 @@
     opacity:0;transition:opacity .25s ease,transform .25s ease;pointer-events:none;
     text-align:center;white-space:nowrap}
   #wave-banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  #kill-callout{position:fixed;left:50%;top:150px;transform:translateX(-50%) scale(.8);z-index:12;
+    font-size:28px;font-weight:900;letter-spacing:.06em;color:#ffcf3f;text-shadow:0 2px 8px #000;
+    opacity:0;pointer-events:none;transition:opacity .12s}
+  #kill-callout.show{opacity:1;animation:calloutPop .9s ease-out}
+  @keyframes calloutPop{0%{transform:translateX(-50%) scale(1.3)}30%{transform:translateX(-50%) scale(1)}100%{transform:translateX(-50%) scale(1);opacity:0}}
   #vignette{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s;
     box-shadow:inset 0 0 140px 40px rgba(200,20,20,.85)}
   #vignette.show{opacity:1}
@@ -281,6 +286,7 @@
 <div id="money-hud" class="hidden"></div>
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
+<div id="kill-callout"></div>
 <div id="vignette"></div>
 <div id="heal-flash"></div>
 <div id="healthbar" class="hidden"><div id="health-fill"></div></div>
@@ -938,7 +944,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower();              // pas de loot/combo/power conservé d'une partie à l'autre (#23/#29/#34)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts();   // reset loot/combo/power/annonces (#23/#29/#34/#38)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1570,6 +1576,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     if(t) hitTarget(t);
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
+        e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
         damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); } }
   }
 }
@@ -1976,7 +1983,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower();              // restart = arme save + combo/power remis à 0 (#23/#29/#34)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts();   // restart : reset arme/combo/power/annonces (#23/#29/#34/#38)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -2468,6 +2475,20 @@ function explodeBomber(e){
   spawnExplosionFx(new THREE.Vector3(e.root.position.x, 1, e.root.position.z));
 }
 G.debug.explodeBomberNow = (i) => { const e = enemies[i]; if(e) killEnemy(e); };
+// ====== Annonces de kill (#38) : HEADSHOT / multi-kill / BOSS DOWN ======
+const MULTIKILL_WINDOW = 1.2; const killTimes = []; let lastCalloutText = null, calloutT = null;
+function showCallout(text){ lastCalloutText = text; const el = document.getElementById('kill-callout'); if(!el) return;
+  el.textContent = text; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(calloutT); calloutT = setTimeout(() => el.classList.remove('show'), 1000); }
+function killCallout(e){
+  const t = nowS(); killTimes.push(t); while(killTimes.length && t - killTimes[0] > MULTIKILL_WINDOW) killTimes.shift();
+  const n = killTimes.length;
+  if(e.type === 'boss') showCallout('BOSS DOWN');
+  else if(n >= 2) showCallout(n===2 ? 'DOUBLE KILL' : n===3 ? 'TRIPLE KILL' : 'MULTI KILL !');
+  else if(e.lastHitHead) showCallout('HEADSHOT');
+}
+function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); }
+G.debug.lastCallout = () => lastCalloutText;
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
@@ -2486,6 +2507,7 @@ function killEnemy(e){
   maybeDropPower(e);                                   // chance de power-up (#34 ; boss garanti)
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
+  killCallout(e);                                       // annonce HEADSHOT/multi-kill/BOSS DOWN (#38)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
