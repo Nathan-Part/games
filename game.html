@@ -386,7 +386,7 @@
 </div>
 
 <div id="hud" class="hidden"></div>
-<div id="pause" class="hidden"><div>⏸ En pause — clique pour reprendre</div></div>
+<div id="pause" class="hidden"><div>Pause — clique pour reprendre</div></div>
 <div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
 <div id="crosshair" class="hidden"></div>
 <div id="scope"></div>
@@ -2114,9 +2114,9 @@ function updateRadar(){
   const px=model.position.x, pz=model.position.z, cy=camYaw, cos=Math.cos(cy), sin=Math.sin(cy);
   ctx.clearRect(0,0,cv.width,cv.height);
   // anneau + croix
-  ctx.strokeStyle='rgba(120,150,220,.32)'; ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(150,160,175,.30)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.arc(C,C,RADAR_R,0,Math.PI*2); ctx.stroke();
-  ctx.strokeStyle='rgba(120,150,220,.14)';
+  ctx.strokeStyle='rgba(150,160,175,.13)';
   ctx.beginPath(); ctx.moveTo(C,C-RADAR_R); ctx.lineTo(C,C+RADAR_R); ctx.moveTo(C-RADAR_R,C); ctx.lineTo(C+RADAR_R,C); ctx.stroke();
   // contenu clippé au disque
   ctx.save(); ctx.beginPath(); ctx.arc(C,C,RADAR_R,0,Math.PI*2); ctx.clip();
