@@ -1189,6 +1189,13 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 // ====== Catalogue d'armes (boutique #13) ======
+// 💡 Futur modèle 3D (#39) : pour ajouter une arme dont le GLB n'est pas encore prêt, déclare-la avec
+//    une IMAGE placeholder + le dossier où tu déposeras le GLB plus tard, ex. :
+//      { id:'lmg', name:'Mitrailleuse', price:1800, rarity:'legendaire',
+//        stats:{ mag:60, cooldown:0.06, reload:2.6, dmgMult:0.7, recoil:1.4 },
+//        previewImg:'artefact/lmg/preview.png', assetDir:'artefact/lmg/' }
+//    -> l'image s'affiche dans la vitrine ; dès qu'un .glb est dans `artefact/lmg/`, le MODÈLE s'affiche
+//       automatiquement (auto-découverte, zéro changement de code). Marche pour toute future catégorie.
 const WEAPONS = [
   { id:'default', name:"Fusil d'assaut", price:0, glb:true, rarity:'commun',
     stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
