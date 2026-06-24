@@ -1385,3 +1385,11 @@ test('rarete : chaque item de catalogue a une rarete connue', async ({ page }) =
   expect(data.c.find(c => c.name === 'Cyborg').rarity).toBe('epique');
   expect(data.s.find(s => s.id === 'gold').rarity).toBe('legendaire');
 });
+
+test('rarete : le badge rend la couleur et le nom du palier', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const rare = await page.evaluate(() => __game.debug.shop.rarityBadge('rare'));
+  expect(rare).toContain('#4f9dff'); expect(rare).toContain('Rare');
+  const leg = await page.evaluate(() => __game.debug.shop.rarityBadge('legendaire'));
+  expect(leg).toContain('#ffb02e'); expect(leg).toContain('Légendaire');
+});

@@ -364,6 +364,9 @@ const RARITIES = {
   legendaire: { id:'legendaire', name:'Légendaire', color:'#ffb02e', tier:3 },
 };
 const RARITY_ORDER = ['commun','rare','epique','legendaire'];
+function rarityInfo(key){ return RARITIES[key] || RARITIES.commun; }
+function rarityBadge(key){ const r = rarityInfo(key);
+  return `<span class="rarity-badge" style="color:${r.color};border-color:${r.color};background:${r.color}22">${r.name}</span>`; }
 
 // ====== Skins / cosmétiques (#16) : teinte des matériaux du perso ======
 const SKINS = [
@@ -1092,6 +1095,7 @@ function equipWeapon(id){
 G.debug.shop = {
   catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price, rarity:w.rarity })); },
   rarities(){ return RARITY_ORDER.map(k => ({ id:k, name:RARITIES[k].name, color:RARITIES[k].color, tier:RARITIES[k].tier })); },
+  rarityBadge(key){ return rarityBadge(key); },
   buy(id){ return buyWeapon(id); }, equip(id){ return equipWeapon(id); },
   upgrade(id, type){ return buyUpgrade(id, type); }, upgradeCost(id, type){ return upgradeCost(id, type); },
   playerUpgrade(type){ return buyPlayerUpgrade(type); }, playerUpgradeCost(type){ return playerUpgradeCost(type); },
