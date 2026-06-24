@@ -1985,3 +1985,74 @@ test('annonce : DOUBLE KILL sur 2 kills rapproches', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('DOUBLE');
   await expect(page.locator('#kill-callout')).toContainText('DOUBLE');
 });
+
+// ====== Tranche 39 : aperçu d'article extensible ======
+test('apercu : kind resolu par champ (chaine de repli)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const k = (o) => page.evaluate(x => __game.debug.itemPreviewKind(x), o);
+  expect(await k({ assetDir:'artefact/x/' })).toBe('glb');
+  expect(await k({ modelUrl:'x.glb' })).toBe('glb');
+  expect(await k({ build:true })).toBe('build');
+  expect(await k({ previewImg:'i.png' })).toBe('image');
+  expect(await k({})).toBe('placeholder');
+});
+
+test('apercu : armes existantes ont la bonne source', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.shopPreviewKind('default'))).toBe('glb');
+  expect(await page.evaluate(() => __game.debug.shopPreviewKind('smg'))).toBe('build');
+});
+
+test('apercu : une image placeholder devient un plan image', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const img = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  expect(await page.evaluate(u => __game.debug.buildItemPreviewIsImage({ previewImg:u }), img)).toBe(true);
+});
+
+// ====== Tranche 40 : menu pause ======
+test('pause : gele la partie puis reprend', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setPaused(true));
+  const p0 = await page.evaluate(() => __game.position());
+  await page.evaluate(() => __game.debug.setInput({ forward:true }));
+  await page.waitForTimeout(500);
+  const p1 = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p1.x-p0.x, p1.z-p0.z)).toBeLessThan(0.05);
+  await page.evaluate(() => __game.debug.setPaused(false));
+  await page.waitForTimeout(500);
+  const p2 = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p2.x-p0.x, p2.z-p0.z)).toBeGreaterThan(0.3);
+});
+
+test('pause : le menu permet de revenir a l accueil', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setPaused(true));
+  await expect(page.locator('#pause')).toBeVisible();
+  await expect(page.locator('#pause')).toContainText('Reprendre');
+  await page.locator('#pause-menu').click();
+  expect(await page.evaluate(() => __game.phase)).toBe('lobby');
+});
+
+// ====== Tranche 41 : barils explosifs ======
+test('baril : presents en jeu + explosion AoE', async ({ page }) => {
+  await startPlaying(page);
+  const n0 = await page.evaluate(() => __game.debug.barrelCount());
+  expect(n0).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(1, 'shooter', 8, 6));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(1));
+  await page.evaluate(() => __game.debug.explodeBarrelNow(0));
+  expect(await page.evaluate(() => __game.debug.enemyHp(1))).toBeLessThan(hp0);
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0 - 1);
+});
+
+test('baril : tirer dessus le fait exploser', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<3;i++) __game.debug.moveEnemy(i, 40, 40); __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  const n0 = await page.evaluate(() => __game.debug.barrelCount());
+  await page.evaluate(() => __game.debug.spawnBarrelInFront(8));
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0 + 1);
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0);
+});

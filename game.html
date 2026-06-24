@@ -141,9 +141,17 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #pause,#overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
     background:rgba(8,9,11,.9);text-align:center;padding:24px}
-  #pause{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.12em;font-size:var(--t-xl);color:var(--text)}
   #overlay-msg{max-width:520px;line-height:1.6;color:var(--text-2)}
   #overlay code{background:rgba(255,255,255,.08);padding:2px 7px;border-radius:4px;color:var(--gold)}
+  .pause-box{background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);padding:26px 34px;text-align:center;display:flex;flex-direction:column;gap:10px;--ch:14px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .pause-box h2{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:var(--t-2xl);margin-bottom:8px}
+  .pause-box button{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:var(--t-md);
+    padding:11px 24px;cursor:pointer;border:0;color:var(--text);background:var(--bg-600);box-shadow:inset 0 0 0 1px var(--line-2);transition:.15s;--ch:8px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .pause-box button:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+  .pause-box button:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+  .pause-box #pause-resume{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--accent-ink)}
   #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:18px;height:18px;pointer-events:none}
   #sight{position:fixed;left:50%;top:50%;width:40px;height:40px;transform:translate(-50%,-50%);z-index:12;
     border:1.5px solid rgba(120,235,150,.55);border-radius:50%;display:none;pointer-events:none}
@@ -477,7 +485,12 @@
 </div>
 
 <div id="hud" class="hidden"></div>
-<div id="pause" class="hidden"><div>Pause — clique pour reprendre</div></div>
+<div id="pause" class="hidden"><div class="pause-box">
+  <h2>Pause</h2>
+  <button id="pause-resume">Reprendre</button>
+  <button id="pause-restart">Recommencer</button>
+  <button id="pause-menu">Menu</button>
+</div></div>
 <div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
 <div id="crosshair" class="hidden"></div>
 <div id="scope"></div>
@@ -1434,12 +1447,26 @@ function showOverlay(msg){
   document.getElementById('overlay-msg').innerHTML =
     `⚠️ ${msg}<br><br>Lance via un serveur local :<br><code>python -m http.server 8123</code><br>puis <code>http://localhost:8123/game.html</code>`;
 }
+let paused = false;   // #40 : vrai gel de la partie
+function setPaused(b){ paused = !!b && G.phase==='playing'; document.getElementById('pause').classList.toggle('hidden', !paused); }
+G.debug.setPaused = (b) => setPaused(b);
+G.debug.pauseOpen = () => paused;
+document.getElementById('pause-resume').addEventListener('click', e => { e.stopPropagation(); canvasEl.requestPointerLock?.(); setPaused(false); });
+document.getElementById('pause-restart').addEventListener('click', e => { e.stopPropagation(); setPaused(false); restartGame(); });
+document.getElementById('pause-menu').addEventListener('click', e => { e.stopPropagation(); setPaused(false); backToHome(); });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement;
-  document.getElementById('pause').classList.toggle('hidden', locked || G.phase!=='playing');
+  if(G.phase==='playing') setPaused(!locked); else document.getElementById('pause').classList.add('hidden');
 });
 
 // ====== Catalogue d'armes (boutique #13) ======
+// 💡 Futur modèle 3D (#39) : pour ajouter une arme dont le GLB n'est pas encore prêt, déclare-la avec
+//    une IMAGE placeholder + le dossier où tu déposeras le GLB plus tard, ex. :
+//      { id:'lmg', name:'Mitrailleuse', price:1800, rarity:'legendaire',
+//        stats:{ mag:60, cooldown:0.06, reload:2.6, dmgMult:0.7, recoil:1.4 },
+//        previewImg:'artefact/lmg/preview.png', assetDir:'artefact/lmg/' }
+//    -> l'image s'affiche dans la vitrine ; dès qu'un .glb est dans `artefact/lmg/`, le MODÈLE s'affiche
+//       automatiquement (auto-découverte, zéro changement de code). Marche pour toute future catégorie.
 const WEAPONS = [
   { id:'default', name:"Fusil d'assaut", price:0, glb:true, rarity:'commun',
     stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
@@ -1532,24 +1559,49 @@ async function setShopChar(i){
 G.debug.shopCharObjCount = () => [shopCharObj, shopCharL, shopCharR].filter(Boolean).length;
 G.debug.shopCharCenterSize = () => { if(!shopCharObj) return 0; const s = new THREE.Box3().setFromObject(shopCharObj).getSize(new THREE.Vector3()); return s.y; };
 // modèle de vitrine : vrai GLB pour le fusil (sauf mode test rapide), primitive pour les autres armes
-async function buildPreviewModel(id){
-  const w = weaponById(id);
-  if(w.glb && !window.__FAST_WEAPON__){
-    if(!shopGlbCache){
-      const url = await findWeaponGlb();
-      if(url){ try {
-        const g = await loader.loadAsync(url); g.scene.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(g.scene), s = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
-        const sc = WEAPON_LEN / (Math.max(s.x, s.y, s.z) || 1);
-        g.scene.scale.setScalar(sc); g.scene.position.sub(c.multiplyScalar(sc));
-        if(s.x >= s.y && s.x >= s.z) g.scene.rotation.y = -Math.PI/2; else if(s.y >= s.x && s.y >= s.z) g.scene.rotation.x = Math.PI/2;
-        const wr = new THREE.Group(); wr.add(g.scene); shopGlbCache = wr;
-      } catch(e){} }
-    }
-    if(shopGlbCache) return shopGlbCache.clone();
-  }
-  return w.build();
+// ====== Aperçu d'article de boutique (#39) : chaîne de repli extensible ======
+// PRIORITÉ : assetDir/modelUrl (vrai GLB) > build (primitive) > previewImg (image placeholder) > cube.
+// Pour montrer un VRAI modèle 3D : déposer un .glb dans le dossier `assetDir` de l'article
+// (convention : artefact/[catégorie]/[objet]/) — AUCUN changement de code requis.
+const glbUrlCache = new Map();
+async function loadGlbUrl(url){
+  if(glbUrlCache.has(url)) return glbUrlCache.get(url).clone();
+  try { const g = await loader.loadAsync(url); g.scene.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(g.scene), s = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const sc = WEAPON_LEN / (Math.max(s.x,s.y,s.z)||1); g.scene.scale.setScalar(sc); g.scene.position.sub(c.multiplyScalar(sc));
+    g.scene.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+    if(s.x>=s.y && s.x>=s.z) g.scene.rotation.y = -Math.PI/2; else if(s.y>=s.x && s.y>=s.z) g.scene.rotation.x = Math.PI/2;
+    const wrap = new THREE.Group(); wrap.add(g.scene); glbUrlCache.set(url, wrap); return wrap.clone();
+  } catch(e){ return null; }
 }
+function buildImagePlane(url){
+  const tex = new THREE.TextureLoader().load(url); try { tex.colorSpace = THREE.SRGBColorSpace; } catch(e){}
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide }));
+  m.userData.previewImage = true; return m;
+}
+function buildPlaceholderBox(){ const m = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.4,0.4),
+  new THREE.MeshStandardMaterial({ color:0x556070, emissive:0x223040, roughness:0.6 })); m.userData.placeholder = true; return m; }
+function itemPreviewKind(item){
+  if(!item) return 'placeholder';
+  if(item.modelUrl || item.assetDir || item.glb) return 'glb';
+  if(item.build) return 'build';
+  if(item.previewImg) return 'image';
+  return 'placeholder';
+}
+async function buildItemPreview(item){
+  if(!item) return buildPlaceholderBox();
+  if(!window.__FAST_WEAPON__){
+    let url = item.modelUrl || (item.assetDir ? await findGlbInDir(item.assetDir) : null) || (item.glb ? await findWeaponGlb() : null);
+    if(url){ const o = await loadGlbUrl(url); if(o) return o; }
+  }
+  if(item.build) return item.build();
+  if(item.previewImg) return buildImagePlane(item.previewImg);
+  return buildPlaceholderBox();
+}
+G.debug.itemPreviewKind = (item) => itemPreviewKind(item);
+G.debug.shopPreviewKind = (weaponId) => itemPreviewKind(weaponById(weaponId));
+G.debug.buildItemPreviewIsImage = async (item) => { const o = await buildItemPreview(item); return !!(o && o.userData && o.userData.previewImage); };
+async function buildPreviewModel(id){ return buildItemPreview(weaponById(id)); }
 function disposeShopObj(o){ if(o) scene.remove(o); }   // pas de dispose géo (clones GLB partagent la géométrie)
 function placeShopModel(m, scale, pos){
   m.scale.multiplyScalar(scale);
@@ -1605,8 +1657,9 @@ async function setShopWeapon(i){
   const n = WEAPONS.length; shopWeaponIndex = ((i % n) + n) % n; shopAmeliorerOpen = false;
   const seq = ++shopBuildSeq;
   disposeShopObj(shopSideL); disposeShopObj(shopSideR);
-  shopSideL = placeShopModel(WEAPONS[(shopWeaponIndex - 1 + n) % n].build(), 1.55, SHOP_SIDE_L);   // voisines : primitives déco
-  shopSideR = placeShopModel(WEAPONS[(shopWeaponIndex + 1) % n].build(), 1.55, SHOP_SIDE_R);
+  const sideMesh = (w) => w.build ? w.build() : buildPlaceholderBox();   // voisines : primitive ou placeholder (#39)
+  shopSideL = placeShopModel(sideMesh(WEAPONS[(shopWeaponIndex - 1 + n) % n]), 1.55, SHOP_SIDE_L);
+  shopSideR = placeShopModel(sideMesh(WEAPONS[(shopWeaponIndex + 1) % n]), 1.55, SHOP_SIDE_R);
   renderShop();                                          // stats/boutons tout de suite (le modèle central suit)
   const centerModel = await buildPreviewModel(WEAPONS[shopWeaponIndex].id);
   if(seq !== shopBuildSeq) return;                       // un changement plus récent a eu lieu
@@ -1822,6 +1875,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
   const shoot = [];
   for(const t of targets) if(t.alive) shoot.push(t.mesh);
   for(const e of enemies) if(e.alive) shoot.push(e.hitbox);
+  for(const b of barrels) shoot.push(b.hitbox);              // barils tirables (#41)
   const hits = _ray.intersectObjects(shoot, false);
   const end = hits.length ? hits[0].point.clone()
     : _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(SHOT_RANGE));
@@ -1833,7 +1887,8 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
-        damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); } }
+        damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
+      else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
   }
 }
 function tryFire(){
@@ -1914,6 +1969,33 @@ G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeCount = () => grenades;
 G.debug.grenadeProjCount = () => grenadeProjs.length;
 G.debug.explodeGrenadeAt = (x,y,z) => explodeGrenadeAt(x,y,z);
+// ====== Barils explosifs (#41) : tir -> explosion AoE aux ennemis ======
+const BARREL_R = 4, BARREL_DAMAGE = 90;
+const BARREL_SPOTS = [{x:8,z:6},{x:-8,z:-4},{x:6,z:-12},{x:-5,z:16}];
+const barrels = [];
+function buildBarrelMesh(){ const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.9,16), new THREE.MeshStandardMaterial({ color:0xb02a1e, metalness:0.4, roughness:0.5, emissive:0x300a06 })); body.position.y = 0.45;
+  const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.12,16), new THREE.MeshStandardMaterial({ color:0xf0c020, emissive:0x201803 })); stripe.position.y = 0.45;
+  g.add(body, stripe); g.traverse(o=>{ if(o.isMesh) o.castShadow = true; }); return g; }
+function spawnBarrel(x, z){
+  const mesh = buildBarrelMesh(); mesh.position.set(x, 0, z); scene.add(mesh);
+  const hb = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,1.8,8), new THREE.MeshBasicMaterial({ visible:false }));
+  hb.position.set(x, 0.9, z); hb.updateMatrixWorld(); scene.add(hb);
+  barrels.push({ mesh, hitbox:hb, x, z }); return barrels.length-1;
+}
+function clearBarrels(){ for(const b of barrels){ scene.remove(b.mesh); scene.remove(b.hitbox); } barrels.length = 0; }
+function spawnBarrels(){ clearBarrels(); for(const s of BARREL_SPOTS) spawnBarrel(s.x, s.z); }
+function explodeBarrel(b){
+  for(const e of enemies){ if(!e.alive) continue;
+    const d = Math.hypot(e.root.position.x-b.x, e.root.position.z-b.z);
+    if(d < BARREL_R) damageEnemy(e, Math.max(1, Math.round(BARREL_DAMAGE*(1-d/BARREL_R)))); }
+  spawnExplosionFx(new THREE.Vector3(b.x, 0.6, b.z));
+  scene.remove(b.mesh); scene.remove(b.hitbox); const i = barrels.indexOf(b); if(i>=0) barrels.splice(i,1);
+}
+G.debug.barrelCount = () => barrels.length;
+G.debug.explodeBarrelNow = (i) => { if(barrels[i]) explodeBarrel(barrels[i]); };
+G.debug.spawnBarrelInFront = (dist=8) => { _ray.setFromCamera({x:0,y:0}, camera);
+  const p = _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(dist)); return spawnBarrel(p.x, p.z); };
 function spawnTracer(from, to){
   const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xfff1a8, transparent:true, opacity:0.9 }));
@@ -2532,7 +2614,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearPowerUps(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearPowerUps(); clearBarrels(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -2780,7 +2862,7 @@ function startWave(w){
   wave = w; G.wave = w;
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
-  waveState = 'active'; refillGrenades();                                    // recharge les grenades à chaque vague (#33)
+  waveState = 'active'; refillGrenades(); spawnBarrels();                     // grenades rechargées + barils frais chaque vague (#33/#41)
   updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
 }
 function checkWaveCleared(){
@@ -2876,16 +2958,18 @@ function buildShotgunMesh(){   // fusil à pompe (#36) : canon large + pompe + c
   g.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
   return g;
 }
-async function findWeaponGlb(){
+// auto-découverte d'un .glb dans un dossier (1 niveau de sous-dossiers) — convention assets (#39)
+async function findGlbInDir(dir){
   try {
-    const entries = await listDir(WEAPON_DIR);
-    const direct = entries.filter(isGlb); if(direct.length) return WEAPON_DIR + direct[0];
+    const entries = await listDir(dir);
+    const direct = entries.filter(isGlb); if(direct.length) return dir + direct[0];
     for(const d of entries.filter(h => h.endsWith('/'))){
-      try { const sub = (await listDir(WEAPON_DIR + d)).filter(isGlb); if(sub.length) return WEAPON_DIR + d + sub[0]; } catch(e){}
+      try { const sub = (await listDir(dir + d)).filter(isGlb); if(sub.length) return dir + d + sub[0]; } catch(e){}
     }
   } catch(e){}
   return null;
 }
+async function findWeaponGlb(){ return findGlbInDir(WEAPON_DIR); }
 const WEAPON_LEN = 0.62;   // longueur cible du fusil (m)
 async function loadWeaponTemplate(weaponId = save.selectedWeapon){
   const w = weaponById(weaponId);
@@ -3133,7 +3217,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
