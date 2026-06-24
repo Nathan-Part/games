@@ -71,6 +71,8 @@
     background:rgba(10,12,18,.78);border:1px solid #3a4a66;border-radius:10px;padding:8px 14px;
     color:#eef2fb;font-weight:700;font-size:15px;letter-spacing:.02em;pointer-events:none}
   #pickup-prompt.hidden{display:none}
+  #grenade-hud{position:fixed;left:16px;bottom:16px;z-index:10;background:rgba(20,24,33,.8);border:1px solid rgba(120,150,220,.18);border-radius:12px;padding:8px 12px;font-weight:800;font-size:15px}
+  #grenade-hud.hidden{display:none}
   #combo-hud{position:fixed;left:50%;top:54px;transform:translateX(-50%);z-index:11;text-align:center;
     background:rgba(20,16,28,.74);border:1px solid #b066ff55;border-radius:12px;padding:6px 16px;color:#eee;pointer-events:none}
   #combo-hud.hidden{display:none}
@@ -260,6 +262,7 @@
 <div id="sight"></div>
 <div id="hitmarker">✕</div>
 <div id="combat" class="hidden"></div>
+<div id="grenade-hud" class="hidden">💣 3</div>
 <div id="pickup-prompt" class="hidden"></div>
 <div id="wave-hud" class="hidden"></div>
 <div id="combo-hud" class="hidden"></div>
@@ -932,6 +935,7 @@ async function startGame(){
   document.getElementById('wave-hud').classList.remove('hidden');
   document.getElementById('money-hud').classList.remove('hidden'); updateMoneyHud();
   document.getElementById('radar').classList.remove('hidden');   // mini-carte (#21)
+  document.getElementById('grenade-hud').classList.remove('hidden'); updateGrenadeHud();   // compteur grenades (#33)
   updateCombatHud();
   if(!enemyBase) await buildEnemyAssets(char);
   startWave(1);
@@ -998,6 +1002,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
   if(e.code==='KeyF' && G.phase==='playing') reload();                                // F = recharger
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
+  if(e.code==='KeyB' && G.phase==='playing') throwGrenade();                          // B = lancer une grenade (#33)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
   if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); }
   if(e.code==='KeyM'){ setMuted(!muted); }
@@ -1130,7 +1135,7 @@ function updateController(dt){
 // ====== UI : HUD, pause, overlay ======
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
-  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
+  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · B : grenade · G : ramasser · 1/2/3 : danses<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
 }
 function showOverlay(msg){
   document.getElementById('overlay').classList.remove('hidden');
@@ -1563,6 +1568,45 @@ function updateDamageNumbers(){   // expiration à l'horloge (indépendant du fr
 }
 G.debug.damageNumberCount = () => damageNumbers.length;
 G.debug.lastDamageNumber = () => lastDmgNum;
+// ====== Grenades (#33) : jet en arc + explosion AoE ======
+const MAX_GRENADES = 3, GRENADE_DAMAGE = 120, EXPLOSION_R = 4, GRENADE_FUSE = 1.4, GRENADE_GRAV = 14;
+let grenades = MAX_GRENADES; const grenadeProjs = [], grenadeFx = [];
+function buildGrenadeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.09,12,10),
+  new THREE.MeshStandardMaterial({ color:0x2a3a22, metalness:0.4, roughness:0.6, emissive:0x0a1505 })); }
+function throwGrenade(){
+  if(G.phase !== 'playing' || grenades <= 0) return false;
+  grenades--; updateGrenadeHud();
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const m = buildGrenadeMesh(); m.castShadow = true;
+  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
+  const vel = dir.multiplyScalar(9); vel.y += 3;
+  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE }); return true;
+}
+function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),
+  new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
+  m.position.copy(pos); scene.add(m); grenadeFx.push({ mesh:m, t0:nowS() }); }
+function explodeGrenadeAt(x, y, z){
+  for(const e of enemies){ if(!e.alive) continue;
+    const d = Math.hypot(e.root.position.x - x, e.root.position.z - z);
+    if(d < EXPLOSION_R) damageEnemy(e, Math.max(1, Math.round(GRENADE_DAMAGE * (1 - d/EXPLOSION_R)))); }
+  spawnExplosionFx(new THREE.Vector3(x, y, z)); playSound('shot');
+}
+function updateGrenades(dt){ const t = nowS();
+  for(let i=grenadeProjs.length-1;i>=0;i--){ const g = grenadeProjs[i];
+    g.vel.y -= GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel, dt);
+    if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
+    if(t >= g.explodeAt){ explodeGrenadeAt(g.mesh.position.x, g.mesh.position.y, g.mesh.position.z); scene.remove(g.mesh); grenadeProjs.splice(i,1); } }
+  for(let i=grenadeFx.length-1;i>=0;i--){ const f = grenadeFx[i], e = (t - f.t0)/0.3;
+    if(e >= 1){ scene.remove(f.mesh); grenadeFx.splice(i,1); continue; }
+    f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
+function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
+  for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
+function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); }
+function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
+G.debug.throwGrenade = () => throwGrenade();
+G.debug.grenadeCount = () => grenades;
+G.debug.grenadeProjCount = () => grenadeProjs.length;
+G.debug.explodeGrenadeAt = (x,y,z) => explodeGrenadeAt(x,y,z);
 function spawnTracer(from, to){
   const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xfff1a8, transparent:true, opacity:0.9 }));
@@ -1872,7 +1916,7 @@ G.debug.restart = () => restartGame();
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
   resetCombo();
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -2138,7 +2182,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -2360,7 +2404,7 @@ function startWave(w){
   wave = w; G.wave = w;
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
-  waveState = 'active';
+  waveState = 'active'; refillGrenades();                                    // recharge les grenades à chaque vague (#33)
   updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
 }
 function checkWaveCleared(){
@@ -2701,7 +2745,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

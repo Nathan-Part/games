@@ -1801,3 +1801,35 @@ test('soin : pack trop loin ne soigne pas', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.playerHealth())).toBeLessThanOrEqual(before + 2);  // régén lente seule, pas le pack
   expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(1);
 });
+
+// ====== Tranche 33 : grenades ======
+test('grenade : lancer decremente le stock et cree un projectile', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.throwGrenade())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.grenadeProjCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('grenade : stock vide refuse', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.throwGrenade(); __game.debug.throwGrenade(); __game.debug.throwGrenade(); });
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.throwGrenade())).toBe(false);
+});
+
+test('grenade : explosion inflige des degats de zone', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); });
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.explodeGrenadeAt(0, 0.5, 3));
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
+});
+
+test('grenade : recharge a chaque vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.throwGrenade(); __game.debug.throwGrenade(); __game.debug.throwGrenade(); });
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+});
