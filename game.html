@@ -1113,8 +1113,14 @@ G.debug.shop = {
 // ====== Boutique v2 : carrousel 3D + navigation ======
 let shopOpen = false, shopTab = 'weapons', shopWeaponIndex = 0;
 let shopWeaponObj = null, shopSideL = null, shopSideR = null, shopGlbCache = null, shopAmeliorerOpen = false, shopBuildSeq = 0;
+let shopCharIndex = 0, shopCharObj = null, shopCharL = null, shopCharR = null, shopCharSeq = 0;   // carrousel perso (#25)
 const SHOP_CENTER_POS = new THREE.Vector3(0, 1.78, 0.4);
 const SHOP_SIDE_L = new THREE.Vector3(-2.6, 1.62, -1.1), SHOP_SIDE_R = new THREE.Vector3(2.6, 1.62, -1.1);
+const CHAR_CENTER_POS = new THREE.Vector3(0, 0.98, 0);
+const CHAR_SIDE_L = new THREE.Vector3(-2.5, 0.78, -1.0), CHAR_SIDE_R = new THREE.Vector3(2.5, 0.78, -1.0);
+function charNeighbors(){ const n = CHARACTERS.length;
+  return { left:CHARACTERS[(shopCharIndex-1+n)%n].id, center:CHARACTERS[shopCharIndex].id, right:CHARACTERS[(shopCharIndex+1)%n].id }; }
+async function setShopChar(i){ const n = CHARACTERS.length; shopCharIndex = ((i % n) + n) % n; renderShop(); }
 // modèle de vitrine : vrai GLB pour le fusil (sauf mode test rapide), primitive pour les autres armes
 async function buildPreviewModel(id){
   const w = weaponById(id);
@@ -1206,6 +1212,9 @@ Object.assign(G.debug.shop, {
   next(){ return setShopWeapon(shopWeaponIndex + 1); }, prev(){ return setShopWeapon(shopWeaponIndex - 1); },
   current(){ return WEAPONS[shopWeaponIndex].id; },
   previewWeapon(){ return (shopOpen && shopTab === 'weapons') ? WEAPONS[shopWeaponIndex].id : null; },
+  charCarousel(){ return charNeighbors(); }, currentChar(){ return CHARACTERS[shopCharIndex].id; },
+  setChar(x){ const i = (typeof x === 'number') ? x : CHARACTERS.findIndex(c => c.id === x); if(i >= 0) return setShopChar(i); },
+  nextChar(){ return setShopChar(shopCharIndex + 1); }, prevChar(){ return setShopChar(shopCharIndex - 1); },
 });
 // ====== Écran boutique (UI bas-centre, inspirée réf) ======
 function shopStatCard(label, val){ return `<div class="shop-statcard"><span>${label}</span><b>${val}</b></div>`; }

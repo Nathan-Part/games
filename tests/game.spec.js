@@ -1457,3 +1457,16 @@ test('loot : invite HUD a proximite + touche G ramasse', async ({ page }) => {
   await page.keyboard.press('KeyG');
   expect(await page.evaluate(() => __game.debug.matchWeapon())).toBe('sniper');
 });
+
+// ====== Tranche 25 : personnages en vitrine 3D (carrousel) ======
+test('carrousel perso : charCarousel donne centre + voisins, nav cyclique', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.charCatalog().map(c => c.id));
+  await page.evaluate(() => __game.debug.shop.setChar(0));
+  const c = await page.evaluate(() => __game.debug.shop.charCarousel());
+  expect(c.center).toBe(cat[0]); expect(c.right).toBe(cat[1]); expect(c.left).toBe(cat[cat.length-1]);
+  await page.evaluate(() => __game.debug.shop.nextChar());
+  expect(await page.evaluate(() => __game.debug.shop.currentChar())).toBe(cat[1]);
+  await page.evaluate(() => __game.debug.shop.prevChar());
+  expect(await page.evaluate(() => __game.debug.shop.currentChar())).toBe(cat[0]);
+});
