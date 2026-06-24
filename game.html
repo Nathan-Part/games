@@ -165,6 +165,9 @@
   .shop-cta:disabled{opacity:.45;cursor:default}
   .shop-badge{padding:13px 26px;border-radius:12px;font-size:16px;font-weight:800;color:#8fe07a;border:1px solid #3ad17a}
   .rarity-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:7px;border:1px solid;vertical-align:middle}
+  .shop-subtabs{display:flex;gap:8px;margin:4px 0 8px}
+  .shop-subtab{background:#222a38;color:#aeb6c9;border:1px solid #3a4a66;border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:700}
+  .shop-subtab.on{background:#3a4a66;color:#fff}
   .shop-upgrades{display:flex;flex-direction:column;gap:7px;width:min(420px,86vw);margin-top:2px;
     background:rgba(22,27,40,.78);border:1px solid rgba(150,175,235,.2);border-radius:14px;padding:13px 18px}
   .shop-statrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
@@ -250,7 +253,7 @@
     <div class="shop-tabs">
       <button class="shop-tab active" data-tab="weapons">🔫 Armes</button>
       <button class="shop-tab" data-tab="player">🧍 Personnage</button>
-      <button class="shop-tab" data-tab="skins">🎨 Skins</button>
+      <button class="shop-tab" data-tab="accessories">🎽 Accessoires</button>
     </div>
     <div class="shop-money2">💰 <span id="shop-money-val">0</span></div>
     <button id="shop-close" class="shop-close" title="Fermer">✕</button>
@@ -456,49 +459,6 @@ G.debug.playerAccessory = (slot) => save.equipped[slot];
 G.debug.accessoryAttached = (slot) => { if(!model) return false; let f=false; model.traverse(o=>{ if(o.userData && o.userData.accSlot===slot) f=true; }); return f; };
 // (les debug shop.accessory* sont ajoutés après la définition de G.debug.shop, plus bas)
 
-// ====== Skins / cosmétiques (#16) : teinte des matériaux du perso ======
-const SKINS = [
-  { id:'default', name:'Origine', price:0,   tint:null,     rarity:'commun' },
-  { id:'crimson', name:'Carmin',  price:400, tint:0xd23b3b, rarity:'rare' },
-  { id:'azure',   name:'Azur',    price:400, tint:0x3b78d2, rarity:'rare' },
-  { id:'shadow',  name:'Spectre', price:600, tint:0x4a5260, rarity:'epique' },
-  { id:'gold',    name:'Doré',    price:800, tint:0xd2a93b, rarity:'legendaire' },
-];
-function skinById(id){ return SKINS.find(s => s.id === id) || SKINS[0]; }
-function applySkin(root, skinId){
-  if(!root) return;
-  const tint = skinById(skinId).tint;
-  root.traverse(o => { if(o.isMesh && o.material){
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    for(const m of mats){
-      if(!m.color) continue;
-      if(!m.userData.baseColor) m.userData.baseColor = m.color.clone();                 // couleur d'origine mémorisée
-      if(m.emissive && !m.userData.baseEmissive) m.userData.baseEmissive = m.emissive.clone();
-      if(tint == null){                                                                  // Origine : restaure tout
-        m.color.copy(m.userData.baseColor);
-        if(m.emissive && m.userData.baseEmissive) m.emissive.copy(m.userData.baseEmissive);
-      } else {
-        m.color.setHex(tint);                                                            // teinte (multiplie la texture)
-        if(m.emissive) m.emissive.setHex(tint).multiplyScalar(0.28);                     // léger halo coloré : skin lisible sur toute texture
-      }
-    }
-  } });
-}
-function buySkin(id){
-  const s = SKINS.find(s => s.id === id); if(!s) return false;
-  if(save.ownedSkins.includes(id) || save.money < s.price) return false;
-  save.money -= s.price; G.money = save.money; save.ownedSkins.push(id);
-  persist(); updateMoneyHud(); updateHomeMeta(); return true;
-}
-function selectSkin(id){
-  if(!SKINS.find(s => s.id === id) || !save.ownedSkins.includes(id)) return false;
-  save.selectedSkin = id; persist(); applySkin(model, id); return true;   // re-teinte live
-}
-G.debug.playerSkin = () => save.selectedSkin;
-G.debug.modelTint = () => { if(!model) return null; let hex = null;
-  model.traverse(o => { if(hex == null && o.isMesh && o.material){
-    const m = Array.isArray(o.material) ? o.material[0] : o.material; if(m && m.color) hex = '#' + m.color.getHexString(); } });
-  return hex; };
 
 // ====== Réglages (#18) : sensibilité souris / volume / vue par défaut (persistés) ======
 let lookSensitivity = 1;
@@ -1194,6 +1154,7 @@ G.debug.shop = {
 let shopOpen = false, shopTab = 'weapons', shopWeaponIndex = 0;
 let shopWeaponObj = null, shopSideL = null, shopSideR = null, shopGlbCache = null, shopAmeliorerOpen = false, shopBuildSeq = 0;
 let shopCharIndex = 0, shopCharObj = null, shopCharL = null, shopCharR = null, shopCharSeq = 0;   // carrousel perso (#25)
+let shopAccSlot = 'helmet';   // sous-onglet accessoires (#26) : 'helmet' | 'costume'
 const SHOP_CENTER_POS = new THREE.Vector3(0, 1.78, 0.4);
 const SHOP_SIDE_L = new THREE.Vector3(-2.6, 1.62, -1.1), SHOP_SIDE_R = new THREE.Vector3(2.6, 1.62, -1.1);
 const CHAR_CENTER_POS = new THREE.Vector3(0, 0.98, 0);
@@ -1310,7 +1271,7 @@ function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, 
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
   else if(shopOpen && shopTab === 'player'){ camera.position.set(0, 1.25, 4.7); camera.lookAt(0, 1.05, 0); }  // carrousel perso centré (#25)
-  else if(shopOpen && shopTab === 'skins'){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche
+  else if(shopOpen && shopTab === 'accessories'){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche (#26)
   else setLobbyCamera();
 }
 function updateShopTabs(){
@@ -1337,7 +1298,7 @@ function closeShop(){
 }
 function disposeCharCarousel(){ disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR); shopCharObj = shopCharL = shopCharR = null; }
 function setShopTab(name){
-  shopTab = (name === 'player') ? 'player' : (name === 'skins') ? 'skins' : 'weapons';
+  shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : 'weapons';
   if(shopTab !== 'player') disposeCharCarousel();        // libère le carrousel perso en quittant l'onglet
   updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera();
   if(shopTab === 'player'){ const i = CHARACTERS.findIndex(c => c.id === save.selectedCharacterId); setShopChar(i >= 0 ? i : 0); }   // construit la vitrine perso
@@ -1397,21 +1358,22 @@ function renderShop(){
     if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades">`;
       for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
       html += `</div>`; }
-  } else {   // onglet Skins (#16) : teintes cosmétiques du perso
-    const sel = save.selectedSkin || 'default';
-    html += `<div class="shop-wname">Skins</div>`;
-    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Skin</span><span></span><span></span><span></span><span></span></div>`;
-    for(const s of SKINS){
-      const owned = save.ownedSkins.includes(s.id), eq = sel === s.id;
-      const sw = s.tint == null ? 'linear-gradient(135deg,#9aa,#e8edf6)' : '#' + s.tint.toString(16).padStart(6, '0');
+  } else {   // onglet Accessoires (#26) : sous-onglets Casque / Costume
+    const slot = shopAccSlot, cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot];
+    html += `<div class="shop-wname">Accessoires</div>`;
+    html += `<div class="shop-subtabs"><button class="shop-subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Casque</button>`
+          + `<button class="shop-subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button></div>`;
+    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>${slot==='helmet'?'Casque':'Costume'}</span><span></span><span></span><span></span><span></span></div>`;
+    for(const a of cat){
+      const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
       const act = eq ? `<span class="shop-chartag">✓</span>`
-        : owned ? `<button class="shop-charbtn" data-selskin="${s.id}">Équiper</button>`
-        : `<button class="shop-charbtn buy" data-buyskin="${s.id}"${save.money >= s.price ? '' : ' disabled'}>💰${s.price}</button>`;
-      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${s.name} ${rarityBadge(s.rarity)}</span><span><i class="shop-swatch" style="background:${sw}"></i></span><span></span><span></span><span>${act}</span></div>`;
+        : owned ? `<button class="shop-charbtn" data-selacc="${a.id}">Équiper</button>`
+        : `<button class="shop-charbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>💰${a.price}</button>`;
+      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${a.name} ${rarityBadge(a.rarity)}</span><span></span><span></span><span></span><span>${act}</span></div>`;
     }
     html += `</div>`;
   }
-  info.classList.toggle('left', shopTab === 'skins');   // bloc à gauche pour skins ; perso = carte bas-centre (carrousel #25)
+  info.classList.toggle('left', shopTab === 'accessories');   // bloc à gauche pour accessoires ; perso = carte bas-centre (carrousel #25)
   info.innerHTML = html;
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
@@ -1419,8 +1381,9 @@ function renderShop(){
   info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
   info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
   info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)) renderShop(); });   // maj visuelle du lobby à la fermeture (carrousel #25)
-  info.querySelectorAll('[data-buyskin]').forEach(b => b.onclick = () => { if(buySkin(b.dataset.buyskin)) renderShop(); });
-  info.querySelectorAll('[data-selskin]').forEach(b => b.onclick = () => { if(selectSkin(b.dataset.selskin)) renderShop(); });
+  info.querySelectorAll('[data-accslot]').forEach(b => b.onclick = () => { shopAccSlot = b.dataset.accslot; renderShop(); });
+  info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = () => { if(buyAccessory(b.dataset.buyacc)) renderShop(); });
+  info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = () => { if(selectAccessory(shopAccSlot, b.dataset.selacc)) renderShop(); });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
 }
 
@@ -1575,9 +1538,6 @@ G.debug.playerStats = () => ({ maxHealth, regenRate, speedMult });
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
-G.debug.shop.skinCatalog = () => SKINS.map(s => ({ id:s.id, name:s.name, price:s.price, rarity:s.rarity }));
-G.debug.shop.buySkin = (id) => buySkin(id);
-G.debug.shop.selectSkin = (id) => selectSkin(id);
 G.debug.shop.accessoryCatalog = (slot) => (ACCESSORY_SLOTS[slot]||[]).map(a => ({ id:a.id, name:a.name, price:a.price, rarity:a.rarity }));
 G.debug.shop.buyAccessory = (id) => buyAccessory(id);
 G.debug.shop.selectAccessory = (slot, id) => selectAccessory(slot, id);

@@ -1189,55 +1189,28 @@ test('accessoires : achat refuse sans argent ; non possede non equipable', async
   expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:crown'))).toBe(false);
 });
 
-// ====== Tranche 16 : skins / cosmétiques (teintes du perso) ======
-test('skins : catalogue (Origine gratuit, prix croissants)', async ({ page }) => {
-  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
-  const cat = await page.evaluate(() => __game.debug.shop.skinCatalog());
-  const byId = id => cat.find(s => s.id === id);
-  expect(byId('default').price).toBe(0);
-  expect(byId('crimson')).toBeTruthy();
-  expect(byId('gold').price).toBeGreaterThan(byId('crimson').price);
-});
-
-test('skins : acheter+equiper change la teinte du modele (persiste)', async ({ page }) => {
-  await startPlaying(page);
-  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
-  expect(await page.evaluate(() => __game.debug.shop.buySkin('crimson'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.shop.selectSkin('crimson'))).toBe(true);
-  await expect.poll(() => page.evaluate(() => __game.debug.modelTint())).toBe('#d23b3b');
-  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
-  expect(await page.evaluate(() => __game.debug.save.get().selectedSkin)).toBe('crimson');
-  expect(await page.evaluate(() => __game.debug.save.get().ownedSkins)).toContain('crimson');
-});
-
-test('skins : default ne force pas une teinte vive', async ({ page }) => {
-  await startPlaying(page);
-  await page.evaluate(() => __game.debug.save.reset());   // selectedSkin = default
-  expect(await page.evaluate(() => __game.debug.playerSkin())).toBe('default');
-  expect(await page.evaluate(() => __game.debug.modelTint())).not.toBe('#d23b3b');
-});
-
-test('skins : achat refuse sans argent ; skin non possede non equipable', async ({ page }) => {
-  await startPlaying(page);
-  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(100); });
-  expect(await page.evaluate(() => __game.debug.shop.buySkin('gold'))).toBe(false);
-  expect(await page.evaluate(() => __game.debug.shop.selectSkin('gold'))).toBe(false);
-  expect(await page.evaluate(() => __game.debug.save.get().ownedSkins)).not.toContain('gold');
-});
-
-test('skins : onglet boutique montre le tableau et permet acheter/equiper', async ({ page }) => {
+// ====== Tranche 26 : onglet Accessoires (remplace l'onglet Skins) ======
+test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
-  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(5000); });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(3000); });
   await page.locator('#btn-shop').click();
-  await page.locator('.shop-tab[data-tab="skins"]').click();
-  expect(await page.evaluate(() => __game.debug.shop.currentTab())).toBe('skins');
-  await expect(page.locator('#shop-info')).toContainText('Carmin');
-  await page.locator('#shop-info [data-buyskin="crimson"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().ownedSkins)).toContain('crimson');
-  await page.locator('#shop-info [data-selskin="crimson"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().selectedSkin)).toBe('crimson');
+  await page.locator('.shop-tab[data-tab="accessories"]').click();
+  await expect(page.locator('#shop-info')).toContainText('Visière');                 // sous-onglet Casque par défaut
+  await page.locator('#shop-info [data-buyacc="helm:visor"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().ownedAccessories)).toContain('helm:visor');
+  await page.locator('#shop-info [data-selacc="helm:visor"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:visor');
+  await page.locator('#shop-info [data-accslot="costume"]').click();                 // sous-onglet Costume
+  await expect(page.locator('#shop-info')).toContainText('Plastron');
+});
+
+test('skins : systeme retire (plus aucune reference)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => typeof __game.debug.shop.skinCatalog)).toBe('undefined');
+  expect(await page.evaluate(() => typeof __game.debug.playerSkin)).toBe('undefined');
+  expect(await page.locator('[data-tab="skins"]').count()).toBe(0);
 });
 
 // ====== Tranche 18 : page de réglages (sensibilité / volume / vue par défaut) ======
@@ -1420,13 +1393,14 @@ test('rarete : chaque item de catalogue a une rarete connue', async ({ page }) =
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
   const data = await page.evaluate(() => ({
     keys: __game.debug.shop.rarities().map(x => x.id),
-    w: __game.debug.shop.catalog(), c: __game.debug.shop.charCatalog(), s: __game.debug.shop.skinCatalog(),
+    w: __game.debug.shop.catalog(), c: __game.debug.shop.charCatalog(),
+    h: __game.debug.shop.accessoryCatalog('helmet'), o: __game.debug.shop.accessoryCatalog('costume'),
   }));
-  for (const list of [data.w, data.c, data.s])
+  for (const list of [data.w, data.c, data.h, data.o])
     for (const it of list) expect(data.keys).toContain(it.rarity);
   expect(data.w.find(w => w.id === 'sniper').rarity).toBe('epique');
   expect(data.c.find(c => c.name === 'Cyborg').rarity).toBe('epique');
-  expect(data.s.find(s => s.id === 'gold').rarity).toBe('legendaire');
+  expect(data.h.find(a => a.id === 'helm:halo').rarity).toBe('legendaire');
 });
 
 test('rarete : le badge rend la couleur et le nom du palier', async ({ page }) => {
