@@ -1909,3 +1909,28 @@ test('shotgun : tirer lache plusieurs plombs et fait mal', async ({ page }) => {
   expect(tracers).toBeGreaterThanOrEqual(5);
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
 });
+
+// ====== Tranche 37 : ennemi kamikaze (bomber) ======
+test('bomber : composition des vagues (des la v4)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.waveComposition(4))).toContain('bomber');
+  expect(await page.evaluate(() => __game.debug.waveComposition(1))).not.toContain('bomber');
+});
+
+test('bomber : explose proche du joueur et le blesse', async ({ page }) => {
+  await startPlaying(page);
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnEnemyTypeAt(0, 'bomber', p.x, p.z + 1), pos);
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.explodeBomberNow(0));
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBeLessThan(h0);
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+});
+
+test('bomber : explosion loin n inflige rien', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'bomber', 40, 40));
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.explodeBomberNow(0));
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(h0);
+});
