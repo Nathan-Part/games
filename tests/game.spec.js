@@ -1741,6 +1741,16 @@ test('refonte : le CTA principal est orange (pas bleu legacy)', async ({ page })
   expect(bg).not.toMatch(/91,\s*140,\s*255/);  // ancien bleu #5b8cff
 });
 
+test('boutique : apercu d un accessoire sur le perso sans l acheter (essayer avant d acheter)', async ({ page }) => {
+  await startPlaying(page);                                    // perso (model) chargé de façon fiable
+  const id = await page.evaluate(() => __game.debug.shop.accessoryCatalog('helmet').find(a => a.price > 0).id);
+  expect(await page.evaluate(() => __game.debug.accessoryAttached('helmet'))).toBe(false);            // rien au depart
+  expect(await page.evaluate((i) => __game.debug.shop.previewAccessory('helmet', i), id)).toBe(true);  // previsualiser sans acheter
+  expect(await page.evaluate(() => __game.debug.accessoryAttached('helmet'))).toBe(true);             // visible sur le perso
+  expect(await page.evaluate(() => __game.debug.playerAccessory('helmet'))).not.toBe(id);             // mais pas equipe
+  expect(await page.evaluate((i) => __game.debug.save.get().ownedAccessories.includes(i), id)).toBe(false); // ni achete
+});
+
 // ====== Tranche 31 : vagues de boss ======
 test('boss : isBossWave tous les 5 niveaux', async ({ page }) => {
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);

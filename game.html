@@ -567,8 +567,8 @@ function rarityBadge(key){ const r = rarityInfo(key);   // M-8 : le hex litéral
 function ico(name){ return `<svg class="ico" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function statBar(label, pct, text){ const p = Math.max(4, Math.min(100, Math.round(pct)));   // M-7 : pct numérique
   return `<div class="statbar"><span class="lbl">${label}</span><span class="trk"><i style="width:${p}%"></i></span><span class="val">${text}</span></div>`; }
-function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned}
-  return `<div class="icard${o.on?' on':''}" style="--rc:${o.rc}">`
+function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned,data}
+  return `<div class="icard${o.on?' on':''}"${o.data||''} style="--rc:${o.rc}">`
     + `${o.owned?`<span class="ribbon">${ico('check')}</span>`:''}`
     + `<div class="thumb">${ico(o.icon)}</div><div class="nm">${o.name}</div>`
     + `<div class="ic-meta">${rarityBadge(o.rarity)}${o.sub?`<span class="ic-sub">${o.sub}</span>`:''}</div>`
@@ -658,6 +658,21 @@ function buyAccessory(id){
 function selectAccessory(slot, id){
   if(!ACCESSORY_SLOTS[slot] || !accessoryById(slot, id) || !save.ownedAccessories.includes(id)) return false;
   save.equipped[slot] = id; persist(); applyAccessories(model); return true;
+}
+// ---- Essayer avant d'acheter : aperçu d'un accessoire sur le perso sans le posséder/équiper ----
+let shopAccPreview = { helmet:null, costume:null };
+function previewAccessory(slot, id){
+  if(!model || !ACCESSORY_SLOTS[slot]) return false;
+  const a = accessoryById(slot, id); if(!a) return false;
+  shopAccPreview[slot] = id;
+  clearAccessory(model, slot);                              // retire le mesh courant de ce slot
+  if(a.build){ const spec = ACCESSORY_BONE[slot], bone = findBoneNamed(model, spec.name, spec.re);
+    if(bone) attachToBoneWorld(bone, a.build(), slot, spec.off); }   // attache l'aperçu (même non possédé)
+  return true;
+}
+function clearAccessoryPreview(){                            // restaure l'état réellement équipé sur le perso
+  shopAccPreview = { helmet:null, costume:null };
+  if(model) applyAccessories(model);
 }
 G.debug.playerAccessory = (slot) => save.equipped[slot];
 G.debug.accessoryAttached = (slot) => { if(!model) return false; let f=false; model.traverse(o=>{ if(o.userData && o.userData.accSlot===slot) f=true; }); return f; };
@@ -1520,6 +1535,7 @@ function closeShop(){
   shopOpen = false; document.getElementById('shop-panel').classList.add('hidden');
   for(const o of [shopWeaponObj, shopSideL, shopSideR]) if(o) o.visible = false;
   disposeCharCarousel();                                      // libère le carrousel perso (#25)
+  clearAccessoryPreview();                                    // retire tout aperçu, restaure l'équipé sur le perso
   if(model) model.visible = true;
   rebuildLobbyCharacters();                                   // un achat de perso a pu changer la liste
   const idx = characters.findIndex(c => c.id === save.selectedCharacterId); lobbyIndex = idx >= 0 ? idx : 0;
@@ -1529,6 +1545,7 @@ function closeShop(){
 function disposeCharCarousel(){ disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR); shopCharObj = shopCharL = shopCharR = null; }
 function setShopTab(name){
   shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : (name === 'boost') ? 'boost' : 'weapons';
+  clearAccessoryPreview();                               // changer d'onglet annule tout aperçu d'accessoire
   if(shopTab !== 'player') disposeCharCarousel();        // libère le carrousel perso en quittant l'onglet
   updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera();
   if(shopTab === 'player'){ const i = CHARACTERS.findIndex(c => c.id === save.selectedCharacterId); setShopChar(i >= 0 ? i : 0); }   // construit la vitrine perso
@@ -1619,15 +1636,16 @@ function renderShop(){
         html += itemCard({ rc:rarityInfo(d.rarity).color, icon:'emote', name:d.name, rarity:d.rarity, foot, on, owned });
       }
       html += `</div>`;
-    } else {   // Casque / Costume
-      const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot];
-      html += `<div class="shop-grid">`;
+    } else {   // Casque / Costume — cliquer la carte = aperçu sur le perso (essayer avant d'acheter)
+      const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot], prev = shopAccPreview[slot];
+      html += `<div class="shop-sub2">${ico('eye')} Clique un article pour l'essayer sur ton perso, puis achète</div><div class="shop-grid">`;
       for(const a of cat){
         const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
+        const on = prev ? (a.id === prev) : eq;
         const foot = eq ? `<span class="icbtn on">${ico('check')} Équipé</span>`
           : owned ? `<button class="icbtn" data-selacc="${a.id}">Équiper</button>`
           : `<button class="icbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>${ico('coin')}${a.price}</button>`;
-        html += itemCard({ rc:rarityInfo(a.rarity).color, icon:(slot==='helmet'?'helmet':'vest'), name:a.name, rarity:a.rarity, foot, on:eq, owned });
+        html += itemCard({ rc:rarityInfo(a.rarity).color, icon:(slot==='helmet'?'helmet':'vest'), name:a.name, rarity:a.rarity, foot, on, owned, data:` data-prevacc="${a.id}"` });
       }
       html += `</div>`;
     }
@@ -1641,8 +1659,9 @@ function renderShop(){
   info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
   info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)) renderShop(); });   // maj visuelle du lobby à la fermeture (carrousel #25)
   info.querySelectorAll('[data-accslot]').forEach(b => b.onclick = () => { shopAccSlot = b.dataset.accslot; renderShop(); });
-  info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = () => { if(buyAccessory(b.dataset.buyacc)) renderShop(); });
-  info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = () => { if(selectAccessory(shopAccSlot, b.dataset.selacc)) renderShop(); });
+  info.querySelectorAll('[data-prevacc]').forEach(b => b.onclick = () => { previewAccessory(shopAccSlot, b.dataset.prevacc); renderShop(); });   // essayer avant d'acheter
+  info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(buyAccessory(b.dataset.buyacc)) renderShop(); });
+  info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(selectAccessory(shopAccSlot, b.dataset.selacc)){ shopAccPreview[shopAccSlot] = null; renderShop(); } });
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
@@ -1933,6 +1952,7 @@ G.debug.shop.selectCharacter = (id) => selectCharacter(id);
 G.debug.shop.accessoryCatalog = (slot) => (ACCESSORY_SLOTS[slot]||[]).map(a => ({ id:a.id, name:a.name, price:a.price, rarity:a.rarity }));
 G.debug.shop.buyAccessory = (id) => buyAccessory(id);
 G.debug.shop.selectAccessory = (slot, id) => selectAccessory(slot, id);
+G.debug.shop.previewAccessory = (slot, id) => previewAccessory(slot, id);   // essayer avant d'acheter
 
 // ====== Danses / emotes (#27) : clips one-shot jouables en partie (touches 1/2/3) ======
 const DANCES = [
