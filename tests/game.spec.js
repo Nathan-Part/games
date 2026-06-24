@@ -1246,6 +1246,52 @@ test('danse : sous-onglet boutique achete et assigne', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.save.get().selectedDances[2])).toBe('dance:skill1');
 });
 
+// ====== Tranche 28 : boost / équipement à stats ======
+test('boost : catalogue (3 slots, rarete, bonus)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const keys = await page.evaluate(() => __game.debug.shop.rarities().map(r => r.id));
+  const cat = await page.evaluate(() => __game.debug.shop.boostCatalog());
+  const slots = new Set(cat.map(b => b.slot));
+  expect(slots.has('vest')).toBe(true); expect(slots.has('boots')).toBe(true); expect(slots.has('medal')).toBe(true);
+  for(const b of cat){ expect(keys).toContain(b.rarity); expect(b.bonus).toBeGreaterThan(0); }
+});
+
+test('boost : equiper un gilet augmente la vie max (persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const base = await page.evaluate(() => __game.debug.playerStats().maxHealth);   // 100 (Blue-Soldier)
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buyBoost('boost:vest2'); __game.debug.shop.equipBoost('boost:vest2'); });
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(base + 60);
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().equippedBoosts.vest)).toBe('boost:vest2');
+});
+
+test('boost : cumul multi-slots (vie + vitesse)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const h0 = await page.evaluate(() => __game.debug.playerStats().maxHealth);
+  const s0 = await page.evaluate(() => __game.debug.playerStats().speedMult);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000);
+    __game.debug.shop.buyBoost('boost:vest1'); __game.debug.shop.equipBoost('boost:vest1');
+    __game.debug.shop.buyBoost('boost:boots1'); __game.debug.shop.equipBoost('boost:boots1'); });
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(h0 + 25);
+  expect(await page.evaluate(() => __game.debug.playerStats().speedMult)).toBeGreaterThan(s0);
+});
+
+test('boost : refus si non possede ou sans argent', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(50); });
+  expect(await page.evaluate(() => __game.debug.shop.equipBoost('boost:vest1'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.buyBoost('boost:vest1'))).toBe(false);
+});
+
+test('boost : sans boost = stats de base (compat #15)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.playerStats().maxHealth)).toBe(100);
+  expect(await page.evaluate(() => __game.debug.boostBonuses())).toEqual({ health:0, regen:0, speed:0 });
+});
+
 // ====== Tranche 26 : onglet Accessoires (remplace l'onglet Skins) ======
 test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });

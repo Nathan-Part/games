@@ -344,6 +344,7 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selected
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
+  ownedBoosts:[], equippedBoosts:{},
   settings:{ sensitivity:1.0, volume:0.3, defaultView:'third' } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
@@ -1535,11 +1536,32 @@ const PLAYER_UPGRADE_SPECS = {
 function playerUpgradeLevel(type){ return (save.playerUpgrades && save.playerUpgrades[type]) || 0; }
 function playerUpgradeCost(type){ const l = playerUpgradeLevel(type);
   return l >= PLAYER_UPGRADE_SPECS[type].max ? null : PLAYER_UPGRADE_SPECS[type].baseCost * (l + 1); }
+// ====== Boost / équipement à stats (#28) : bonus passifs permanents par slot ======
+const BOOSTS = [
+  { id:'boost:vest1',  slot:'vest',  name:'Gilet léger',    stat:'health', bonus:25,   price:400,  rarity:'rare' },
+  { id:'boost:vest2',  slot:'vest',  name:'Gilet lourd',    stat:'health', bonus:60,   price:1000, rarity:'epique' },
+  { id:'boost:boots1', slot:'boots', name:'Bottes',         stat:'speed',  bonus:0.08, price:400,  rarity:'rare' },
+  { id:'boost:boots2', slot:'boots', name:'Bottes ailées',  stat:'speed',  bonus:0.18, price:1000, rarity:'epique' },
+  { id:'boost:medal1', slot:'medal', name:'Médaille',       stat:'regen',  bonus:5,    price:400,  rarity:'rare' },
+  { id:'boost:medal2', slot:'medal', name:"Médaille d'or",  stat:'regen',  bonus:12,   price:1100, rarity:'legendaire' },
+];
+const BOOST_SLOTS = ['vest','boots','medal'];
+function boostById(id){ return BOOSTS.find(b => b.id === id) || null; }
+function boostBonuses(){ const acc = { health:0, regen:0, speed:0 };
+  for(const slot of BOOST_SLOTS){ const b = boostById(save.equippedBoosts[slot]); if(b) acc[b.stat] += b.bonus; }
+  return acc; }
+function buyBoost(id){ const b = boostById(id); if(!b) return false;
+  if(save.ownedBoosts.includes(id) || save.money < b.price) return false;
+  save.money -= b.price; G.money = save.money; save.ownedBoosts.push(id);
+  persist(); updateMoneyHud(); updateHomeMeta(); return true; }
+function equipBoost(id){ const b = boostById(id); if(!b || !save.ownedBoosts.includes(id)) return false;
+  save.equippedBoosts[b.slot] = id; persist(); applyPlayerStats(); return true; }
 function applyPlayerStats(){
-  const b = characterById(save.selectedCharacterId).base;   // base du perso équipé + améliorations (#15)
-  maxHealth = b.health + PLAYER_UPGRADE_SPECS.health.perLevel * playerUpgradeLevel('health');
-  regenRate = b.regen  + PLAYER_UPGRADE_SPECS.regen.perLevel  * playerUpgradeLevel('regen');
-  speedMult = b.speed * (1 + PLAYER_UPGRADE_SPECS.speed.perLevel * playerUpgradeLevel('speed'));
+  const b = characterById(save.selectedCharacterId).base;   // base du perso + améliorations (#15) + boosts (#28)
+  const bb = boostBonuses();
+  maxHealth = b.health + PLAYER_UPGRADE_SPECS.health.perLevel * playerUpgradeLevel('health') + bb.health;
+  regenRate = b.regen  + PLAYER_UPGRADE_SPECS.regen.perLevel  * playerUpgradeLevel('regen')  + bb.regen;
+  speedMult = b.speed * (1 + PLAYER_UPGRADE_SPECS.speed.perLevel * playerUpgradeLevel('speed') + bb.speed);
   G.maxHealth = maxHealth;
 }
 function buyPlayerUpgrade(type){
@@ -1562,6 +1584,11 @@ function selectCharacter(id){
 }
 applyPlayerStats();   // reflète les améliorations sauvegardées dès le chargement
 G.debug.playerStats = () => ({ maxHealth, regenRate, speedMult });
+G.debug.shop.boostCatalog = () => BOOSTS.map(b => ({ id:b.id, slot:b.slot, name:b.name, stat:b.stat, bonus:b.bonus, price:b.price, rarity:b.rarity }));
+G.debug.shop.buyBoost = (id) => buyBoost(id);
+G.debug.shop.equipBoost = (id) => equipBoost(id);
+G.debug.equippedBoosts = () => Object.assign({}, save.equippedBoosts);
+G.debug.boostBonuses = () => boostBonuses();
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
