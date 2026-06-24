@@ -341,6 +341,7 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selected
   ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
+  ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
   settings:{ sensitivity:1.0, volume:0.3, defaultView:'third' } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
@@ -873,6 +874,7 @@ async function startGame(){
   if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
   model.rotation.y = 0;
   mixer = new THREE.AnimationMixer(model);                      // mixer de jeu sur le modèle déjà chargé
+  danceActionCache = {}; dancing = false; danceAction = null;   // nouvelles actions de danse sur ce mixer (#27)
   actions.idle = mixer.clipAction(retargetRole('idle'));
   const wc = retargetRole('walk'); actions.walk = wc ? mixer.clipAction(wc) : null;
   const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
@@ -955,6 +957,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
   if(e.code==='KeyF' && G.phase==='playing') reload();                                // F = recharger
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
+  if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
   if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); }
   if(e.code==='KeyM'){ setMuted(!muted); }
   resumeAudio(); });
@@ -1036,6 +1039,7 @@ function updateCamera(dt){
 // ====== Contrôleur + machine d'état locomotion ======
 const WALK_SPEED = 2.4, RUN_SPEED = 5.4, TURN_LERP = 12;
 let curLoco = 'idle';
+let danceActionCache = {}, dancing = false, danceAction = null, danceEndAt = 0;   // danses (#27)
 function setLoco(state){
   if(state===curLoco) return;
   const next = actions[state] || actions.idle;
@@ -1045,6 +1049,11 @@ function setLoco(state){
 }
 function updateController(dt){
   if(G.phase!=='playing' || !model) return;
+  if(dancing){                                                  // danse en cours (#27) : fige la loco
+    const moving = input.forward || input.back || input.left || input.right;
+    if(nowS() >= danceEndAt || moving) endDance();              // fin (durée écoulée ou mouvement)
+    else return;
+  }
   const f = (input.forward?1:0) - (input.back?1:0);
   const s = (input.left?1:0) - (input.right?1:0); // +s = droite écran (corrige l'inversion gauche/droite)
   let speed = 0;
@@ -1541,6 +1550,55 @@ G.debug.shop.selectCharacter = (id) => selectCharacter(id);
 G.debug.shop.accessoryCatalog = (slot) => (ACCESSORY_SLOTS[slot]||[]).map(a => ({ id:a.id, name:a.name, price:a.price, rarity:a.rarity }));
 G.debug.shop.buyAccessory = (id) => buyAccessory(id);
 G.debug.shop.selectAccessory = (slot, id) => selectAccessory(slot, id);
+
+// ====== Danses / emotes (#27) : clips one-shot jouables en partie (touches 1/2/3) ======
+const DANCES = [
+  { id:'dance:all_night', name:'All Night',    clip:'All_Night_Dance',      price:0,    rarity:'commun' },
+  { id:'dance:boom',      name:'Boom',         clip:'Boom_Dance',           price:0,    rarity:'commun' },
+  { id:'dance:groove',    name:'You Groove',   clip:'You_Groove',           price:0,    rarity:'rare' },
+  { id:'dance:skill1',    name:'Skill I',      clip:'Skill_01',             price:500,  rarity:'rare' },
+  { id:'dance:skill3',    name:'Skill III',    clip:'Skill_03',             price:800,  rarity:'epique' },
+  { id:'dance:combo',     name:'Triple Combo', clip:'Triple_Combo_Attack',  price:1200, rarity:'legendaire' },
+];
+function danceById(id){ return DANCES.find(d => d.id === id) || null; }
+function buyDance(id){
+  const d = danceById(id); if(!d) return false;
+  if(save.ownedDances.includes(id) || save.money < d.price) return false;
+  save.money -= d.price; G.money = save.money; save.ownedDances.push(id);
+  persist(); updateMoneyHud(); updateHomeMeta(); return true;
+}
+function assignDance(slot, id){
+  if(slot < 0 || slot > 2 || !danceById(id) || !save.ownedDances.includes(id)) return false;
+  save.selectedDances[slot] = id; persist(); return true;
+}
+function danceClipAction(clipName){
+  if(danceActionCache[clipName]) return danceActionCache[clipName];
+  const raw = anims.find(a => a.key === clipName)?.clip; if(!raw || !mixer) return null;
+  const clip = retargetClipWorld(raw); if(!clip) return null;
+  const act = mixer.clipAction(clip); act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = false;
+  danceActionCache[clipName] = act; return act;
+}
+function playDance(slot){
+  if(G.phase !== 'playing' || !mixer) return false;
+  const id = save.selectedDances[slot]; const d = id && danceById(id); if(!d) return false;
+  const act = danceClipAction(d.clip); if(!act) return false;
+  const prev = actions[curLoco]; if(prev) prev.fadeOut(0.15);
+  act.reset().setEffectiveWeight(1).fadeIn(0.12).play();
+  danceAction = act; dancing = true; danceEndAt = nowS() + (act.getClip().duration || 1.5);
+  G.locomotion = 'dance'; return true;
+}
+function endDance(){
+  if(!dancing) return; dancing = false;
+  if(danceAction) danceAction.fadeOut(0.2); danceAction = null;
+  curLoco = 'idle'; if(actions.idle) actions.idle.reset().fadeIn(0.15).play();
+  G.locomotion = 'idle';
+}
+G.debug.shop.danceCatalog = () => DANCES.map(d => ({ id:d.id, name:d.name, price:d.price, rarity:d.rarity }));
+G.debug.shop.buyDance = (id) => buyDance(id);
+G.debug.shop.assignDance = (slot, id) => assignDance(slot, id);
+G.debug.selectedDances = () => save.selectedDances.slice();
+G.debug.playDance = (slot) => playDance(slot);
+G.debug.isDancing = () => dancing;
 function updateHealthHud(){
   const bar = document.getElementById('health-fill');
   if(bar) bar.style.width = (Math.max(0, health) / maxHealth * 100) + '%';
@@ -1574,6 +1632,7 @@ function playerDie(){
 }
 function restartGame(){
   document.getElementById('gameover').classList.add('hidden');
+  endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
   resetMatchWeapon();                                          // restart = arme de la save (#23)

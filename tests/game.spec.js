@@ -1189,6 +1189,48 @@ test('accessoires : achat refuse sans argent ; non possede non equipable', async
   expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:crown'))).toBe(false);
 });
 
+// ====== Tranche 27 : danses / emotes ======
+test('danse : catalogue (gratuites + payantes, rarete)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const keys = await page.evaluate(() => __game.debug.shop.rarities().map(r => r.id));
+  const cat = await page.evaluate(() => __game.debug.shop.danceCatalog());
+  expect(cat.some(d => d.price === 0)).toBe(true);                 // au moins une gratuite
+  expect(cat.some(d => d.price > 0)).toBe(true);                   // au moins une payante
+  for(const d of cat) expect(keys).toContain(d.rarity);
+});
+
+test('danse : acheter et assigner a un slot (persiste)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
+  expect(await page.evaluate(() => __game.debug.shop.buyDance('dance:skill1'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.assignDance(2, 'dance:skill1'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.selectedDances()[2])).toBe('dance:skill1');
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().selectedDances[2])).toBe('dance:skill1');
+});
+
+test('danse : jouer en partie fige la loco puis revient au mouvement', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.playDance(0))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.isDancing())).toBe(true);
+  expect(await page.evaluate(() => __game.locomotion)).toBe('dance');
+  await page.evaluate(() => __game.debug.setInput({ forward:true }));
+  await page.waitForFunction(() => __game.debug.isDancing() === false, null, { timeout:5000 });
+});
+
+test('danse : la touche 1 declenche une danse en jeu', async ({ page }) => {
+  await startPlaying(page);
+  await page.keyboard.press('Digit1');
+  expect(await page.evaluate(() => __game.debug.isDancing())).toBe(true);
+});
+
+test('danse : non possedee non assignable ; achat sans argent refuse', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(50); });
+  expect(await page.evaluate(() => __game.debug.shop.assignDance(0, 'dance:combo'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.buyDance('dance:combo'))).toBe(false);
+});
+
 // ====== Tranche 26 : onglet Accessoires (remplace l'onglet Skins) ======
 test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
