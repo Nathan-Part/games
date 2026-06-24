@@ -236,9 +236,16 @@
     opacity:0;transition:opacity .25s ease,transform .25s ease;pointer-events:none;text-align:center;white-space:nowrap}
   #wave-banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
   #kill-callout{position:fixed;left:50%;top:150px;transform:translateX(-50%) scale(.8);z-index:12;
-    font-size:28px;font-weight:900;letter-spacing:.06em;color:#ffcf3f;text-shadow:0 2px 8px #000;
+    font-family:var(--font-display);font-size:30px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--gold);text-shadow:0 2px 8px #000,0 0 18px rgba(255,209,92,.5);
     opacity:0;pointer-events:none;transition:opacity .12s}
   #kill-callout.show{opacity:1;animation:calloutPop .9s ease-out}
+  #achievement-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(10px);z-index:13;
+    background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--gold),0 8px 24px rgba(0,0,0,.5);padding:10px 18px;
+    font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;color:var(--gold);font-size:var(--t-md);
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;--ch:8px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #achievement-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   @keyframes calloutPop{0%{transform:translateX(-50%) scale(1.3)}30%{transform:translateX(-50%) scale(1)}100%{transform:translateX(-50%) scale(1);opacity:0}}
   #vignette{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s;
     box-shadow:inset 0 0 140px 40px rgba(200,20,20,.85)}
@@ -349,6 +356,14 @@
     display:inline-flex;align-items:center;gap:8px;transition:transform .15s,box-shadow .15s,background .15s;--ch:9px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   .shop-cta .ico{width:16px;height:16px}
+  /* sélecteur de difficulté (#46) — restylé tokens OPERATOR */
+  .set-diff{flex:0 0 220px;display:flex;gap:6px}
+  .set-diff-btn{flex:1;font-family:var(--font-display);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.04em;
+    padding:8px 0;cursor:pointer;border:0;color:var(--text-2);background:var(--bg-600);box-shadow:inset 0 0 0 1px var(--line-2);transition:.15s;--ch:6px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .set-diff-btn:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+  .set-diff-btn.on{color:var(--accent-ink);background:var(--accent);box-shadow:none}
+  .set-diff-btn:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
   .shop-cta:not(:disabled):hover{transform:translateY(-2px)}
   .shop-cta:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
   .shop-cta:disabled{opacity:.45;cursor:default}
@@ -508,6 +523,7 @@
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
 <div id="kill-callout"></div>
+<div id="achievement-toast"></div>
 <div id="vignette"></div>
 <div id="heal-flash"></div>
 <div id="healthbar" class="hidden"><div id="health-fill"></div></div>
@@ -547,6 +563,12 @@
     <span id="set-volume-val" class="set-val"></span></div>
   <div class="set-row"><label for="set-view"><svg class="ico"><use href="#i-eye"></use></svg> Vue par défaut</label>
     <button id="set-view" class="set-toggle"></button></div>
+  <div class="set-row"><label><svg class="ico"><use href="#i-gauge"></use></svg> Difficulté</label>
+    <div id="set-diff" class="set-diff">
+      <button class="set-diff-btn" data-diff="facile">Facile</button>
+      <button class="set-diff-btn" data-diff="normal">Normal</button>
+      <button class="set-diff-btn" data-diff="difficile">Difficile</button>
+    </div></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
 </div></div>
 
@@ -617,8 +639,8 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
-  ownedBoosts:[], equippedBoosts:{},
-  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third' } }; }
+  ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
+  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal' } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -630,6 +652,15 @@ function loadSave(){
 let save = loadSave();
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
 const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
+// ====== Modes de difficulté (#46) ======
+const DIFFICULTIES = {
+  facile:    { id:'facile',    name:'Facile',    hp:0.7, dmg:0.7, money:1.2 },
+  normal:    { id:'normal',    name:'Normal',    hp:1.0, dmg:1.0, money:1.0 },
+  difficile: { id:'difficile', name:'Difficile', hp:1.4, dmg:1.5, money:0.9 },
+};
+function curDiff(){ return DIFFICULTIES[(save.settings && save.settings.difficulty) || 'normal'] || DIFFICULTIES.normal; }
+G.debug.difficulty = () => curDiff().id;
+G.debug.setDifficulty = (id) => { if(DIFFICULTIES[id]){ save.settings.difficulty = id; persist(); if(typeof renderSettings === 'function') renderSettings(); } };
 function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `${ico('coin')} ${save.money}`; }
@@ -1208,7 +1239,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts();   // reset loot/combo/power/annonces (#23/#29/#34/#38)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // reset loot/combo/power/annonces/stats (#23/#29/#34/#38/#43)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1253,11 +1284,14 @@ function renderSettings(){
   if(vo){ vo.value = s.volume; vv.textContent = Math.round(s.volume * 100) + '%'; }
   const vw = document.getElementById('set-view');
   if(vw) vw.textContent = s.defaultView === 'first' ? '1re personne' : '3e personne';
+  const cur = (s.difficulty || 'normal');                       // surlignage difficulté (#46)
+  document.querySelectorAll('#set-diff .set-diff-btn').forEach(b => b.classList.toggle('on', b.dataset.diff === cur));
 }
 function openSettings(){ renderSettings(); openPanel('settings-panel'); }
 document.getElementById('set-sensitivity').oninput = e => { setSetting('sensitivity', parseFloat(e.target.value)); renderSettings(); };
 document.getElementById('set-volume').oninput = e => { setSetting('volume', parseFloat(e.target.value)); renderSettings(); };
 document.getElementById('set-view').onclick = () => { setSetting('defaultView', save.settings.defaultView === 'first' ? 'third' : 'first'); renderSettings(); };
+document.getElementById('set-diff').addEventListener('click', e => { const b = e.target.closest('.set-diff-btn'); if(b) G.debug.setDifficulty(b.dataset.diff); });   // #46
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
@@ -1286,6 +1320,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
   if(e.code==='KeyB' && G.phase==='playing') throwGrenade();                          // B = lancer une grenade (#33)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
+  if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
   if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); }
   if(e.code==='KeyM'){ setMuted(!muted); }
@@ -1507,6 +1542,8 @@ function weaponStats(id = effectiveWeaponId()){
 let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1, curPellets = 1;
 let activePower = null, powerExpireAt = 0;   // #34 power-up actif (déclaré tôt : utilisé par applyWeaponStats)
 function powerFactor(){ const f = { dmg:1, cd:1 }; if(activePower === 'dmgx2') f.dmg = 2; else if(activePower === 'rapid') f.cd = 1/1.8; return f; }   // #34
+function enemyTimeScale(){ return activePower === 'slowmo' ? 0.4 : 1; }   // #42 slow-mo : ralentit les ennemis
+G.debug.enemyTimeScale = () => enemyTimeScale();
 function applyWeaponStats(){ const s = weaponStats(), pf = powerFactor();
   curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; curPellets=s.pellets || 1; }
 G.debug.weaponStats = (id) => weaponStats(id);
@@ -1846,6 +1883,35 @@ function renderShop(){
 // ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
 const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
 let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
+// stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
+let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; }
+G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
+// ====== Succès / achievements (#44) : persistés + toast ======
+const ACHIEVEMENTS = [
+  { id:'firstblood',  name:'Premier sang',       desc:'Éliminer un ennemi' },
+  { id:'headhunter',  name:'Chasseur de têtes',  desc:'5 headshots en une partie' },
+  { id:'survivor5',   name:'Survivant',          desc:'Atteindre la vague 5' },
+  { id:'combomaster', name:'Combo Master',       desc:'Atteindre un combo ×5' },
+];
+function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
+function unlockAchievement(id){
+  if(isUnlocked(id)) return false;
+  const a = ACHIEVEMENTS.find(x => x.id === id); if(!a) return false;
+  save.unlockedAchievements = save.unlockedAchievements || []; save.unlockedAchievements.push(id); persist();
+  showAchievementToast(a); return true;
+}
+function checkAchievements(comboMult){
+  if(runKills >= 1) unlockAchievement('firstblood');
+  if(runHeadshots >= 5) unlockAchievement('headhunter');
+  if(wave >= 5) unlockAchievement('survivor5');
+  if((comboMult || 0) >= 5) unlockAchievement('combomaster');
+}
+function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
+  el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(showAchievementToast._t); showAchievementToast._t = setTimeout(() => el.classList.remove('show'), 2600); }
+G.debug.achievements = () => ACHIEVEMENTS;
+G.debug.achievementUnlocked = (id) => isUnlocked(id);
 const targets = [];                 // entités-données : { id, mesh, alive, respawnAt }
 const _ray = new THREE.Raycaster();
 const nowS = () => performance.now() / 1000;
@@ -1887,6 +1953,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
+        _fireConnected = true;                                 // tir au but : précision (#43)
         damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
       else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
   }
@@ -1895,10 +1962,30 @@ function tryFire(){
   if(G.phase!=='playing' || reloading || ammo <= 0) return false;
   if(nowS() - lastShot < curCooldown) return false;
   lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil;
+  runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
   if(curPellets <= 1) fireRay(0, 0);                        // arme classique : un seul rayon centré
   else for(let i=0;i<curPellets;i++){ const a = Math.random()*Math.PI*2, r = Math.random()*SHOTGUN_SPREAD; fireRay(Math.cos(a)*r, Math.sin(a)*r); }   // gerbe (#36)
+  if(_fireConnected) runHits++;                             // ce tir a touché ≥1 ennemi (#43)
   return true;
 }
+// ====== Corps-à-corps (#45) : couteau, touche X ======
+const PLAYER_MELEE_REACH = 2.6, PLAYER_MELEE_DAMAGE = 150;
+let playerMeleeCd = 0;
+function playerMelee(){
+  if(G.phase !== 'playing' || playerMeleeCd > 0) return false;
+  playerMeleeCd = 0.6;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0;
+  if(dir.lengthSq() < 1e-6) return false; dir.normalize();
+  let best = null, bestD = PLAYER_MELEE_REACH;
+  for(const e of enemies){ if(!e.alive) continue;
+    const dx = e.root.position.x - model.position.x, dz = e.root.position.z - model.position.z;
+    const d = Math.hypot(dx, dz); if(d > PLAYER_MELEE_REACH) continue;
+    const dot = (dx*dir.x + dz*dir.z) / (d || 1); if(dot < 0.2) continue;   // grossièrement devant
+    if(d < bestD){ best = e; bestD = d; } }
+  if(best){ playSound('shot'); damageEnemy(best, PLAYER_MELEE_DAMAGE); flashHitMarker(); return true; }
+  return false;
+}
+G.debug.playerMelee = () => playerMelee();
 function reload(){
   if(reloading || ammo === curMag || G.phase!=='playing') return;
   reloading = true; reloadAt = nowS() + curReload; playSound('reload');
@@ -2020,6 +2107,7 @@ function updateCombatHud(){
 }
 function updateCombat(dt){
   if(G.phase!=='playing') return;
+  if(playerMeleeCd > 0) playerMeleeCd -= dt;                 // cooldown couteau (#45)
   if(reloading && nowS() >= reloadAt){ ammo = curMag; reloading = false; G.ammo = ammo; }
   if(input.fire) tryFire();
   const t = nowS();
@@ -2240,6 +2328,7 @@ function flashDamage(){
 }
 function damagePlayer(amount){
   if(G.phase !== 'playing') return;
+  amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
   health = Math.max(0, health - amount); G.health = health; lastDamageAt = nowS();
   flashDamage(); updateHealthHud(); playSound('playerHit');
   if(health <= 0) playerDie();
@@ -2284,7 +2373,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff } };
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff } };
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -2317,10 +2406,13 @@ function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   if(document.pointerLockElement) document.exitPointerLock?.();
-  document.getElementById('go-score').innerHTML =          // G-4 : tuiles, mêmes données que #29 (combo max + bestCombo)
+  document.getElementById('go-score').innerHTML =          // G-4 tuiles + stats de partie (#43 : kills/headshots/précision)
     `<div class="go-tiles">`
     + `<div class="go-tile"><span>Vague</span><b>${wave}</b></div>`
     + `<div class="go-tile"><span>Score</span><b>${score}</b></div>`
+    + `<div class="go-tile"><span>Kills</span><b>${runKills}</b></div>`
+    + `<div class="go-tile"><span>Headshots</span><b>${runHeadshots}</b></div>`
+    + `<div class="go-tile"><span>Précision</span><b>${runShots ? Math.round(runHits/runShots*100) : 0}%</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
     + `<div class="go-tile gold"><span>Argent</span><b>${save.money}</b></div></div>`;
@@ -2331,7 +2423,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts();   // restart : reset arme/combo/power/annonces (#23/#29/#34/#38)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // restart : reset arme/combo/power/annonces/stats (#23/#29/#34/#38/#43)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -2379,7 +2471,7 @@ function meshMaxZ(obj){ obj.updateMatrixWorld(true); const b = new THREE.Box3().
 // courbes de progression des vagues (pures) : nombre + PV croissants, plafonnés
 function isBossWave(w){ return w > 0 && w % 5 === 0; }                          // #31 : boss tous les 5 niveaux
 function enemiesForWave(w){ return isBossWave(w) ? 3 : Math.min(2 + w, MAX_PER_WAVE); }
-function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1))); }
+function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1)) * curDiff().hp); }   // #46 difficulté
 // composition d'une vague (pure) : boss tous les 5 niveaux ; sinon shooter[0], rusher dès v2, tank dès v3
 function waveComposition(w){
   if(isBossWave(w)) return ['boss', 'shooter', 'shooter'];                      // boss + 2 sbires (#31)
@@ -2848,8 +2940,10 @@ function killEnemy(e){
     e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
   }
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
-  score += mult; G.score = score; flashHitMarker(); playSound('enemyDie');
-  addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
+  score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
+  checkAchievements(mult);                             // succès (#44)
+  flashHitMarker(); playSound('enemyDie');
+  addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money));   // argent par kill × combo × difficulté (#46)
   if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)
   maybeDropPower(e);                                   // chance de power-up (#34 ; boss garanti)
@@ -2859,7 +2953,7 @@ function killEnemy(e){
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
-  wave = w; G.wave = w;
+  wave = w; G.wave = w; checkAchievements();          // succès (#44) : survivant à la vague 5
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   waveState = 'active'; refillGrenades(); spawnBarrels();                     // grenades rechargées + barils frais chaque vague (#33/#41)
@@ -2868,7 +2962,7 @@ function startWave(w){
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
-  addMoney(MONEY_PER_WAVE * wave); recordScore();      // bonus de vague (croissant) + record du score
+  addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 function updateWaves(dt){
@@ -3217,7 +3311,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

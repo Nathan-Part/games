@@ -2056,3 +2056,101 @@ test('baril : tirer dessus le fait exploser', async ({ page }) => {
   await page.evaluate(() => __game.debug.tryFire());
   expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0);
 });
+
+// ====== Tranche 42 : power-up slow-mo ======
+test('slowmo : ralentit le temps ennemi le temps du power-up', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.enemyTimeScale())).toBe(1);
+  const pos = await page.evaluate(() => __game.position());
+  const d0 = await page.evaluate(() => __game.debug.liveDamage());
+  await page.evaluate(p => __game.debug.spawnPowerUp('slowmo', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'slowmo', null, { timeout:3000 });
+  expect(await page.evaluate(() => __game.debug.enemyTimeScale())).toBeLessThan(1);
+  expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0, 3);
+});
+
+// ====== Tranche 43 : stats de partie ======
+test('stats partie : kills/headshots comptes et affiches au Game Over', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBe(0);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => __game.debug.runStats().headshots)).toBeGreaterThanOrEqual(1);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await expect(page.locator('#go-score')).toContainText('Kills');
+});
+
+test('stats partie : reset au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.restart());
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBe(0);
+});
+
+// ====== Tranche 44 : succès ======
+test('succes : premier sang + survivant', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(false);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('survivor5'))).toBe(true);
+});
+
+test('succes : persistent apres reload', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+});
+
+// ====== Tranche 45 : corps-à-corps ======
+test('melee : coup blesse un ennemi proche devant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=1;i<3;i++) __game.debug.moveEnemy(i,40,40); __game.debug.setView('first'); __game.debug.setYaw(0); __game.debug.setPitch(0); });
+  await page.waitForTimeout(120);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(2));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
+});
+
+test('melee : rien si aucun ennemi a portee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40); });
+  expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(false);
+});
+
+// ====== Tranche 46 : difficulté ======
+test('difficulte : ajuste PV ennemis et degats recus', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.difficulty())).toBe('normal');
+  const hpN = await page.evaluate(() => __game.debug.enemyHpForWave(3));
+  await page.evaluate(() => __game.debug.setDifficulty('difficile'));
+  expect(await page.evaluate(() => __game.debug.enemyHpForWave(3))).toBeGreaterThan(hpN);
+  await page.evaluate(() => __game.debug.setDifficulty('facile'));
+  expect(await page.evaluate(() => __game.debug.enemyHpForWave(3))).toBeLessThan(hpN);
+});
+
+test('difficulte : facile reduit les degats recus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setDifficulty('facile'));
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.damagePlayer(20));
+  const lost = h0 - await page.evaluate(() => __game.debug.playerHealth());
+  expect(lost).toBeLessThan(20); expect(lost).toBeGreaterThan(0);
+});
+
+test('difficulte : le selecteur des reglages applique le mode', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await page.locator('#btn-settings').click();
+  await page.locator('#set-diff [data-diff="facile"]').click();
+  expect(await page.evaluate(() => __game.debug.difficulty())).toBe('facile');
+  await expect(page.locator('#set-diff [data-diff="facile"]')).toHaveClass(/on/);
+});
