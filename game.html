@@ -2140,6 +2140,23 @@ G.debug.weapon = {
   equippedId(){ return equippedWeaponId; }
 };
 
+// ====== Loot d'arme (run-based #23) : ramasser l'arme d'un cadavre pour la partie en cours ======
+const PICKUP_R = 2.5;
+let matchWeaponId = null;
+function nearestPickup(){
+  if(!model) return null;
+  const px = model.position.x, pz = model.position.z; let best = null, bd = PICKUP_R;
+  for(const e of enemies){
+    if(e.state !== 'dead' || !e.weaponId || e.looted) continue;
+    const d = Math.hypot(px - e.root.position.x, pz - e.root.position.z);
+    if(d <= bd){ bd = d; best = e; }
+  }
+  if(!best) return null;
+  const w = weaponById(best.weaponId);
+  return { enemyId:best.id, weaponId:best.weaponId, name:w.name, rarity:w.rarity, dist:bd };
+}
+G.debug.nearestPickup = () => nearestPickup();
+
 // ====== Audio (synthèse Web Audio, aucun fichier) ======
 let actx = null, masterGain = null, muted = false; const soundLog = [];
 function initAudio(){

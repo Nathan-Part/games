@@ -1427,3 +1427,12 @@ test('cadavre : armes ennemies variees selon le type', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.enemyWeaponId(2))).toBe('smg');       // rusher
   expect(await page.evaluate(() => __game.debug.enemyHasWeapon(1))).toBe(true);
 });
+
+test('loot : cadavre lointain non ramassable, cadavre proche oui', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(1, 'rusher', 30, 30); __game.debug.damageEnemy(1, 99999); });
+  expect(await page.evaluate(() => __game.debug.nearestPickup())).toBeNull();
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'tank', 0, 1.5); __game.debug.damageEnemy(0, 99999); });
+  const p = await page.evaluate(() => __game.debug.nearestPickup());
+  expect(p).not.toBeNull(); expect(p.weaponId).toBe('sniper');
+});
