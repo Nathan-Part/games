@@ -2217,6 +2217,11 @@ function damageEnemy(e, amount = DMG_TORSO){
   if(e.state === 'patrol') e.state = 'chase';   // touché => s'aggrave et se retourne/fonce vers le joueur
   e.lostFor = 0;
 }
+// ====== Combo / killstreak (#29) : enchaîner des kills monte un multiplicateur argent/score ======
+const COMBO_WINDOW = 3.5;
+let comboCount = 0, comboExpireAt = 0;
+function comboMultiplier(n){ return Math.min(5, 1 + Math.floor(n/3)); }
+G.debug.comboMultiplier = (n) => comboMultiplier(n);
 function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
   e.mixer.stopAllAction();

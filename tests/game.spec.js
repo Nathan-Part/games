@@ -1657,3 +1657,11 @@ test('vitrine perso : le perso central a une taille correcte, pas geant (vrai GL
   const h = await page.evaluate(() => __game.debug.shopCharCenterSize());
   expect(h).toBeGreaterThan(1.2); expect(h).toBeLessThan(3.0);                     // ~1.8 m, pas géant
 });
+
+// ====== Tranche 29 : combo / killstreak ======
+test('combo : multiplicateur par paliers (plafond x5)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const m = (n) => page.evaluate(k => __game.debug.comboMultiplier(k), n);
+  expect(await m(1)).toBe(1); expect(await m(2)).toBe(1); expect(await m(3)).toBe(2);
+  expect(await m(6)).toBe(3); expect(await m(12)).toBe(5); expect(await m(99)).toBe(5);
+});
