@@ -345,7 +345,7 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 
 // ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
 const SAVE_KEY = 'cod-save-v1';
-function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, selectedCharacterId:null,
+function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestCombo:0, selectedCharacterId:null,
   ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
@@ -904,7 +904,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon();                                          // pas de loot conservé d'une partie à l'autre (#23)
+  resetMatchWeapon(); resetCombo();                            // pas de loot ni de combo conservé d'une partie à l'autre (#23/#29)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1767,7 +1767,7 @@ G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
 
 function playerDie(){
-  G.phase = 'dead'; recordScore(); playSound('gameover');
+  G.phase = 'dead'; recordScore(); resetCombo(); playSound('gameover');
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   if(document.pointerLockElement) document.exitPointerLock?.();
   document.getElementById('go-score').innerHTML =
@@ -1779,7 +1779,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon();                                          // restart = arme de la save (#23)
+  resetMatchWeapon(); resetCombo();                            // restart = arme de la save + combo remis à 0 (#23/#29)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -2221,7 +2221,21 @@ function damageEnemy(e, amount = DMG_TORSO){
 const COMBO_WINDOW = 3.5;
 let comboCount = 0, comboExpireAt = 0;
 function comboMultiplier(n){ return Math.min(5, 1 + Math.floor(n/3)); }
+function comboTimeFrac(){ return comboCount > 0 ? Math.max(0, (comboExpireAt - nowS()) / COMBO_WINDOW) : 0; }
+function registerKill(){
+  comboCount++; comboExpireAt = nowS() + COMBO_WINDOW;
+  if(comboCount > (save.bestCombo || 0)){ save.bestCombo = comboCount; persist(); }
+  return comboMultiplier(comboCount);
+}
+function breakCombo(){ if(comboCount){ comboCount = 0; updateComboHud(); } }
+function resetCombo(){ comboCount = 0; comboExpireAt = 0; updateComboHud(); }
+function updateCombo(){ if(comboCount > 0 && nowS() >= comboExpireAt) breakCombo(); }
+function updateComboHud(){ const el = document.getElementById('combo-hud'); if(el && comboCount <= 0) el.classList.add('hidden'); }   // (contenu enrichi en T3)
 G.debug.comboMultiplier = (n) => comboMultiplier(n);
+G.debug.combo = () => comboCount;
+G.debug.comboMult = () => comboMultiplier(comboCount);
+G.debug.comboTimeLeft = () => comboCount > 0 ? Math.max(0, comboExpireAt - nowS()) : 0;
+G.debug.bestCombo = () => save.bestCombo || 0;
 function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
   e.mixer.stopAllAction();
@@ -2231,8 +2245,10 @@ function killEnemy(e){
   if(e.actions.dead){                                  // joue l'anim de mort (Dead) et garde la pose finale
     e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
   }
-  score++; G.score = score; flashHitMarker(); playSound('enemyDie');
-  addMoney(MONEY_PER_KILL);                            // argent par kill (méta-monnaie persistée)
+  const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
+  score += mult; G.score = score; flashHitMarker(); playSound('enemyDie');
+  addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
+  updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
   checkWaveCleared(); updateWaveHud();                 // vague : un mort de moins (plus de respawn auto)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======

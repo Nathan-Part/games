@@ -1665,3 +1665,23 @@ test('combo : multiplicateur par paliers (plafond x5)', async ({ page }) => {
   expect(await m(1)).toBe(1); expect(await m(2)).toBe(1); expect(await m(3)).toBe(2);
   expect(await m(6)).toBe(3); expect(await m(12)).toBe(5); expect(await m(99)).toBe(5);
 });
+
+test('combo : enchainer monte le combo et booste l argent', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const m0 = await page.evaluate(() => __game.money);
+  const perKill = await page.evaluate(() => __game.debug.save.rates().perKill);
+  await page.evaluate(() => { for(let i=0;i<3;i++){ __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 99999); } });
+  expect(await page.evaluate(() => __game.debug.combo())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.comboMult())).toBe(2);
+  expect(await page.evaluate(() => __game.money) - m0).toBe(perKill * (1 + 1 + 2));   // mult des 3 kills
+  expect(await page.evaluate(() => __game.debug.bestCombo())).toBeGreaterThanOrEqual(3);
+});
+
+test('combo : reset a la mort/restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.combo())).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.restart());
+  expect(await page.evaluate(() => __game.debug.combo())).toBe(0);
+});
