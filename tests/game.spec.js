@@ -1833,3 +1833,39 @@ test('grenade : recharge a chaque vague', async ({ page }) => {
   await page.evaluate(() => __game.debug.forceNextWave());
   expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
 });
+
+// ====== Tranche 34 : power-ups ======
+test('power : drop force a la mort', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forcePowerDrop(true); __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.powerUpCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('power : ramasser x2 degats double le multiplicateur', async ({ page }) => {
+  await startPlaying(page);
+  const d0 = await page.evaluate(() => __game.debug.liveDamage());
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnPowerUp('dmgx2', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'dmgx2', null, { timeout:3000 });
+  expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0 * 2, 3);
+});
+
+test('power : un seul actif a la fois (le dernier remplace)', async ({ page }) => {
+  await startPlaying(page);
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnPowerUp('dmgx2', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'dmgx2', null, { timeout:3000 });
+  await page.evaluate(p => __game.debug.spawnPowerUp('rapid', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'rapid', null, { timeout:3000 });
+});
+
+test('power : l effet expire', async ({ page }) => {
+  test.setTimeout(30000);
+  await startPlaying(page);
+  const d0 = await page.evaluate(() => __game.debug.liveDamage());
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnPowerUp('dmgx2', p.x, p.z), pos);
+  await page.waitForFunction(() => __game.debug.activePowerUp() === 'dmgx2', null, { timeout:3000 });
+  await page.waitForFunction(() => __game.debug.activePowerUp() === null, null, { timeout:12000 });   // ~8 s
+  expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0, 3);
+});

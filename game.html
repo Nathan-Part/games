@@ -87,6 +87,11 @@
   #boss-fill{position:absolute;inset:0;background:linear-gradient(90deg,#ff7a3e,#ff2a0e);transition:width .12s}
   #boss-hud span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     font-size:11px;font-weight:800;letter-spacing:.12em;color:#fff;text-shadow:0 1px 2px #000}
+  #power-hud{position:fixed;left:50%;top:122px;transform:translateX(-50%);z-index:11;background:rgba(20,20,28,.8);
+    border:1px solid #ffffff22;border-radius:10px;padding:5px 14px 8px;font-weight:800;font-size:13px;display:flex;align-items:center;gap:7px;overflow:hidden}
+  #power-hud.hidden{display:none}
+  #power-hud .pd{width:11px;height:11px;border-radius:50%}
+  #power-hud .pbar{position:absolute;left:0;bottom:0;height:3px;background:#fff}
   #pickup-prompt kbd{display:inline-block;background:#eef2fb;color:#10131a;border-radius:5px;
     padding:0 6px;font-weight:800;margin-right:6px}
   #wave-hud{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10;
@@ -267,6 +272,7 @@
 <div id="wave-hud" class="hidden"></div>
 <div id="combo-hud" class="hidden"></div>
 <div id="boss-hud" class="hidden"><div id="boss-fill"></div><span>BOSS</span></div>
+<div id="power-hud" class="hidden"></div>
 <div id="money-hud" class="hidden"></div>
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
@@ -927,7 +933,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo();                            // pas de loot ni de combo conservé d'une partie à l'autre (#23/#29)
+  resetMatchWeapon(); resetCombo(); resetPower();              // pas de loot/combo/power conservé d'une partie à l'autre (#23/#29/#34)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1184,8 +1190,10 @@ function weaponStats(id = effectiveWeaponId()){
   return s;
 }
 let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1;
-function applyWeaponStats(){ const s = weaponStats();
-  curMag=s.mag; curCooldown=s.cooldown; curReload=s.reload; curDmgMult=s.dmgMult; curRecoil=s.recoil; }
+let activePower = null, powerExpireAt = 0;   // #34 power-up actif (déclaré tôt : utilisé par applyWeaponStats)
+function powerFactor(){ const f = { dmg:1, cd:1 }; if(activePower === 'dmgx2') f.dmg = 2; else if(activePower === 'rapid') f.cd = 1/1.8; return f; }   // #34
+function applyWeaponStats(){ const s = weaponStats(), pf = powerFactor();
+  curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; }
 G.debug.weaponStats = () => weaponStats();
 function buyWeapon(id){
   const w = weaponById(id);
@@ -1888,9 +1896,38 @@ G.debug.forceHealthDrop = (b) => { forceHealthDrop = !!b; };
 G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null; let best=null,bd=1e9;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
+// ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff } };
+const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
+const powerUps = []; let forcePowerDrop = false;
+function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
+  new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.9, roughness:0.3 })); }
+function spawnPowerUp(type, x, z){ if(!POWERUPS[type]) type='dmgx2'; const m = buildPowerOrb(POWERUPS[type].color);
+  m.castShadow = true; m.position.set(x, 0.6, z); scene.add(m); powerUps.push({ mesh:m, x, z, type }); return powerUps.length-1; }
+function clearPowerUps(){ for(const p of powerUps) scene.remove(p.mesh); powerUps.length = 0; }
+function maybeDropPower(e){ if(forcePowerDrop || e.type==='boss' || Math.random() < POWER_DROP_CHANCE){
+  const ks = Object.keys(POWERUPS); spawnPowerUp(ks[Math.floor(Math.random()*ks.length)], e.root.position.x, e.root.position.z); } }
+function activatePower(type){ activePower = type; powerExpireAt = nowS() + POWER_DURATION; applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload'); }
+function updatePowerUps(dt){ if(!model) return; const t = nowS();
+  if(activePower && t >= powerExpireAt){ activePower = null; applyWeaponStats(); }
+  for(let i=powerUps.length-1;i>=0;i--){ const p = powerUps[i]; p.mesh.rotation.y += dt*2; p.mesh.position.y = 0.6 + 0.08*Math.sin(t*3+i);
+    if(Math.hypot(model.position.x-p.x, model.position.z-p.z) <= POWER_PICKUP_R){ activatePower(p.type); scene.remove(p.mesh); powerUps.splice(i,1); } }
+  updatePowerHud(); }
+function updatePowerHud(){ const el = document.getElementById('power-hud'); if(!el) return;
+  if(!activePower){ el.classList.add('hidden'); return; }
+  const p = POWERUPS[activePower], frac = Math.max(0, (powerExpireAt - nowS())/POWER_DURATION);
+  el.innerHTML = `<span class="pd" style="background:#${p.color.toString(16).padStart(6,'0')}"></span>${p.name}<div class="pbar" style="width:${Math.round(frac*100)}%"></div>`;
+  el.classList.remove('hidden'); }
+function resetPower(){ activePower = null; powerExpireAt = 0; updatePowerHud(); }
+G.debug.spawnPowerUp = (t,x,z) => spawnPowerUp(t,x,z);
+G.debug.powerUpCount = () => powerUps.length;
+G.debug.forcePowerDrop = (b) => { forcePowerDrop = !!b; };
+G.debug.activePowerUp = () => activePower;
+G.debug.powerUpTimeLeft = () => activePower ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.liveDamage = () => curDmgMult;
 
 function playerDie(){
-  G.phase = 'dead'; recordScore(); resetCombo(); playSound('gameover');
+  G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   if(document.pointerLockElement) document.exitPointerLock?.();
   document.getElementById('go-score').innerHTML =
@@ -1902,7 +1939,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo();                            // restart = arme de la save + combo remis à 0 (#23/#29)
+  resetMatchWeapon(); resetCombo(); resetPower();              // restart = arme save + combo/power remis à 0 (#23/#29/#34)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -1915,8 +1952,8 @@ G.debug.restart = () => restartGame();
 // Retour à l'accueil (depuis le Game Over) : masque les HUD, vide la scène de jeu, réaffiche le menu
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
-  resetCombo();
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud'])
+  resetCombo(); resetPower();
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','power-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -2182,7 +2219,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearPowerUps(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -2396,6 +2433,7 @@ function killEnemy(e){
   addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
   if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)
+  maybeDropPower(e);                                   // chance de power-up (#34 ; boss garanti)
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
 }
@@ -2745,7 +2783,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
