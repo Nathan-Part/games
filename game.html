@@ -953,7 +953,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts();   // reset loot/combo/power/annonces (#23/#29/#34/#38)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // reset loot/combo/power/annonces/stats (#23/#29/#34/#38/#43)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1588,6 +1588,10 @@ function renderShop(){
 // ====== Combat : tir hitscan, cibles (entités), munitions, juice ======
 const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
 let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
+// stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
+let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; }
+G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 const targets = [];                 // entités-données : { id, mesh, alive, respawnAt }
 const _ray = new THREE.Raycaster();
 const nowS = () => performance.now() / 1000;
@@ -1629,6 +1633,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
+        _fireConnected = true;                                 // tir au but : précision (#43)
         damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
       else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
   }
@@ -1637,8 +1642,10 @@ function tryFire(){
   if(G.phase!=='playing' || reloading || ammo <= 0) return false;
   if(nowS() - lastShot < curCooldown) return false;
   lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil;
+  runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
   if(curPellets <= 1) fireRay(0, 0);                        // arme classique : un seul rayon centré
   else for(let i=0;i<curPellets;i++){ const a = Math.random()*Math.PI*2, r = Math.random()*SHOTGUN_SPREAD; fireRay(Math.cos(a)*r, Math.sin(a)*r); }   // gerbe (#36)
+  if(_fireConnected) runHits++;                             // ce tir a touché ≥1 ennemi (#43)
   return true;
 }
 function reload(){
@@ -2055,7 +2062,7 @@ function playerDie(){
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   if(document.pointerLockElement) document.exitPointerLock?.();
   document.getElementById('go-score').innerHTML =
-    `Score : ${score} · Vague atteinte : ${wave}<br>Record : vague ${save.bestWave} · combo max x${comboMultiplier(save.bestCombo||0)} (${save.bestCombo||0}) · 💰 ${save.money}`;
+    `Score : ${score} · Vague atteinte : ${wave}<br>Kills : ${runKills} · Headshots : ${runHeadshots} · Précision : ${runShots ? Math.round(runHits/runShots*100) : 0}%<br>Record : vague ${save.bestWave} · combo max x${comboMultiplier(save.bestCombo||0)} (${save.bestCombo||0}) · 💰 ${save.money}`;
   document.getElementById('gameover').classList.remove('hidden');
 }
 function restartGame(){
@@ -2063,7 +2070,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts();   // restart : reset arme/combo/power/annonces (#23/#29/#34/#38)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // restart : reset arme/combo/power/annonces/stats (#23/#29/#34/#38/#43)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -2580,7 +2587,8 @@ function killEnemy(e){
     e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
   }
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
-  score += mult; G.score = score; flashHitMarker(); playSound('enemyDie');
+  score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
+  flashHitMarker(); playSound('enemyDie');
   addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
   if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)

@@ -2042,3 +2042,26 @@ test('slowmo : ralentit le temps ennemi le temps du power-up', async ({ page }) 
   expect(await page.evaluate(() => __game.debug.enemyTimeScale())).toBeLessThan(1);
   expect(await page.evaluate(() => __game.debug.liveDamage())).toBeCloseTo(d0, 3);
 });
+
+// ====== Tranche 43 : stats de partie ======
+test('stats partie : kills/headshots comptes et affiches au Game Over', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBe(0);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => __game.debug.runStats().headshots)).toBeGreaterThanOrEqual(1);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await expect(page.locator('#go-score')).toContainText('Kills');
+});
+
+test('stats partie : reset au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.restart());
+  expect(await page.evaluate(() => __game.debug.runStats().kills)).toBe(0);
+});
