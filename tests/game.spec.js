@@ -1685,3 +1685,18 @@ test('combo : reset a la mort/restart', async ({ page }) => {
   await page.evaluate(() => __game.debug.restart());
   expect(await page.evaluate(() => __game.debug.combo())).toBe(0);
 });
+
+test('combo : rupture apres la fenetre sans kill', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.combo())).toBeGreaterThan(0);
+  await page.waitForFunction(() => __game.debug.combo() === 0, null, { timeout:6000 });   // ~3.5 s + marge
+});
+
+test('combo : HUD visible avec le multiplicateur, masque a 0', async ({ page }) => {
+  await startPlaying(page);
+  await expect(page.locator('#combo-hud')).toBeHidden();
+  await page.evaluate(() => { for(let i=0;i<3;i++){ __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); } });
+  await expect(page.locator('#combo-hud')).toBeVisible();
+  await expect(page.locator('#combo-hud')).toContainText('x2');
+});

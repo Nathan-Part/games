@@ -71,6 +71,14 @@
     background:rgba(10,12,18,.78);border:1px solid #3a4a66;border-radius:10px;padding:8px 14px;
     color:#eef2fb;font-weight:700;font-size:15px;letter-spacing:.02em;pointer-events:none}
   #pickup-prompt.hidden{display:none}
+  #combo-hud{position:fixed;left:50%;top:54px;transform:translateX(-50%);z-index:11;text-align:center;
+    background:rgba(20,16,28,.74);border:1px solid #b066ff55;border-radius:12px;padding:6px 16px;color:#eee;pointer-events:none}
+  #combo-hud.hidden{display:none}
+  #combo-hud .cm{font-size:26px;font-weight:900;color:#ffb02e;line-height:1}
+  #combo-hud .cc{font-size:12px;letter-spacing:.08em;color:#c9b6ff}
+  #combo-hud .cbar{height:3px;margin-top:5px;border-radius:2px;background:#ffb02e}
+  #combo-hud.pulse{animation:comboPulse .22s ease-out}
+  @keyframes comboPulse{0%{transform:translateX(-50%) scale(1.18)}100%{transform:translateX(-50%) scale(1)}}
   #pickup-prompt kbd{display:inline-block;background:#eef2fb;color:#10131a;border-radius:5px;
     padding:0 6px;font-weight:800;margin-right:6px}
   #wave-hud{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10;
@@ -245,6 +253,7 @@
 <div id="combat" class="hidden"></div>
 <div id="pickup-prompt" class="hidden"></div>
 <div id="wave-hud" class="hidden"></div>
+<div id="combo-hud" class="hidden"></div>
 <div id="money-hud" class="hidden"></div>
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
@@ -1549,6 +1558,7 @@ function updateCombat(dt){
   document.getElementById('sight').classList.toggle('show', aiming);
   document.getElementById('scope').classList.toggle('show', aiming);
   document.getElementById('crosshair').style.visibility = aiming ? 'hidden' : 'visible';
+  updateCombo(); if(comboCount > 0) updateComboHud();                          // combo (#29) : rupture + barre de temps
   const pk = nearestPickup(), pe = document.getElementById('pickup-prompt');   // invite de ramassage (#23)
   if(pe){ if(pk){ pe.innerHTML = `<kbd>G</kbd>Ramasser : ${pk.name} ${rarityBadge(pk.rarity)}`; pe.classList.remove('hidden'); }
           else pe.classList.add('hidden'); }
@@ -1771,7 +1781,7 @@ function playerDie(){
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   if(document.pointerLockElement) document.exitPointerLock?.();
   document.getElementById('go-score').innerHTML =
-    `Score : ${score} · Vague atteinte : ${wave}<br>Record : vague ${save.bestWave} · 💰 ${save.money}`;
+    `Score : ${score} · Vague atteinte : ${wave}<br>Record : vague ${save.bestWave} · combo max x${comboMultiplier(save.bestCombo||0)} (${save.bestCombo||0}) · 💰 ${save.money}`;
   document.getElementById('gameover').classList.remove('hidden');
 }
 function restartGame(){
@@ -1792,7 +1802,8 @@ G.debug.restart = () => restartGame();
 // Retour à l'accueil (depuis le Game Over) : masque les HUD, vide la scène de jeu, réaffiche le menu
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt'])
+  resetCombo();
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -2230,7 +2241,16 @@ function registerKill(){
 function breakCombo(){ if(comboCount){ comboCount = 0; updateComboHud(); } }
 function resetCombo(){ comboCount = 0; comboExpireAt = 0; updateComboHud(); }
 function updateCombo(){ if(comboCount > 0 && nowS() >= comboExpireAt) breakCombo(); }
-function updateComboHud(){ const el = document.getElementById('combo-hud'); if(el && comboCount <= 0) el.classList.add('hidden'); }   // (contenu enrichi en T3)
+let comboPulseT = null;
+function updateComboHud(pulse){
+  const el = document.getElementById('combo-hud'); if(!el) return;
+  if(comboCount <= 0){ el.classList.add('hidden'); return; }
+  const mult = comboMultiplier(comboCount);
+  el.innerHTML = `<div class="cm">x${mult}</div><div class="cc">COMBO ${comboCount}</div><div class="cbar" style="width:${Math.round(comboTimeFrac()*100)}%"></div>`;
+  el.classList.remove('hidden');
+  if(pulse){ el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+    clearTimeout(comboPulseT); comboPulseT = setTimeout(() => el.classList.remove('pulse'), 240); }
+}
 G.debug.comboMultiplier = (n) => comboMultiplier(n);
 G.debug.combo = () => comboCount;
 G.debug.comboMult = () => comboMultiplier(comboCount);
