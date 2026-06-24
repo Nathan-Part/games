@@ -1888,3 +1888,24 @@ test('dash : HUD present en jeu', async ({ page }) => {
   await startPlaying(page);
   await expect(page.locator('#dash-hud')).toBeVisible();
 });
+
+// ====== Tranche 36 : fusil à pompe ======
+test('shotgun : nouvelle arme avec plombs', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.catalog());
+  expect(cat.find(w => w.id === 'shotgun')).toBeTruthy();
+  expect(await page.evaluate(() => __game.debug.weaponStats('shotgun').pellets)).toBeGreaterThan(1);
+  expect(await page.evaluate(() => __game.debug.weaponStats('default').pellets)).toBe(1);
+});
+
+test('shotgun : tirer lache plusieurs plombs et fait mal', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('shotgun'); __game.debug.shop.equip('shotgun'); });
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(4));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  const tracers = await page.evaluate(() => { __game.debug.tryFire(); return __game.debug.tracerCount(); });
+  expect(tracers).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
+});
