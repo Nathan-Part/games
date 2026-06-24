@@ -2007,3 +2007,26 @@ test('pause : le menu permet de revenir a l accueil', async ({ page }) => {
   await page.locator('#pause-menu').click();
   expect(await page.evaluate(() => __game.phase)).toBe('lobby');
 });
+
+// ====== Tranche 41 : barils explosifs ======
+test('baril : presents en jeu + explosion AoE', async ({ page }) => {
+  await startPlaying(page);
+  const n0 = await page.evaluate(() => __game.debug.barrelCount());
+  expect(n0).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(1, 'shooter', 8, 6));
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(1));
+  await page.evaluate(() => __game.debug.explodeBarrelNow(0));
+  expect(await page.evaluate(() => __game.debug.enemyHp(1))).toBeLessThan(hp0);
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0 - 1);
+});
+
+test('baril : tirer dessus le fait exploser', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<3;i++) __game.debug.moveEnemy(i, 40, 40); __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  const n0 = await page.evaluate(() => __game.debug.barrelCount());
+  await page.evaluate(() => __game.debug.spawnBarrelInFront(8));
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0 + 1);
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(n0);
+});

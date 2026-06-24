@@ -1615,6 +1615,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
   const shoot = [];
   for(const t of targets) if(t.alive) shoot.push(t.mesh);
   for(const e of enemies) if(e.alive) shoot.push(e.hitbox);
+  for(const b of barrels) shoot.push(b.hitbox);              // barils tirables (#41)
   const hits = _ray.intersectObjects(shoot, false);
   const end = hits.length ? hits[0].point.clone()
     : _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(SHOT_RANGE));
@@ -1626,7 +1627,8 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
-        damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); } }
+        damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
+      else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
   }
 }
 function tryFire(){
@@ -1707,6 +1709,33 @@ G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeCount = () => grenades;
 G.debug.grenadeProjCount = () => grenadeProjs.length;
 G.debug.explodeGrenadeAt = (x,y,z) => explodeGrenadeAt(x,y,z);
+// ====== Barils explosifs (#41) : tir -> explosion AoE aux ennemis ======
+const BARREL_R = 4, BARREL_DAMAGE = 90;
+const BARREL_SPOTS = [{x:8,z:6},{x:-8,z:-4},{x:6,z:-12},{x:-5,z:16}];
+const barrels = [];
+function buildBarrelMesh(){ const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.9,16), new THREE.MeshStandardMaterial({ color:0xb02a1e, metalness:0.4, roughness:0.5, emissive:0x300a06 })); body.position.y = 0.45;
+  const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.12,16), new THREE.MeshStandardMaterial({ color:0xf0c020, emissive:0x201803 })); stripe.position.y = 0.45;
+  g.add(body, stripe); g.traverse(o=>{ if(o.isMesh) o.castShadow = true; }); return g; }
+function spawnBarrel(x, z){
+  const mesh = buildBarrelMesh(); mesh.position.set(x, 0, z); scene.add(mesh);
+  const hb = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,1.8,8), new THREE.MeshBasicMaterial({ visible:false }));
+  hb.position.set(x, 0.9, z); hb.updateMatrixWorld(); scene.add(hb);
+  barrels.push({ mesh, hitbox:hb, x, z }); return barrels.length-1;
+}
+function clearBarrels(){ for(const b of barrels){ scene.remove(b.mesh); scene.remove(b.hitbox); } barrels.length = 0; }
+function spawnBarrels(){ clearBarrels(); for(const s of BARREL_SPOTS) spawnBarrel(s.x, s.z); }
+function explodeBarrel(b){
+  for(const e of enemies){ if(!e.alive) continue;
+    const d = Math.hypot(e.root.position.x-b.x, e.root.position.z-b.z);
+    if(d < BARREL_R) damageEnemy(e, Math.max(1, Math.round(BARREL_DAMAGE*(1-d/BARREL_R)))); }
+  spawnExplosionFx(new THREE.Vector3(b.x, 0.6, b.z));
+  scene.remove(b.mesh); scene.remove(b.hitbox); const i = barrels.indexOf(b); if(i>=0) barrels.splice(i,1);
+}
+G.debug.barrelCount = () => barrels.length;
+G.debug.explodeBarrelNow = (i) => { if(barrels[i]) explodeBarrel(barrels[i]); };
+G.debug.spawnBarrelInFront = (dist=8) => { _ray.setFromCamera({x:0,y:0}, camera);
+  const p = _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(dist)); return spawnBarrel(p.x, p.z); };
 function spawnTracer(from, to){
   const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xfff1a8, transparent:true, opacity:0.9 }));
@@ -2315,7 +2344,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearPowerUps(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearPowerUps(); clearBarrels(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -2563,7 +2592,7 @@ function startWave(w){
   wave = w; G.wave = w;
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
-  waveState = 'active'; refillGrenades();                                    // recharge les grenades à chaque vague (#33)
+  waveState = 'active'; refillGrenades(); spawnBarrels();                     // grenades rechargées + barils frais chaque vague (#33/#41)
   updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
 }
 function checkWaveCleared(){
