@@ -1393,3 +1393,17 @@ test('rarete : le badge rend la couleur et le nom du palier', async ({ page }) =
   const leg = await page.evaluate(() => __game.debug.shop.rarityBadge('legendaire'));
   expect(leg).toContain('#ffb02e'); expect(leg).toContain('Légendaire');
 });
+
+test('rarete : la boutique affiche la couleur de rarete (armes + perso)', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-shop').click();
+  await expect(page.locator('#shop-info')).toContainText('Fusil');          // onglet Armes (défaut)
+  let html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
+  expect(html).toContain('#9aa3b2');                                        // default = commun
+  await page.locator('.shop-tab[data-tab="player"]').click();
+  await expect(page.locator('#shop-info')).toContainText('Cyborg');
+  html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
+  expect(html).toMatch(/#9aa3b2|#4f9dff|#b066ff/);                          // un badge de rareté perso
+});

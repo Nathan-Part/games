@@ -158,6 +158,7 @@
   .shop-cta:not(:disabled):hover{transform:translateY(-2px)}
   .shop-cta:disabled{opacity:.45;cursor:default}
   .shop-badge{padding:13px 26px;border-radius:12px;font-size:16px;font-weight:800;color:#8fe07a;border:1px solid #3ad17a}
+  .rarity-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:7px;border:1px solid;vertical-align:middle}
   .shop-upgrades{display:flex;flex-direction:column;gap:7px;width:min(420px,86vw);margin-top:2px;
     background:rgba(22,27,40,.78);border:1px solid rgba(150,175,235,.2);border-radius:14px;padding:13px 18px}
   .shop-statrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
@@ -1211,7 +1212,7 @@ function renderShop(){
   if(shopTab === 'weapons'){
     const w = WEAPONS[shopWeaponIndex], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
     const lvlTotal = Object.keys(UPGRADE_SPECS).reduce((a,t)=>a+upgradeLevel(w.id,t),0), lvlMax = Object.keys(UPGRADE_SPECS).length*5;
-    html += `<div class="shop-wname">${w.name} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`;
+    html += `<div class="shop-wname">${w.name} ${rarityBadge(w.rarity)} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`;
     html += `<div class="shop-statcards">`
       + shopStatCard('Dégâts', Math.round(60 * s.dmgMult)) + shopStatCard('Tirs/min', Math.round(60 / s.cooldown))
       + shopStatCard('Chargeur', s.mag) + shopStatCard('Recul', s.recoil.toFixed(1)) + `</div>`;
@@ -1233,7 +1234,7 @@ function renderShop(){
       const act = eq ? `<span class="shop-chartag">✓</span>`
         : owned ? `<button class="shop-charbtn" data-selchar="${c.id}">Équiper</button>`
         : `<button class="shop-charbtn buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>💰${c.price}</button>`;
-      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${c.name}</span><span>${c.base.health}</span><span>${c.base.regen}</span><span>${c.base.speed.toFixed(2)}×</span><span>${act}</span></div>`;
+      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${c.name} ${rarityBadge(c.rarity)}</span><span>${c.base.health}</span><span>${c.base.regen}</span><span>${c.base.speed.toFixed(2)}×</span><span>${act}</span></div>`;
     }
     html += `</div><div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades nobox">`;
     for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
@@ -1248,7 +1249,7 @@ function renderShop(){
       const act = eq ? `<span class="shop-chartag">✓</span>`
         : owned ? `<button class="shop-charbtn" data-selskin="${s.id}">Équiper</button>`
         : `<button class="shop-charbtn buy" data-buyskin="${s.id}"${save.money >= s.price ? '' : ' disabled'}>💰${s.price}</button>`;
-      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${s.name}</span><span><i class="shop-swatch" style="background:${sw}"></i></span><span></span><span></span><span>${act}</span></div>`;
+      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${s.name} ${rarityBadge(s.rarity)}</span><span><i class="shop-swatch" style="background:${sw}"></i></span><span></span><span></span><span>${act}</span></div>`;
     }
     html += `</div>`;
   }
