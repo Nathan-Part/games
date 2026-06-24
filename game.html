@@ -154,6 +154,11 @@
   #pickup-prompt kbd{display:inline-block;background:var(--accent);color:var(--accent-ink);
     padding:1px 8px;font-family:var(--font-display);font-weight:700;margin-right:8px;--ch:4px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #grenade-hud{position:fixed;left:16px;top:54px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
+    padding:7px 13px;font-family:var(--font-display);text-transform:uppercase;font-size:var(--t-sm);font-weight:600;
+    letter-spacing:.05em;color:var(--text-2);white-space:nowrap;--ch:7px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #grenade-hud b{color:var(--accent)}
   #combo-hud{position:fixed;left:50%;top:54px;transform:translateX(-50%);z-index:11;text-align:center;
     background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--accent);padding:6px 18px;color:var(--text);pointer-events:none;--ch:8px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
@@ -172,6 +177,12 @@
     display:inline-flex;align-items:center;gap:7px;--ch:8px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #money-hud .ico{width:17px;height:17px;color:var(--gold)}
+  #boss-hud{position:fixed;left:50%;top:92px;transform:translateX(-50%);z-index:11;width:min(420px,70vw);height:18px;
+    background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--danger);overflow:hidden;--ch:5px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #boss-fill{position:absolute;inset:0;background:linear-gradient(90deg,#ff7a3e,#ff2a0e);transition:width .12s}
+  #boss-hud span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);
+    font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#fff;text-shadow:0 1px 2px #000}
   #radar{position:fixed;right:16px;top:14px;z-index:10;width:150px;height:150px;border-radius:50%;
     background:rgba(12,14,18,.66);box-shadow:inset 0 0 0 1px var(--line-2),0 4px 18px rgba(0,0,0,.5)}
   #wave-banner{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.82);z-index:21;
@@ -182,6 +193,9 @@
   #vignette{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s;
     box-shadow:inset 0 0 140px 40px rgba(200,20,20,.85)}
   #vignette.show{opacity:1}
+  #heal-flash{position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;transition:opacity .12s;
+    box-shadow:inset 0 0 140px 40px rgba(46,207,107,.55)}
+  #heal-flash.show{opacity:1}
   #healthbar{position:fixed;left:16px;bottom:124px;width:240px;height:16px;z-index:10;
     background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);overflow:hidden;--ch:5px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
@@ -393,13 +407,16 @@
 <div id="sight"></div>
 <div id="hitmarker">✕</div>
 <div id="combat" class="hidden"></div>
+<div id="grenade-hud" class="hidden">💣 3</div>
 <div id="pickup-prompt" class="hidden"></div>
 <div id="wave-hud" class="hidden"></div>
 <div id="combo-hud" class="hidden"></div>
+<div id="boss-hud" class="hidden"><div id="boss-fill"></div><span>BOSS</span></div>
 <div id="money-hud" class="hidden"></div>
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="wave-banner"></div>
 <div id="vignette"></div>
+<div id="heal-flash"></div>
 <div id="healthbar" class="hidden"><div id="health-fill"></div></div>
 <div id="gameover" class="hidden"><div class="go-inner">
   <div class="go-eyebrow">// Fin de l'opération</div>
@@ -1079,6 +1096,7 @@ async function startGame(){
   document.getElementById('wave-hud').classList.remove('hidden');
   document.getElementById('money-hud').classList.remove('hidden'); updateMoneyHud();
   document.getElementById('radar').classList.remove('hidden');   // mini-carte (#21)
+  document.getElementById('grenade-hud').classList.remove('hidden'); updateGrenadeHud();   // compteur grenades (#33)
   updateCombatHud();
   if(!enemyBase) await buildEnemyAssets(char);
   startWave(1);
@@ -1145,6 +1163,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
   if(e.code==='KeyF' && G.phase==='playing') reload();                                // F = recharger
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
+  if(e.code==='KeyB' && G.phase==='playing') throwGrenade();                          // B = lancer une grenade (#33)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
   if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); }
   if(e.code==='KeyM'){ setMuted(!muted); }
@@ -1277,7 +1296,7 @@ function updateController(dt){
 // ====== UI : HUD, pause, overlay ======
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
-  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
+  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · B : grenade · G : ramasser · 1/2/3 : danses<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
 }
 function showOverlay(msg){
   document.getElementById('overlay').classList.remove('hidden');
@@ -1711,6 +1730,45 @@ function updateDamageNumbers(){   // expiration à l'horloge (indépendant du fr
 }
 G.debug.damageNumberCount = () => damageNumbers.length;
 G.debug.lastDamageNumber = () => lastDmgNum;
+// ====== Grenades (#33) : jet en arc + explosion AoE ======
+const MAX_GRENADES = 3, GRENADE_DAMAGE = 120, EXPLOSION_R = 4, GRENADE_FUSE = 1.4, GRENADE_GRAV = 14;
+let grenades = MAX_GRENADES; const grenadeProjs = [], grenadeFx = [];
+function buildGrenadeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.09,12,10),
+  new THREE.MeshStandardMaterial({ color:0x2a3a22, metalness:0.4, roughness:0.6, emissive:0x0a1505 })); }
+function throwGrenade(){
+  if(G.phase !== 'playing' || grenades <= 0) return false;
+  grenades--; updateGrenadeHud();
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const m = buildGrenadeMesh(); m.castShadow = true;
+  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
+  const vel = dir.multiplyScalar(9); vel.y += 3;
+  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE }); return true;
+}
+function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),
+  new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
+  m.position.copy(pos); scene.add(m); grenadeFx.push({ mesh:m, t0:nowS() }); }
+function explodeGrenadeAt(x, y, z){
+  for(const e of enemies){ if(!e.alive) continue;
+    const d = Math.hypot(e.root.position.x - x, e.root.position.z - z);
+    if(d < EXPLOSION_R) damageEnemy(e, Math.max(1, Math.round(GRENADE_DAMAGE * (1 - d/EXPLOSION_R)))); }
+  spawnExplosionFx(new THREE.Vector3(x, y, z)); playSound('shot');
+}
+function updateGrenades(dt){ const t = nowS();
+  for(let i=grenadeProjs.length-1;i>=0;i--){ const g = grenadeProjs[i];
+    g.vel.y -= GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel, dt);
+    if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
+    if(t >= g.explodeAt){ explodeGrenadeAt(g.mesh.position.x, g.mesh.position.y, g.mesh.position.z); scene.remove(g.mesh); grenadeProjs.splice(i,1); } }
+  for(let i=grenadeFx.length-1;i>=0;i--){ const f = grenadeFx[i], e = (t - f.t0)/0.3;
+    if(e >= 1){ scene.remove(f.mesh); grenadeFx.splice(i,1); continue; }
+    f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
+function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
+  for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
+function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); }
+function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
+G.debug.throwGrenade = () => throwGrenade();
+G.debug.grenadeCount = () => grenades;
+G.debug.grenadeProjCount = () => grenadeProjs.length;
+G.debug.explodeGrenadeAt = (x,y,z) => explodeGrenadeAt(x,y,z);
 function spawnTracer(from, to){
   const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xfff1a8, transparent:true, opacity:0.9 }));
@@ -1745,6 +1803,7 @@ function updateCombat(dt){
   document.getElementById('scope').classList.toggle('show', aiming);
   document.getElementById('crosshair').style.visibility = aiming ? 'hidden' : 'visible';
   updateCombo(); if(comboCount > 0) updateComboHud();                          // combo (#29) : rupture + barre de temps
+  updateBossHud();                                                             // barre de vie boss live (#31)
   const pk = nearestPickup(), pe = document.getElementById('pickup-prompt');   // invite de ramassage (#23)
   if(pe){ if(pk){ pe.innerHTML = `<kbd>G</kbd>Ramasser : ${pk.name} ${rarityBadge(pk.rarity)}`; pe.classList.remove('hidden'); }
           else pe.classList.add('hidden'); }
@@ -1964,6 +2023,37 @@ function updateHealth(dt){
 }
 G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
+// ====== Packs de soin (#32) : drop d'ennemis, ramassage par proximité ======
+const HEALTH_DROP_CHANCE = 0.25, HEALTH_PICKUP_R = 1.6, HEALTH_PACK_AMOUNT = 30;
+const healthPacks = []; let forceHealthDrop = false;
+function buildHealthPack(){
+  const g = new THREE.Group();
+  const green = new THREE.MeshStandardMaterial({ color:0x2ecf6b, emissive:0x14d06a, emissiveIntensity:0.8, roughness:0.4 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.20,0.06,16), new THREE.MeshStandardMaterial({ color:0x122a1c, roughness:0.7 })); base.position.y = 0.03;
+  const v = new THREE.Mesh(new THREE.BoxGeometry(0.10,0.30,0.10), green); v.position.y = 0.30;
+  const h = new THREE.Mesh(new THREE.BoxGeometry(0.30,0.10,0.10), green); h.position.y = 0.30;
+  g.add(base, v, h); g.traverse(o => { if(o.isMesh) o.castShadow = true; }); return g;
+}
+function spawnHealthPack(x, z){ const m = buildHealthPack(); m.position.set(x, 0, z); scene.add(m);
+  healthPacks.push({ mesh:m, x, z }); return healthPacks.length - 1; }
+function clearHealthPacks(){ for(const p of healthPacks) scene.remove(p.mesh); healthPacks.length = 0; }
+function maybeDropHealth(e){ if(forceHealthDrop || e.type === 'boss' || Math.random() < HEALTH_DROP_CHANCE) spawnHealthPack(e.root.position.x, e.root.position.z); }
+function updateHealthPacks(dt){
+  if(!model) return; const t = nowS();
+  for(let i=healthPacks.length-1;i>=0;i--){ const p = healthPacks[i];
+    p.mesh.rotation.y += dt * 1.5; p.mesh.position.y = 0.06 * Math.sin(t*3 + i);
+    const d = Math.hypot(model.position.x - p.x, model.position.z - p.z);
+    if(d <= HEALTH_PICKUP_R && health < maxHealth){
+      health = Math.min(maxHealth, health + HEALTH_PACK_AMOUNT); G.health = health; updateHealthHud(); flashHeal(); playSound('reload');
+      scene.remove(p.mesh); healthPacks.splice(i, 1); } }
+}
+function flashHeal(){ const v = document.getElementById('heal-flash'); if(!v) return; v.classList.add('show'); clearTimeout(v.__t); v.__t = setTimeout(() => v.classList.remove('show'), 260); }
+G.debug.spawnHealthPack = (x,z) => spawnHealthPack(x,z);
+G.debug.healthPackCount = () => healthPacks.length;
+G.debug.forceHealthDrop = (b) => { forceHealthDrop = !!b; };
+G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null; let best=null,bd=1e9;
+  for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
+  return best ? { x:best.x, z:best.z, dist:bd } : null; };
 
 function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); playSound('gameover');
@@ -1997,7 +2087,7 @@ G.debug.restart = () => restartGame();
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
   resetCombo();
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -2014,23 +2104,26 @@ const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE
       ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
       ENEMY_R = 0.45, ENEMY_FLASH = 0.08, ENEMY_TURN = 8,
       SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
-const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5;
+const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5, BOSS_BONUS = 300;   // #31 : bonus à la mort d'un boss
 // ====== Types d'ennemis (#11) : rusher (mêlée rapide), shooter (tireur rafale), tank (lourd) ======
 const ENEMY_TYPES = {
   shooter: { id:'shooter', hpMult:1.0, speedMult:1.0,  scale:1.0,  melee:false, damageMult:1.0, burst:3, glow:null },
   rusher:  { id:'rusher',  hpMult:0.6, speedMult:1.75, scale:0.9,  melee:true,  damageMult:1.0, burst:1, glow:0x6b1414 },
   tank:    { id:'tank',    hpMult:2.6, speedMult:0.55, scale:1.34, melee:false, damageMult:1.8, burst:2, glow:0x3a1250 },
+  boss:    { id:'boss',    hpMult:8.0, speedMult:0.7,  scale:1.9,  melee:false, damageMult:2.2, burst:3, glow:0xff5a1e },   // #31
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
-const ENEMY_WEAPON = { shooter:'default', rusher:'smg', tank:'sniper' };
+const ENEMY_WEAPON = { shooter:'default', rusher:'smg', tank:'sniper', boss:'sniper' };
 function weaponIdForType(type){ return ENEMY_WEAPON[type] || 'default'; }
 function meshMaxZ(obj){ obj.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(obj); return isFinite(b.max.z) ? b.max.z : 0.45; }
 // courbes de progression des vagues (pures) : nombre + PV croissants, plafonnés
-function enemiesForWave(w){ return Math.min(2 + w, MAX_PER_WAVE); }
+function isBossWave(w){ return w > 0 && w % 5 === 0; }                          // #31 : boss tous les 5 niveaux
+function enemiesForWave(w){ return isBossWave(w) ? 3 : Math.min(2 + w, MAX_PER_WAVE); }
 function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1))); }
-// composition d'une vague (pure) : enemies[0] toujours shooter (compat), rusher dès v2, tank dès v3
+// composition d'une vague (pure) : boss tous les 5 niveaux ; sinon shooter[0], rusher dès v2, tank dès v3
 function waveComposition(w){
+  if(isBossWave(w)) return ['boss', 'shooter', 'shooter'];                      // boss + 2 sbires (#31)
   const n = enemiesForWave(w), out = [];
   for(let i=0;i<n;i++){
     if(w>=3 && i%4===3) out.push('tank');
@@ -2043,6 +2136,7 @@ function waveComposition(w){
 G.debug.enemiesForWave = enemiesForWave;
 G.debug.enemyHpForWave = enemyHpForWave;
 G.debug.waveComposition = waveComposition;
+G.debug.isBossWave = isBossWave;
 let enemyAccOverride = null;                   // pour les tests (précision forcée)
 const ENEMY_FOOT_Y = 0;                       // pieds au sol (modèle ennemi centré dans un groupe)
 const FLASH_COLOR = new THREE.Color(0xff2222);
@@ -2259,7 +2353,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -2427,6 +2521,15 @@ const COMBO_WINDOW = 3.5;
 let comboCount = 0, comboExpireAt = 0;
 function comboMultiplier(n){ return Math.min(5, 1 + Math.floor(n/3)); }
 function comboTimeFrac(){ return comboCount > 0 ? Math.max(0, (comboExpireAt - nowS()) / COMBO_WINDOW) : 0; }
+// ====== Boss (#31) : barre de vie + helpers ======
+function bossEnemy(){ return enemies.find(e => e.type === 'boss' && e.alive) || null; }
+function bossHpFrac(){ const b = bossEnemy(); return b ? Math.max(0, b.hp / b.maxHp) : 0; }
+function updateBossHud(){ const el = document.getElementById('boss-hud'); if(!el) return;
+  const b = bossEnemy(); if(!b){ el.classList.add('hidden'); return; }
+  document.getElementById('boss-fill').style.width = Math.round(bossHpFrac()*100) + '%'; el.classList.remove('hidden'); }
+G.debug.bossAlive = () => !!bossEnemy();
+G.debug.bossHpFrac = () => bossHpFrac();
+G.debug.forceWave = (w) => startWave(w);
 function registerKill(){
   comboCount++; comboExpireAt = nowS() + COMBO_WINDOW;
   if(comboCount > (save.bestCombo || 0)){ save.bestCombo = comboCount; persist(); }
@@ -2462,16 +2565,18 @@ function killEnemy(e){
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   score += mult; G.score = score; flashHitMarker(); playSound('enemyDie');
   addMoney(MONEY_PER_KILL * mult);                     // argent par kill × combo (méta-monnaie persistée)
+  if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
+  maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
-  checkWaveCleared(); updateWaveHud();                 // vague : un mort de moins (plus de respawn auto)
+  checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
   wave = w; G.wave = w;
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
-  waveState = 'active';
-  updateWaveHud(); showWaveBanner('Vague ' + w);
+  waveState = 'active'; refillGrenades();                                    // recharge les grenades à chaque vague (#33)
+  updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
 }
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
@@ -2811,7 +2916,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

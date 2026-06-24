@@ -1740,3 +1740,112 @@ test('refonte : le CTA principal est orange (pas bleu legacy)', async ({ page })
   expect(bg).toMatch(/255,\s*106,\s*26/);      // --accent #ff6a1a
   expect(bg).not.toMatch(/91,\s*140,\s*255/);  // ancien bleu #5b8cff
 });
+
+// ====== Tranche 31 : vagues de boss ======
+test('boss : isBossWave tous les 5 niveaux', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const f = (w) => page.evaluate(x => __game.debug.isBossWave(x), w);
+  for(const w of [5,10,15]) expect(await f(w)).toBe(true);
+  for(const w of [1,4,6,9]) expect(await f(w)).toBe(false);
+});
+
+test('boss : composition de la vague 5 (boss + sbires)', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const c5 = await page.evaluate(() => __game.debug.waveComposition(5));
+  expect(c5[0]).toBe('boss'); expect(c5.length).toBe(3);
+  const c4 = await page.evaluate(() => __game.debug.waveComposition(4));
+  expect(c4).not.toContain('boss');
+});
+
+test('boss : la vague 5 fait apparaitre un boss vivant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  expect(await page.evaluate(() => __game.debug.bossAlive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.bossHpFrac())).toBeGreaterThan(0.9);
+  const types = await page.evaluate(() => { const n = __game.debug.enemyCount(); const a=[]; for(let i=0;i<n;i++) a.push(__game.debug.enemyType(i)); return a; });
+  expect(types).toContain('boss');
+});
+
+test('boss : HUD visible en vague de boss, masque apres', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await expect(page.locator('#boss-hud')).toBeVisible();
+  await expect(page.locator('#boss-hud')).toContainText('BOSS');
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await expect(page.locator('#boss-hud')).toBeHidden();
+});
+
+test('boss : le tuer credite un gros bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.forceWave(5); });
+  const m0 = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  expect(await page.evaluate(() => __game.money) - m0).toBeGreaterThanOrEqual(300);
+});
+
+// ====== Tranche 32 : packs de soin ======
+test('soin : drop force a la mort', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forceHealthDrop(true); __game.debug.spawnEnemyAt(0,3); __game.debug.damageEnemy(0,99999); });
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('soin : ramasser un pack au contact soigne et le retire', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(50));
+  const h0 = await page.evaluate(() => __game.debug.playerHealth());
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnHealthPack(p.x, p.z), pos);
+  await page.waitForFunction(h => __game.debug.playerHealth() > h, h0, { timeout:3000 });
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(0);
+});
+
+test('soin : plein de vie = pas de ramassage', async ({ page }) => {
+  await startPlaying(page);   // PV plein
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(p => __game.debug.spawnHealthPack(p.x, p.z), pos);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(1);   // reste (PV plein)
+});
+
+test('soin : pack trop loin ne soigne pas', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(40));
+  await page.evaluate(() => __game.debug.spawnHealthPack(60, 60));            // loin
+  const before = await page.evaluate(() => __game.debug.playerHealth());
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBeLessThanOrEqual(before + 2);  // régén lente seule, pas le pack
+  expect(await page.evaluate(() => __game.debug.healthPackCount())).toBe(1);
+});
+
+// ====== Tranche 33 : grenades ======
+test('grenade : lancer decremente le stock et cree un projectile', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.throwGrenade())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.grenadeProjCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('grenade : stock vide refuse', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.throwGrenade(); __game.debug.throwGrenade(); __game.debug.throwGrenade(); });
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.throwGrenade())).toBe(false);
+});
+
+test('grenade : explosion inflige des degats de zone', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); });
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.explodeGrenadeAt(0, 0.5, 3));
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
+});
+
+test('grenade : recharge a chaque vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.throwGrenade(); __game.debug.throwGrenade(); __game.debug.throwGrenade(); });
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+});
