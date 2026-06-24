@@ -1231,6 +1231,21 @@ test('danse : non possedee non assignable ; achat sans argent refuse', async ({ 
   expect(await page.evaluate(() => __game.debug.shop.buyDance('dance:combo'))).toBe(false);
 });
 
+test('danse : sous-onglet boutique achete et assigne', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
+  await page.locator('#btn-shop').click();
+  await page.locator('.shop-tab[data-tab="accessories"]').click();
+  await page.locator('#shop-info [data-accslot="dance"]').click();
+  await expect(page.locator('#shop-info')).toContainText('Skill I');
+  await page.locator('#shop-info [data-buydance="dance:skill1"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().ownedDances)).toContain('dance:skill1');
+  await page.locator('#shop-info [data-assigndance="dance:skill1:2"]').click();
+  expect(await page.evaluate(() => __game.debug.save.get().selectedDances[2])).toBe('dance:skill1');
+});
+
 // ====== Tranche 26 : onglet Accessoires (remplace l'onglet Skins) ======
 test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });

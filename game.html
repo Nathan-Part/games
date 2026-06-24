@@ -168,6 +168,8 @@
   .shop-subtabs{display:flex;gap:8px;margin:4px 0 8px}
   .shop-subtab{background:#222a38;color:#aeb6c9;border:1px solid #3a4a66;border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:700}
   .shop-subtab.on{background:#3a4a66;color:#fff}
+  .shop-charbtn.mini{padding:2px 8px;margin:0 2px;min-width:0}
+  .shop-charbtn.mini.on{background:#3ad17a;color:#10131a}
   .shop-upgrades{display:flex;flex-direction:column;gap:7px;width:min(420px,86vw);margin-top:2px;
     background:rgba(22,27,40,.78);border:1px solid rgba(150,175,235,.2);border-radius:14px;padding:13px 18px}
   .shop-statrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
@@ -1367,20 +1369,34 @@ function renderShop(){
     if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorer (toutes vos parties)</div><div class="shop-upgrades">`;
       for(const t in PLAYER_UPGRADE_SPECS) html += upgRow(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
       html += `</div>`; }
-  } else {   // onglet Accessoires (#26) : sous-onglets Casque / Costume
-    const slot = shopAccSlot, cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot];
+  } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
+    const slot = shopAccSlot;
     html += `<div class="shop-wname">Accessoires</div>`;
     html += `<div class="shop-subtabs"><button class="shop-subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Casque</button>`
-          + `<button class="shop-subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button></div>`;
-    html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>${slot==='helmet'?'Casque':'Costume'}</span><span></span><span></span><span></span><span></span></div>`;
-    for(const a of cat){
-      const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
-      const act = eq ? `<span class="shop-chartag">✓</span>`
-        : owned ? `<button class="shop-charbtn" data-selacc="${a.id}">Équiper</button>`
-        : `<button class="shop-charbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>💰${a.price}</button>`;
-      html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${a.name} ${rarityBadge(a.rarity)}</span><span></span><span></span><span></span><span>${act}</span></div>`;
+          + `<button class="shop-subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
+          + `<button class="shop-subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
+    if(slot === 'dance'){   // sous-onglet Danses (#27) : posséder + assigner aux 3 slots
+      html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>Danse</span><span></span><span></span><span></span><span>Slots</span></div>`;
+      for(const d of DANCES){
+        const owned = save.ownedDances.includes(d.id);
+        const act = !owned
+          ? `<button class="shop-charbtn buy" data-buydance="${d.id}"${save.money >= d.price ? '' : ' disabled'}>💰${d.price}</button>`
+          : `<span class="dance-slots">${[0,1,2].map(i => `<button class="shop-charbtn mini${save.selectedDances[i]===d.id?' on':''}" data-assigndance="${d.id}:${i}">${i+1}</button>`).join('')}</span>`;
+        html += `<div class="shop-chartr"><span>${d.name} ${rarityBadge(d.rarity)}</span><span></span><span></span><span></span><span>${act}</span></div>`;
+      }
+      html += `</div>`;
+    } else {   // Casque / Costume
+      const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot];
+      html += `<div class="shop-chartable"><div class="shop-chartr shop-charhead"><span>${slot==='helmet'?'Casque':'Costume'}</span><span></span><span></span><span></span><span></span></div>`;
+      for(const a of cat){
+        const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
+        const act = eq ? `<span class="shop-chartag">✓</span>`
+          : owned ? `<button class="shop-charbtn" data-selacc="${a.id}">Équiper</button>`
+          : `<button class="shop-charbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>💰${a.price}</button>`;
+        html += `<div class="shop-chartr${eq ? ' on' : ''}"><span>${a.name} ${rarityBadge(a.rarity)}</span><span></span><span></span><span></span><span>${act}</span></div>`;
+      }
+      html += `</div>`;
     }
-    html += `</div>`;
   }
   info.classList.toggle('left', shopTab === 'accessories');   // bloc à gauche pour accessoires ; perso = carte bas-centre (carrousel #25)
   info.innerHTML = html;
@@ -1393,6 +1409,8 @@ function renderShop(){
   info.querySelectorAll('[data-accslot]').forEach(b => b.onclick = () => { shopAccSlot = b.dataset.accslot; renderShop(); });
   info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = () => { if(buyAccessory(b.dataset.buyacc)) renderShop(); });
   info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = () => { if(selectAccessory(shopAccSlot, b.dataset.selacc)) renderShop(); });
+  info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
+  info.querySelectorAll('[data-assigndance]').forEach(b => b.onclick = () => { const v = b.dataset.assigndance, k = v.lastIndexOf(':'); if(assignDance(+v.slice(k+1), v.slice(0, k))) renderShop(); });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
 }
 
