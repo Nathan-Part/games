@@ -1983,3 +1983,27 @@ test('apercu : une image placeholder devient un plan image', async ({ page }) =>
   const img = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
   expect(await page.evaluate(u => __game.debug.buildItemPreviewIsImage({ previewImg:u }), img)).toBe(true);
 });
+
+// ====== Tranche 40 : menu pause ======
+test('pause : gele la partie puis reprend', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setPaused(true));
+  const p0 = await page.evaluate(() => __game.position());
+  await page.evaluate(() => __game.debug.setInput({ forward:true }));
+  await page.waitForTimeout(500);
+  const p1 = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p1.x-p0.x, p1.z-p0.z)).toBeLessThan(0.05);
+  await page.evaluate(() => __game.debug.setPaused(false));
+  await page.waitForTimeout(500);
+  const p2 = await page.evaluate(() => __game.position());
+  expect(Math.hypot(p2.x-p0.x, p2.z-p0.z)).toBeGreaterThan(0.3);
+});
+
+test('pause : le menu permet de revenir a l accueil', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setPaused(true));
+  await expect(page.locator('#pause')).toBeVisible();
+  await expect(page.locator('#pause')).toContainText('Reprendre');
+  await page.locator('#pause-menu').click();
+  expect(await page.evaluate(() => __game.phase)).toBe('lobby');
+});

@@ -44,6 +44,10 @@
   #pause,#overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
     background:rgba(8,10,15,.8);backdrop-filter:blur(6px);text-align:center;padding:24px}
   #overlay-msg{max-width:520px;line-height:1.6}
+  .pause-box{background:rgba(16,18,26,.92);border:1px solid #2a3550;border-radius:16px;padding:24px 30px;text-align:center;display:flex;flex-direction:column;gap:10px}
+  .pause-box h2{margin:0 0 8px;font-size:26px}
+  .pause-box button{font-size:16px;font-weight:700;padding:10px 22px;border-radius:10px;border:1px solid #3a4a66;background:#222a38;color:#eaf2ff;cursor:pointer}
+  .pause-box button:hover{background:#2e3a50}
   #overlay code{background:rgba(255,255,255,.08);padding:2px 7px;border-radius:6px;color:#ffd479}
   #crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:18px;height:18px;pointer-events:none}
   #crosshair.hidden{display:none}
@@ -269,7 +273,12 @@
 </div>
 
 <div id="hud" class="hidden"></div>
-<div id="pause" class="hidden"><div>⏸ En pause — clique pour reprendre</div></div>
+<div id="pause" class="hidden"><div class="pause-box">
+  <h2>⏸ Pause</h2>
+  <button id="pause-resume">Reprendre ▶</button>
+  <button id="pause-restart">Recommencer ↻</button>
+  <button id="pause-menu">Menu ◀</button>
+</div></div>
 <div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
 <div id="crosshair" class="hidden"></div>
 <div id="scope"></div>
@@ -1183,9 +1192,16 @@ function showOverlay(msg){
   document.getElementById('overlay-msg').innerHTML =
     `⚠️ ${msg}<br><br>Lance via un serveur local :<br><code>python -m http.server 8123</code><br>puis <code>http://localhost:8123/game.html</code>`;
 }
+let paused = false;   // #40 : vrai gel de la partie
+function setPaused(b){ paused = !!b && G.phase==='playing'; document.getElementById('pause').classList.toggle('hidden', !paused); }
+G.debug.setPaused = (b) => setPaused(b);
+G.debug.pauseOpen = () => paused;
+document.getElementById('pause-resume').addEventListener('click', e => { e.stopPropagation(); canvasEl.requestPointerLock?.(); setPaused(false); });
+document.getElementById('pause-restart').addEventListener('click', e => { e.stopPropagation(); setPaused(false); restartGame(); });
+document.getElementById('pause-menu').addEventListener('click', e => { e.stopPropagation(); setPaused(false); backToHome(); });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement;
-  document.getElementById('pause').classList.toggle('hidden', locked || G.phase!=='playing');
+  if(G.phase==='playing') setPaused(!locked); else document.getElementById('pause').classList.add('hidden');
 });
 
 // ====== Catalogue d'armes (boutique #13) ======
@@ -2902,7 +2918,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing'){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
