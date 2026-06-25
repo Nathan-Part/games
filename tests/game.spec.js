@@ -2558,3 +2558,27 @@ test('#58 ks : reset au restart', async ({ page }) => {
   const n = await page.evaluate(() => __game.debug.ksCount());
   expect(n).toBe(0);
 });
+
+// ====== #59 — Hit-marker ======
+test('#59 hitmarker : showHitMarker debug disponible', async ({ page }) => {
+  await startPlaying(page);
+  const ok = await page.evaluate(() => typeof __game.debug.showHitMarker === 'function');
+  expect(ok).toBe(true);
+});
+
+test('#59 hitmarker : visible apres showHitMarker(false)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showHitMarker(false));
+  const vis = await page.evaluate(() => {
+    const el = document.getElementById('hit-marker');
+    return el && !el.classList.contains('hidden') && el.classList.contains('hm-show');
+  });
+  expect(vis).toBe(true);
+});
+
+test('#59 hitmarker : classe headshot quand showHitMarker(true)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showHitMarker(true));
+  const hs = await page.evaluate(() => document.getElementById('hit-marker').classList.contains('hm-head'));
+  expect(hs).toBe(true);
+});
