@@ -2481,3 +2481,43 @@ test('#56 stamina : reset a 100 apres restart', async ({ page }) => {
   const s = await page.evaluate(() => __game.debug.stamina());
   expect(s).toBe(100);
 });
+
+// ====== #57 — Flashbang ======
+test('#57 flashbang : stock initial = 2', async ({ page }) => {
+  await startPlaying(page);
+  const count = await page.evaluate(() => __game.debug.flashbangCount());
+  expect(count).toBe(2);
+});
+
+test('#57 flashbang : lancer reduit le stock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwFlashbang());
+  const count = await page.evaluate(() => __game.debug.flashbangCount());
+  expect(count).toBe(1);
+});
+
+test('#57 flashbang : explosion aveugle les ennemis proches', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 5));
+  await page.evaluate(() => __game.debug.explodeFlashbangAt(0, 1, 5));
+  const blinded = await page.evaluate(() => __game.debug.enemyBlinded(0));
+  expect(blinded).toBe(true);
+});
+
+test('#57 flashbang : ennemi loin non aveugle', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 30));
+  await page.evaluate(() => __game.debug.explodeFlashbangAt(0, 1, 0));
+  const blinded = await page.evaluate(() => __game.debug.enemyBlinded(0));
+  expect(blinded).toBe(false);
+});
+
+test('#57 flashbang : rechargé par vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwFlashbang());
+  await page.evaluate(() => __game.debug.throwFlashbang());
+  expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(0);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.waitForFunction(() => __game.debug.flashbangCount() > 0, null, {timeout:10000});
+  expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(2);
+});
