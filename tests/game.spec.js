@@ -881,19 +881,21 @@ test('boutique : catalogue contient pistolet, mitrailleuse et couteau avec categ
 });
 
 test('couteau : acheter + equiper -> tryFire fait des degats mêlée sans consommer de balle', async ({ page }) => {
-  test.setTimeout(60000);   // démarrage lent hors suite (chargement perso GLB)
+  test.setTimeout(60000);
   await startPlaying(page);
   await page.evaluate(() => {
     __game.debug.save.addMoney(2000);
-    __game.debug.setEnemyAccuracy(0);   // empêche les ennemis de tuer le joueur
+    __game.debug.setEnemyAccuracy(0);
   });
-  expect(await page.evaluate(() => __game.debug.shop.buy('knife'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.shop.equip('knife'))).toBe(true);
-  // Spawn ennemi et gèle le jeu en un seul éval (l'ennemi ne peut pas s'enfuir avant tryFire)
+  // #50 : 'knife' est gratuite et déjà possédée ; 'combat_knife' est achetable (650)
+  expect(await page.evaluate(() => __game.debug.shop.buy('combat_knife'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.equip('combat_knife'))).toBe(true);
+  // Pose le joueur à (0,0), tourne yaw=0, spawne ennemi à (0,2) = 2u devant (+Z)
   await page.evaluate(() => {
-    __game.debug.setView('first'); __game.debug.setPitch(0);
-    __game.debug.spawnEnemyInFront(2);
-    __game.debug.setPaused(true);        // l'ennemi ne bouge plus, reste à 2u devant
+    __game.debug.setPos(0, 0); __game.debug.setYaw(0); __game.debug.setPitch(0);
+    __game.debug.setView('first');
+    __game.debug.moveEnemy(0, 0, 2);    // enemies[0] à 2u devant le joueur
+    __game.debug.setPaused(true);
   });
   const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
   expect(await page.evaluate(() => __game.debug.tryFire())).toBe(true);
@@ -1596,7 +1598,7 @@ test('rarete : la boutique affiche la couleur de rarete (armes + perso)', async 
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
   await page.locator('#btn-shop').click();
-  await expect(page.locator('#shop-info')).toContainText('Fusil');          // onglet Armes (défaut)
+  await expect(page.locator('#shop-info')).toContainText('Viper-AR');       // #49 : arme renommée (Viper-AR = fusil d'assaut par défaut)
   let html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
   expect(html).toContain('#9aa3b2');                                        // default = commun
   await page.locator('.shop-tab[data-tab="player"]').click();
