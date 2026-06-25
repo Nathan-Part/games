@@ -278,6 +278,12 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #scope-overlay{position:fixed;inset:0;z-index:18;pointer-events:none;opacity:0;transition:opacity .08s;
+    background:radial-gradient(circle 38vh at 50% 50%, transparent 37.5vh, rgba(0,0,0,.97) 38vh)}
+  #scope-overlay.show{opacity:1}
+  #scope-overlay::before,#scope-overlay::after{content:'';position:absolute;background:rgba(0,0,0,.85)}
+  #scope-overlay::before{width:1px;height:100%;left:50%;transform:translateX(-50%)}
+  #scope-overlay::after{width:100%;height:1px;top:50%;transform:translateY(-50%)}
   #xp-hud{position:fixed;left:16px;bottom:76px;z-index:10;width:240px}
   #xp-label{font-family:var(--font-display);font-size:var(--t-xs);text-transform:uppercase;letter-spacing:.05em;
     color:var(--text-2);font-weight:700;margin-bottom:3px}
@@ -581,6 +587,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="scope-overlay"></div>
 <div id="xp-hud" class="hidden"><div id="xp-label">Niv. 1  Recrue</div><div id="xp-track"><div id="xp-fill"></div></div></div>
 <div id="hit-marker" class="hidden"></div>
 <div id="ks-banner" class="hidden"></div>
@@ -3775,7 +3782,9 @@ function buildArmsViewModel(){
   camera.add(g); g.visible = false;
   return g;
 }
-const FOV_BASE = 55, FOV_ADS = 42, ADS_LERP = 10;
+const FOV_BASE = 55, FOV_ADS = 42, FOV_SCOPE = 20, ADS_LERP = 10;
+const SNIPER_IDS = new Set(['sniper','phantom_sr']); // Eclipse SR, Phantom L115
+function isSniper(){ return SNIPER_IDS.has(save.selectedWeapon||'default'); }
 const VM_HIP = new THREE.Vector3(0.12, -0.11, -0.34);   // pose hanche (arme visible en bas-droite)
 const VM_ADS = new THREE.Vector3(0.05, -0.26, -0.30);   // pose visée : l'arme plonge -> centre dégagé pour le viseur
 let adsT = 0;
@@ -3783,19 +3792,25 @@ function updateWeapon(dt){
   if(weaponRecoil > 0) weaponRecoil = Math.max(0, weaponRecoil - dt*6);
   const aimNow = (G.phase === 'playing' && input.aim) ? 1 : 0;
   adsT += (aimNow - adsT) * Math.min(1, dt*ADS_LERP);
+  const scopeOn = isSniper() && adsT > 0.5;
   if(viewModel){
-    viewModel.visible = (view === 'first' && G.phase === 'playing');
-    viewModel.position.lerpVectors(VM_HIP, VM_ADS, adsT);   // en visée : l'arme plonge pour dégager le centre
+    viewModel.visible = (view === 'first' && G.phase === 'playing' && !scopeOn);
+    viewModel.position.lerpVectors(VM_HIP, VM_ADS, adsT);
     viewModel.position.z += weaponRecoil * 0.06;
     viewModel.rotation.set(0.05 + weaponRecoil*0.18 + 0.25*adsT, Math.PI + 0.12*(1-adsT), 0);
   }
-  if(armsVM){                                               // les bras suivent l'arme (même plongée/recul)
-    armsVM.visible = (view === 'first' && G.phase === 'playing');
+  if(armsVM){
+    armsVM.visible = (view === 'first' && G.phase === 'playing' && !scopeOn);
     armsVM.position.copy(viewModel.position).sub(VM_HIP);
   }
   if(heldWeapon) heldWeapon.rotation.z = weaponRecoil * 0.2;
-  camera.fov = FOV_BASE + (FOV_ADS - FOV_BASE) * adsT; camera.updateProjectionMatrix();
+  const targetFov = scopeOn ? FOV_SCOPE : FOV_ADS;
+  camera.fov = FOV_BASE + (targetFov - FOV_BASE) * adsT; camera.updateProjectionMatrix();
+  const scopeEl = document.getElementById('scope-overlay');
+  if(scopeEl){ if(scopeOn) scopeEl.classList.add('show'); else scopeEl.classList.remove('show'); }
 }
+G.debug.sniperScopeActive = () => isSniper() && !!input.aim;
+G.debug.forceEquipWeapon = (id) => { save.selectedWeapon = id; persist(); applyWeaponStats(); };
 G.debug.weapon = {
   held(){ return !!heldWeapon; }, handBone(){ return handBoneName; }, source(){ return weaponSource; },
   viewmodelVisible(){ return !!(viewModel && viewModel.visible); }, recoil(){ return weaponRecoil; },

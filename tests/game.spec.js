@@ -2623,3 +2623,27 @@ test('#60 xp : kill en jeu donne de l xp', async ({ page }) => {
   const after = await page.evaluate(() => __game.debug.xpTotal());
   expect(after).toBeGreaterThan(before);
 });
+
+// ====== #61 — Sniper scope ======
+test('#61 scope : sniperScopeActive = false sans visée', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.shop.setWeapon('sniper'));
+  const active = await page.evaluate(() => __game.debug.sniperScopeActive());
+  expect(active).toBe(false);
+});
+
+test('#61 scope : sniperScopeActive = true en ADS avec sniper', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceEquipWeapon('sniper'));
+  await page.evaluate(() => __game.debug.setInput({ aim: true }));
+  const active = await page.evaluate(() => __game.debug.sniperScopeActive());
+  expect(active).toBe(true);
+});
+
+test('#61 scope : pas de scope avec arme non-sniper', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ aim: true }));
+  await page.waitForTimeout(300);
+  const active = await page.evaluate(() => __game.debug.sniperScopeActive());
+  expect(active).toBe(false);
+});
