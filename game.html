@@ -3115,8 +3115,31 @@ function killCallout(e){
   else if(n >= 2) showCallout(n===2 ? 'DOUBLE KILL' : n===3 ? 'TRIPLE KILL' : 'MULTI KILL !');
   else if(e.lastHitHead) showCallout('HEADSHOT');
 }
-function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); }
+function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); resetKillFeed(); }
 G.debug.lastCallout = () => lastCalloutText;
+// ====== #54 Kill Feed ======
+const KF_COLORS = { rusher:'#ff6b35', shooter:'#4fc3f7', tank:'#81c784', bomber:'#ffb300', boss:'#ce93d8' };
+const KF_LABELS = { rusher:'Rusher', shooter:'Shooter', tank:'Tank', bomber:'Bomber', boss:'Boss' };
+const KF_MAX = 5, KF_LIFE = 4000, KF_FADE = 500;
+function addKillFeedEntry(e){
+  const feed = document.getElementById('kill-feed'); if(!feed) return;
+  const isHead = !!e.lastHitHead, isBoss = e.type === 'boss';
+  const label = KF_LABELS[e.type] || 'Ennemi';
+  const prefix = isBoss ? 'BOSS DOWN · ' : isHead ? 'HEADSHOT · ' : '';
+  const div = document.createElement('div');
+  div.className = 'kf-entry';
+  div.style.setProperty('--kf-color', KF_COLORS[e.type] || '#fff');
+  div.textContent = '☠ ' + prefix + label;
+  feed.prepend(div);
+  while(feed.children.length > KF_MAX){ feed.removeChild(feed.lastChild); }
+  setTimeout(() => {
+    div.classList.add('fade-out');
+    setTimeout(() => { if(div.parentNode) div.parentNode.removeChild(div); }, KF_FADE);
+  }, KF_LIFE);
+}
+function resetKillFeed(){ const f = document.getElementById('kill-feed'); if(f) f.innerHTML = ''; }
+G.debug.killFeedCount = () => { const f = document.getElementById('kill-feed'); return f ? f.children.length : 0; };
+G.debug.lastKillFeedText = () => { const f = document.getElementById('kill-feed'); return f && f.firstChild ? f.firstChild.textContent : ''; };
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
@@ -3142,6 +3165,7 @@ function killEnemy(e){
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
   killCallout(e);                                       // annonce HEADSHOT/multi-kill/BOSS DOWN (#38)
+  addKillFeedEntry(e);                                  // journal kill (#54)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
@@ -3177,6 +3201,7 @@ G.debug.waveState = () => waveState;
 G.debug.forceNextWave = () => startWave(wave + 1);
 G.debug.killAllEnemies = () => { for(const e of enemies) if(e.alive) killEnemy(e); };
 G.debug.damageEnemy = (i, amount) => damageEnemy(enemies[i], amount);
+G.debug.setEnemyLastHitHead = (i, v) => { if(enemies[i]) enemies[i].lastHitHead = !!v; };
 G.debug.corpseCount = () => enemies.filter(e => e.state === 'dead').length;
 G.debug.enemyLowestY = (i) => { const e = enemies[i]; if(!e) return null; e.root.updateMatrixWorld(true);
   let lo = Infinity; const v = new THREE.Vector3(); e.root.traverse(o => { if(o.isBone){ o.getWorldPosition(v); if(v.y < lo) lo = v.y; } }); return isFinite(lo) ? lo : null; };

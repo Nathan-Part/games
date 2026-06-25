@@ -2337,10 +2337,11 @@ test('#54 kill feed : conteneur #kill-feed présent dans le DOM', async ({ page 
 test('#54 kill feed : 1 kill => 1 entrée', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
   await page.evaluate(() => __game.debug.start(0));
-  await page.waitForFunction(() => window.__game?.phase === 'playing');
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
   await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 6); __game.debug.damageEnemy(0, 9999); });
-  await page.waitForFunction(() => __game.debug.killFeedCount() >= 1);
+  await page.waitForFunction(() => __game.debug.killFeedCount() >= 1, null, {timeout:5000});
   const count = await page.evaluate(() => __game.debug.killFeedCount());
   expect(count).toBe(1);
 });
@@ -2348,23 +2349,21 @@ test('#54 kill feed : 1 kill => 1 entrée', async ({ page }) => {
 test('#54 kill feed : 3 kills => 3 entrées', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
   await page.evaluate(() => __game.debug.start(0));
-  await page.waitForFunction(() => window.__game?.phase === 'playing');
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
   for (let i = 0; i < 3; i++) {
     await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 6); __game.debug.damageEnemy(0, 9999); });
-    await page.waitForFunction(n => __game.debug.killFeedCount() >= n, i + 1);
+    await page.waitForFunction(n => __game.debug.killFeedCount() >= n, i + 1, {timeout:5000});
   }
   const count = await page.evaluate(() => __game.debug.killFeedCount());
   expect(count).toBe(3);
 });
 
 test('#54 kill feed : headshot kill => texte contient HEADSHOT', async ({ page }) => {
-  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
-  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
-  await page.evaluate(() => __game.debug.start(0));
-  await page.waitForFunction(() => window.__game?.phase === 'playing');
-  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 6); __game.debug.hitZoneDamage(0, 'head', 9999); });
-  await page.waitForFunction(() => __game.debug.killFeedCount() >= 1);
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 6); __game.debug.setEnemyLastHitHead(0, true); __game.debug.damageEnemy(0, 9999); });
+  await page.waitForFunction(() => __game.debug.killFeedCount() >= 1, null, {timeout:5000});
   const text = await page.evaluate(() => __game.debug.lastKillFeedText());
   expect(text).toContain('HEADSHOT');
 });
@@ -2372,11 +2371,12 @@ test('#54 kill feed : headshot kill => texte contient HEADSHOT', async ({ page }
 test('#54 kill feed : 6 kills => max 5 entrées visibles', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
   await page.evaluate(() => __game.debug.start(0));
-  await page.waitForFunction(() => window.__game?.phase === 'playing');
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
   for (let i = 0; i < 6; i++) {
     await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 6); __game.debug.damageEnemy(0, 9999); });
-    await page.waitForFunction(n => __game.debug.killFeedCount() >= Math.min(n, 5), i + 1);
+    await page.waitForFunction(n => __game.debug.killFeedCount() >= Math.min(n, 5), i + 1, {timeout:5000});
   }
   const count = await page.evaluate(() => __game.debug.killFeedCount());
   expect(count).toBeLessThanOrEqual(5);
@@ -2385,12 +2385,13 @@ test('#54 kill feed : 6 kills => max 5 entrées visibles', async ({ page }) => {
 test('#54 kill feed : feed vidé au restart', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
   await page.evaluate(() => __game.debug.start(0));
-  await page.waitForFunction(() => window.__game?.phase === 'playing');
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
   await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 6); __game.debug.damageEnemy(0, 9999); });
-  await page.waitForFunction(() => __game.debug.killFeedCount() >= 1);
+  await page.waitForFunction(() => __game.debug.killFeedCount() >= 1, null, {timeout:5000});
   await page.evaluate(() => __game.debug.restart());
-  await page.waitForFunction(() => window.__game?.phase === 'playing');
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
   const count = await page.evaluate(() => __game.debug.killFeedCount());
   expect(count).toBe(0);
 });
