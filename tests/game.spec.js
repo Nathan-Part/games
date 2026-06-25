@@ -424,7 +424,7 @@ test('vagues : nettoyer une vague enchaine sur la suivante (plus nombreuse, reco
   await page.waitForFunction(() => __game.wave === 2, null, { timeout:8000 });
   expect(await page.evaluate(() => __game.debug.waveState())).toBe('active');
   expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(4);   // enemiesForWave(2)
-  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(120);   // enemyHpForWave(2)
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(118);   // enemyHpForWave(2) = round(100*1.18^1)
   expect(await page.evaluate(() => __game.bestWave)).toBe(2);             // record
 });
 
@@ -2148,9 +2148,13 @@ test('succes : persistent apres reload', async ({ page }) => {
 // ====== Tranche 45 : corps-à-corps ======
 test('melee : coup blesse un ennemi proche devant', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { for(let i=1;i<3;i++) __game.debug.moveEnemy(i,40,40); __game.debug.setView('first'); __game.debug.setYaw(0); __game.debug.setPitch(0); });
-  await page.waitForTimeout(120);
-  await page.evaluate(() => __game.debug.spawnEnemyInFront(2));
+  // Placement déterministe : joueur à l'origine, ennemi 0 à 2u devant, jeu en pause
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.moveEnemy(0,0,2);  // ennemi 0 à 2u devant le joueur
+    __game.debug.setPaused(true);
+  });
   const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
   expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(true);
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
@@ -2292,35 +2296,33 @@ test('#52 lobby : debug hook lobbyAnimated existe', async ({ page }) => {
   expect(has).toBe(true);
 });
 
-// ====== #53 — Boost déséquipable par partie ======
-test('#53 boost : unequipBoostRun reduit les stats sans modifier la save', async ({ page }) => {
+// ====== #53 — Boost toggle équiper/déséquiper ======
+test('#53 boost : equipBoost toggle - equiper augmente les stats, re-cliquer les reduit', async ({ page }) => {
   await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
-  // Ajouter le gilet dans ownedBoosts puis l'équiper via shop.equipBoost (recalcule les stats)
   await page.evaluate(() => {
     __game.debug.save.reset();
     __game.debug.save.live().ownedBoosts.push('boost:vest1');
-    __game.debug.shop.equipBoost('boost:vest1');   // déclenche applyPlayerStats
   });
+  const healthBase = await page.evaluate(() => __game.debug.playerStats().maxHealth);
+  await page.evaluate(() => __game.debug.shop.equipBoost('boost:vest1'));
   const healthWith = await page.evaluate(() => __game.debug.playerStats().maxHealth);
-  await page.evaluate(() => __game.debug.unequipBoostRun('vest'));
+  expect(healthWith).toBeGreaterThan(healthBase);
+  // Re-cliquer dé-équipe
+  await page.evaluate(() => __game.debug.shop.equipBoost('boost:vest1'));
   const healthWithout = await page.evaluate(() => __game.debug.playerStats().maxHealth);
   expect(healthWithout).toBeLessThan(healthWith);
-  const saveBoost = await page.evaluate(() => __game.debug.save.live().equippedBoosts.vest);
-  expect(saveBoost).toBe('boost:vest1');
+  expect(healthWithout).toBe(healthBase);
 });
 
-test('#53 boost : restart remet les overrides a zero', async ({ page }) => {
-  await startPlaying(page);
+test('#53 boost : desequiper via unequipBoost retire le boost de la save', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
   await page.evaluate(() => {
+    __game.debug.save.reset();
     const s = __game.debug.save.live();
     s.ownedBoosts.push('boost:vest1');
     s.equippedBoosts.vest = 'boost:vest1';
-    __game.debug.unequipBoostRun('vest');
   });
-  const healthBefore = await page.evaluate(() => __game.debug.playerStats().maxHealth);
-  await page.evaluate(() => __game.debug.restart());
-  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:10000});
-  const healthAfter = await page.evaluate(() => __game.debug.playerStats().maxHealth);
-  // Après restart, le boost est de nouveau actif (override remis à 0)
-  expect(healthAfter).toBeGreaterThanOrEqual(healthBefore);
+  await page.evaluate(() => __game.debug.unequipBoost('vest'));
+  const saveBoost = await page.evaluate(() => __game.debug.save.live().equippedBoosts.vest);
+  expect(saveBoost).toBeFalsy();
 });

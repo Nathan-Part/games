@@ -2909,14 +2909,17 @@ function updateEnemies(dt){
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
     if(e.state === 'dead'){
-      if(!e.actions.dead || !e.actions.dead.paused){
+      if(!e.frozenPose){
         e.mixer.update(dt);
-        if(e.actions.dead && e.actions.dead.paused && !e.frozenPose){
+        const da = e.actions.dead;
+        const animDone = !da || da.paused || (da.time > 0 && da.time >= da.getClip().duration - 0.05);
+        if(animDone){
+          e.mixer.stopAllAction();
           const pose = [];
           e.root.traverse(o => { if(o.isBone) pose.push({ bone:o, p:o.position.clone(), q:o.quaternion.clone() }); });
           e.frozenPose = pose;
         }
-      } else if(e.frozenPose){
+      } else {
         for(const fp of e.frozenPose){ fp.bone.position.copy(fp.p); fp.bone.quaternion.copy(fp.q); }
       }
       e.root.updateMatrixWorld(true);
