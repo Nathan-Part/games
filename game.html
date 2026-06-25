@@ -65,20 +65,24 @@
   .statbar>.trk{height:8px;background:var(--bg-500);position:relative;overflow:hidden}
   .statbar>.trk>i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
   .statbar>.val{font-family:var(--font-display);font-weight:700;text-align:right;color:var(--text);font-feature-settings:'tnum' 1}
-  /* --- badge rareté (M-8 : le hex litéral reste dans l'attribut style via --rc, requis par les tests) --- */
-  .rb{font-family:var(--font-display);font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
-    padding:3px 10px;display:inline-block;vertical-align:middle;color:var(--rc,#9aa3b2);
-    background:color-mix(in srgb,var(--rc,#9aa3b2) 22%,transparent);
-    box-shadow:inset 0 0 0 1px var(--rc,#9aa3b2),0 0 10px color-mix(in srgb,var(--rc,#9aa3b2) 40%,transparent);
+  /* --- badge rareté (#51 : glow renforcé) --- */
+  .rb{font-family:var(--font-display);font-weight:800;font-size:13px;letter-spacing:.12em;text-transform:uppercase;
+    padding:4px 12px;display:inline-block;vertical-align:middle;color:var(--rc,#9aa3b2);
+    background:color-mix(in srgb,var(--rc,#9aa3b2) 28%,transparent);
+    box-shadow:inset 0 0 0 1.5px var(--rc,#9aa3b2),
+      0 0 12px color-mix(in srgb,var(--rc,#9aa3b2) 60%,transparent),
+      0 0 24px color-mix(in srgb,var(--rc,#9aa3b2) 30%,transparent);
     --ch:5px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
-  /* --- carte d'item (boutique) --- */
+  /* --- carte d'item (#51 : halo couleur-rareté sous la carte) --- */
   .icard{position:relative;background:var(--bg-600);padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;
-    transition:transform .15s ease-out,background .15s;--ch:11px;color:var(--text);text-align:left;
+    transition:transform .15s ease-out,background .15s,box-shadow .15s;--ch:11px;color:var(--text);text-align:left;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch));
-    box-shadow:inset 0 2px 0 0 var(--rc,var(--line)),inset 0 0 0 1px var(--line)}
+    box-shadow:inset 0 2px 0 0 var(--rc,var(--line)),inset 0 0 0 1px var(--line),
+      0 8px 20px -4px color-mix(in srgb,var(--rc,#9aa3b2) 35%,transparent)}
   .icard:hover{transform:translateY(-3px);background:var(--bg-500)}
-  .icard.on{box-shadow:inset 0 2px 0 0 var(--rc,var(--accent)),inset 0 0 0 1px var(--accent);background:var(--bg-500)}
+  .icard.on{box-shadow:inset 0 2px 0 0 var(--rc,var(--accent)),inset 0 0 0 1px var(--accent),
+    0 8px 28px -4px color-mix(in srgb,var(--rc,var(--accent)) 55%,transparent);background:var(--bg-500)}
   .icard .nm{font-family:var(--font-display);font-weight:600;font-size:var(--t-lg);text-transform:uppercase;letter-spacing:.02em;line-height:1.05}
   .icard .thumb{height:46px;display:flex;align-items:center;justify-content:center;color:var(--rc,var(--accent))}
   .icard .thumb .ico{width:36px;height:36px}
@@ -636,7 +640,7 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 // ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
 const SAVE_KEY = 'cod-save-v1';
 function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestCombo:0, selectedCharacterId:null,
-  ownedWeapons:['default'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},
+  ownedWeapons:['default','knife'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},   // knife gratuit possédé par défaut (#50)
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
@@ -646,11 +650,13 @@ function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
     const s = Object.assign(defaultSave(), p);
-    s.settings = Object.assign(defaultSave().settings, p.settings || {});   // fusion fine des réglages (nouveaux champs => défaut)
+    s.settings = Object.assign(defaultSave().settings, p.settings || {});
+    if(!s.ownedWeapons.includes('knife')) s.ownedWeapons.push('knife');   // #50 : migration — knife gratuit
     return s;
-  } catch(e){ return defaultSave(); }   // save corrompue / indisponible -> valeurs par défaut
+  } catch(e){ return defaultSave(); }
 }
 let save = loadSave();
+let runBoostOverrides = {};   // #53 : déséquipement temporaire par partie (non persisté) ; slot→null = déséquipé pour ce run
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
 const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
 // ====== Modes de difficulté (#46) ======
@@ -686,6 +692,7 @@ G.debug.save = {
   get(){ return JSON.parse(JSON.stringify(save)); },
   reset(){ save = defaultSave(); G.money = save.money; persist(); updateMoneyHud(); if(typeof applyAllSettings === 'function') applyAllSettings(); },
   addMoney(n){ addMoney(n); }, raw(){ try { return localStorage.getItem(SAVE_KEY); } catch(e){ return null; } },
+  live(){ return save; },   // accès direct à l'objet save en mémoire (pour tests de mutation)
   rates(){ return { perKill:MONEY_PER_KILL, perWave:MONEY_PER_WAVE }; },
 };
 
@@ -930,7 +937,8 @@ const lamp1 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp1.position.set(-13, 6
 const lamp2 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp2.position.set(13, 6, -13); scene.add(lamp2);
 G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
-G.debug.pointInObstacle = (x, z) => obstacles.some(b => x>=b.minX && x<=b.maxX && z>=b.minZ && z<=b.maxZ);
+function pointInObstacle(x, z){ return obstacles.some(b => x>=b.minX && x<=b.maxX && z>=b.minZ && z<=b.maxZ); }   // #48
+G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
 G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
 
@@ -1146,18 +1154,23 @@ async function spawnModel(char){
 }
 // joue une anim idle sur le perso du lobby (plus de T-pose) — non-bloquant ; sauté en mode test rapide
 async function playLobbyIdle(){
+  // #52 : animation looping (bras naturels) — préfère Casual_Walk → walk → idle ; plus de pose figée
   if(!model || window.__FAST_WEAPON__) return;
   const target = model;
   try { if(!anims.length) await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); } catch(e){ return; }
-  if(model !== target) return;                          // un autre perso a été sélectionné entre-temps
-  // lobby = perso sans arme → pose détendue : cherche Agree_Gesture sinon n'importe quel idle/walk figé au 1er frame
-  const calm = anims.find(a => a.key === 'Agree_Gesture')
-    || anims.find(a => /agree|greet|stand|wave/i.test(a.key))
+  if(model !== target) return;
+  const calm = anims.find(a => /casual.*walk|walk.*casual/i.test(a.key))
+    || anims.find(a => /^(slow.*walk|walk)/i.test(a.key))
+    || anims.find(a => /walk/i.test(a.key))
     || anims.find(a => /idle/i.test(a.key));
-  const clip = calm ? retargetClipWorld(calm.clip) : (retargetRole('idle') || retargetRole('walk'));
-  if(clip){ mixer = new THREE.AnimationMixer(model); const act = mixer.clipAction(clip);
-    act.play(); act.paused = true; act.time = 0.05; mixer.update(0);   // pose figée naturelle
-    lobbyIdle = true; }
+  const clip = calm ? retargetClipWorld(calm.clip) : retargetRole('walk') || retargetRole('idle');
+  if(clip){
+    mixer = new THREE.AnimationMixer(model);
+    const act = mixer.clipAction(clip);
+    act.setLoop(THREE.LoopRepeat, Infinity);
+    act.play();                                     // looping — pas de paused=true
+    lobbyIdle = true;
+  }
 }
 G.debug.lobbyAnimated = () => lobbyIdle;
 function retargetRole(role){
@@ -1503,21 +1516,45 @@ document.addEventListener('pointerlockchange', () => {
 //        previewImg:'artefact/lmg/preview.png', assetDir:'artefact/lmg/' }
 //    -> l'image s'affiche dans la vitrine ; dès qu'un .glb est dans `artefact/lmg/`, le MODÈLE s'affiche
 //       automatiquement (auto-découverte, zéro changement de code). Marche pour toute future catégorie.
+// ====== Catalogue d'armes — #49 (noms originaux + sous-catégories) / #50 (couteaux multiples) ======
 const WEAPONS = [
-  { id:'default', name:"Fusil d'assaut", price:0, glb:true, rarity:'commun', category:'assault',
+  // Fusils d'assaut (assault)
+  { id:'default', name:'Viper-AR', price:0, glb:true, rarity:'commun', category:'assault',
     stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
-  { id:'smg', name:'Mitraillette', price:700, rarity:'rare', category:'smg',
+  { id:'raptor', name:'Raptor X5', price:900, rarity:'rare', category:'assault',
+    stats:{ mag:18, cooldown:0.10, reload:1.1, dmgMult:1.2, recoil:0.9 }, build:buildRaptorMesh },
+  { id:'cyclone', name:'Cyclone MK3', price:2000, rarity:'epique', category:'assault',
+    stats:{ mag:30, cooldown:0.08, reload:1.0, dmgMult:1.4, recoil:0.75 }, build:buildCycloneMesh },
+  // Mitraillettes (smg)
+  { id:'smg', name:'Hornet PDW', price:700, rarity:'rare', category:'smg',
     stats:{ mag:24, cooldown:0.07, reload:1.4, dmgMult:0.6, recoil:0.6 }, build:buildSmgMesh },
-  { id:'sniper', name:'Sniper', price:1500, rarity:'epique', category:'sniper',
+  { id:'storm', name:'Storm-9', price:1400, rarity:'epique', category:'smg',
+    stats:{ mag:32, cooldown:0.055, reload:1.3, dmgMult:0.7, recoil:0.5 }, build:buildStorm9Mesh },
+  // Snipers
+  { id:'sniper', name:'Eclipse SR', price:1500, rarity:'epique', category:'sniper',
     stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2 }, build:buildSniperMesh },
-  { id:'shotgun', name:'Fusil à pompe', price:1100, rarity:'epique', category:'shotgun',
+  { id:'phantom_sr', name:'Phantom L115', price:2800, rarity:'legendaire', category:'sniper',
+    stats:{ mag:4, cooldown:1.1, reload:2.2, dmgMult:4.5, recoil:2.8 }, build:buildPhantomSrMesh },
+  // Fusils à pompe (shotgun)
+  { id:'shotgun', name:'Devastator 870', price:1100, rarity:'epique', category:'shotgun',
     stats:{ mag:6, cooldown:0.7, reload:2.0, dmgMult:0.55, recoil:2.6, pellets:8 }, build:buildShotgunMesh },
-  { id:'pistol', name:'Pistolet', price:300, rarity:'commun', category:'pistol',
+  { id:'breacher', name:'Breacher MK2', price:1700, rarity:'rare', category:'shotgun',
+    stats:{ mag:8, cooldown:0.55, reload:1.7, dmgMult:0.45, recoil:2.2, pellets:10 }, build:buildBreacherMesh },
+  // Pistolets
+  { id:'pistol', name:'Specter-P', price:300, rarity:'commun', category:'pistol',
     stats:{ mag:15, cooldown:0.22, reload:0.9, dmgMult:0.9, recoil:0.65 }, build:buildPistolMesh },
-  { id:'lmg', name:'Mitrailleuse', price:1800, rarity:'legendaire', category:'smg',
+  { id:'jackal', name:'Jackal-45', price:600, rarity:'rare', category:'pistol',
+    stats:{ mag:12, cooldown:0.18, reload:0.85, dmgMult:1.3, recoil:0.8 }, build:buildJackalMesh },
+  // Mitrailleuse lourde (lmg)
+  { id:'lmg', name:'Thunderer LMG', price:1800, rarity:'legendaire', category:'lmg',
     stats:{ mag:50, cooldown:0.09, reload:3.2, dmgMult:0.75, recoil:1.4 }, build:buildLmgMesh },
-  { id:'knife', name:'Couteau', price:450, rarity:'rare', category:'melee', melee:true,
-    stats:{ mag:1, cooldown:0.45, reload:0, dmgMult:3.5, recoil:0 }, build:buildKnifeMesh },
+  // Corps-à-corps (#50 : 3 couteaux, le premier gratuit et possédé par défaut)
+  { id:'knife', name:'Lame franche', price:0, rarity:'commun', category:'melee', melee:true,
+    stats:{ mag:1, cooldown:0.55, reload:0, dmgMult:3.0, recoil:0 }, build:() => buildKnifeMesh('basic') },
+  { id:'combat_knife', name:'Bowie sanglante', price:650, rarity:'rare', category:'melee', melee:true,
+    stats:{ mag:1, cooldown:0.50, reload:0, dmgMult:4.0, recoil:0 }, build:() => buildKnifeMesh('bowie') },
+  { id:'phantom_blade', name:'Lame Fantôme', price:1200, rarity:'epique', category:'melee', melee:true,
+    stats:{ mag:1, cooldown:0.40, reload:0, dmgMult:5.0, recoil:0 }, build:() => buildKnifeMesh('phantom') },
 ];
 function weaponById(id){ return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
 // ====== Améliorations d'arme (#14) ======
@@ -1690,29 +1727,44 @@ async function loadCharScene(id){
   const sc = gltf.scene; sc.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
   charSceneCache.set(id, sc); return sc;
 }
+let shopCharMixers = [];   // #52 : mixers pour les persos en vitrine (shop onglet Personnage)
 async function buildCharDisplay(id){
   const c = characterById(id);
-  if(window.__FAST_WEAPON__) return buildCharMannequin(rarityColorInt(c.rarity));   // test : pas de GLB lourd
+  if(window.__FAST_WEAPON__) return buildCharMannequin(rarityColorInt(c.rarity));
   const sc = await loadCharScene(id); if(!sc) return buildCharMannequin(rarityColorInt(c.rarity));
   const m = cloneSkeleton(sc);
-  m.scale.setScalar(1.8 / (rigHeightOf(m).h || 1));   // échelle par hauteur du SQUELETTE (la bbox sous-estime → géant)
-  m.updateMatrixWorld(true);                          // applique l'échelle pour mesurer pieds/hanches
+  m.scale.setScalar(1.8 / (rigHeightOf(m).h || 1));
+  m.updateMatrixWorld(true);
   let lo = Infinity, hips = null; const v = new THREE.Vector3();
   m.traverse(o => { if(o.isBone){ o.getWorldPosition(v); lo = Math.min(lo, v.y); if(o.name === ROOT_BONE) hips = v.clone(); } });
-  if(hips){ m.position.x -= hips.x; m.position.z -= hips.z; }   // hanches centrées en X/Z (turntable propre)
-  if(isFinite(lo)) m.position.y -= lo;                          // pieds au sol (y=0)
-  const wrap = new THREE.Group(); wrap.add(m); return wrap;     // groupe déjà au sol, prêt à placer
+  if(hips){ m.position.x -= hips.x; m.position.z -= hips.z; }
+  if(isFinite(lo)) m.position.y -= lo;
+  const wrap = new THREE.Group(); wrap.add(m);
+  // #52 : appliquer une animation idle looping sur le perso de vitrine
+  if(anims.length){
+    const clp = anims.find(a => /casual.*walk|walk.*casual/i.test(a.key))
+      || anims.find(a => /walk/i.test(a.key))
+      || anims.find(a => /idle/i.test(a.key));
+    if(clp){ const clip = retargetClipWorld(clp.clip);
+      if(clip){ const mx = new THREE.AnimationMixer(m);
+        mx.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
+        wrap.userData.shopMixer = mx; shopCharMixers.push(mx); } }
+  }
+  return wrap;
 }
+// #49 : helper — armes de la catégorie active (filtre le carrousel)
+function filteredWeapons(){ return shopWeaponCategory === 'all' ? WEAPONS : WEAPONS.filter(w => w.category === shopWeaponCategory); }
 async function setShopWeapon(i){
-  const n = WEAPONS.length; shopWeaponIndex = ((i % n) + n) % n; shopAmeliorerOpen = false;
+  const fw = filteredWeapons(); const n = fw.length || 1;
+  shopWeaponIndex = ((i % n) + n) % n; shopAmeliorerOpen = false;
   const seq = ++shopBuildSeq;
   disposeShopObj(shopSideL); disposeShopObj(shopSideR);
-  const sideMesh = (w) => w.build ? w.build() : buildPlaceholderBox();   // voisines : primitive ou placeholder (#39)
-  shopSideL = placeShopModel(sideMesh(WEAPONS[(shopWeaponIndex - 1 + n) % n]), 1.55, SHOP_SIDE_L);
-  shopSideR = placeShopModel(sideMesh(WEAPONS[(shopWeaponIndex + 1) % n]), 1.55, SHOP_SIDE_R);
-  renderShop();                                          // stats/boutons tout de suite (le modèle central suit)
-  const centerModel = await buildPreviewModel(WEAPONS[shopWeaponIndex].id);
-  if(seq !== shopBuildSeq) return;                       // un changement plus récent a eu lieu
+  const sideMesh = (w) => w.build ? w.build() : buildPlaceholderBox();
+  shopSideL = placeShopModel(sideMesh(fw[(shopWeaponIndex - 1 + n) % n]), 1.55, SHOP_SIDE_L);
+  shopSideR = placeShopModel(sideMesh(fw[(shopWeaponIndex + 1) % n]), 1.55, SHOP_SIDE_R);
+  renderShop();
+  const centerModel = await buildPreviewModel(fw[shopWeaponIndex]?.id || fw[0]?.id);
+  if(seq !== shopBuildSeq) return;
   disposeShopObj(shopWeaponObj);
   shopWeaponObj = placeShopModel(centerModel, 3.0, SHOP_CENTER_POS);
   applyShopVisibility();
@@ -1749,8 +1801,9 @@ function updateShopTabs(){
   if(pv) pv.style.display = show; if(nx) nx.style.display = show;
 }
 function openShop(){
-  shopOpen = true; shopTab = 'weapons';
-  const i = WEAPONS.findIndex(w => w.id === save.selectedWeapon); setShopWeapon(i >= 0 ? i : 0);
+  shopOpen = true; shopTab = 'weapons'; shopWeaponCategory = 'all';   // #49 : reset catégorie à l'ouverture
+  const fw = filteredWeapons();
+  const i = fw.findIndex(w => w.id === save.selectedWeapon); setShopWeapon(i >= 0 ? i : 0);
   document.getElementById('shop-panel').classList.remove('hidden');
   updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera(); renderShop();
 }
@@ -1765,7 +1818,11 @@ function closeShop(){
   const cn = document.getElementById('char-name'); if(cn && characters[lobbyIndex]) cn.textContent = characters[lobbyIndex].label;
   updateShopScene(); updateHomeMeta(); updateShopCamera();   // restaure home (méta à jour) + caméra lobby
 }
-function disposeCharCarousel(){ disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR); shopCharObj = shopCharL = shopCharR = null; }
+function disposeCharCarousel(){
+  disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR);
+  shopCharObj = shopCharL = shopCharR = null;
+  shopCharMixers = [];   // #52 : vider les mixers de vitrine
+}
 function setShopTab(name){
   shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : (name === 'boost') ? 'boost' : 'weapons';
   clearAccessoryPreview();                               // changer d'onglet annule tout aperçu d'accessoire
@@ -1777,10 +1834,10 @@ function setShopTab(name){
 Object.assign(G.debug.shop, {
   open(){ openShop(); }, close(){ closeShop(); }, isOpen(){ return shopOpen; },
   tab(name){ setShopTab(name); }, currentTab(){ return shopTab; },
-  setWeapon(x){ const i = (typeof x === 'number') ? x : WEAPONS.findIndex(w => w.id === x); if(i >= 0) return setShopWeapon(i); },
+  setWeapon(x){ const fw = filteredWeapons(); const i = (typeof x === 'number') ? x : fw.findIndex(w => w.id === x); if(i >= 0) return setShopWeapon(i); },
   next(){ return setShopWeapon(shopWeaponIndex + 1); }, prev(){ return setShopWeapon(shopWeaponIndex - 1); },
-  current(){ return WEAPONS[shopWeaponIndex].id; },
-  previewWeapon(){ return (shopOpen && shopTab === 'weapons') ? WEAPONS[shopWeaponIndex].id : null; },
+  current(){ return (filteredWeapons()[shopWeaponIndex] || WEAPONS[0]).id; },
+  previewWeapon(){ return (shopOpen && shopTab === 'weapons') ? (filteredWeapons()[shopWeaponIndex] || WEAPONS[0]).id : null; },
   charCarousel(){ return charNeighbors(); }, currentChar(){ return CHARACTERS[shopCharIndex].id; },
   setChar(x){ const i = (typeof x === 'number') ? x : CHARACTERS.findIndex(c => c.id === x); if(i >= 0) return setShopChar(i); },
   nextChar(){ return setShopChar(shopCharIndex + 1); }, prevChar(){ return setShopChar(shopCharIndex - 1); },
@@ -1798,12 +1855,13 @@ function renderShop(){
   const mv = document.getElementById('shop-money-val'); if(mv) mv.textContent = save.money;
   let html = '';
   if(shopTab === 'weapons'){
-    // Sous-onglets catégorie
-    const WCATS = { all:'Tout', assault:'Fusil', smg:'Auto', sniper:'Sniper', shotgun:'Pompe', pistol:'Pistol', melee:'Mêlée' };
+    // Sous-onglets catégorie (#49 : labels réels, catégorie LMG séparée)
+    const WCATS = { all:'Tout', assault:'Assaut', smg:'SMG', sniper:'Sniper', shotgun:'Pompe', pistol:'Pistol', lmg:'LMG', melee:'Mêlée' };
     html += `<div class="subtabs">` + Object.entries(WCATS).map(([c,l]) =>
       `<button class="subtab${shopWeaponCategory===c?' on':''}" data-wcat="${c}">${l}</button>`
     ).join('') + `</div>`;
-    const w = WEAPONS[shopWeaponIndex], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
+    const fw = filteredWeapons();
+    const w = fw[shopWeaponIndex] || fw[0], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
     const lvlTotal = Object.keys(UPGRADE_SPECS).reduce((a,t)=>a+upgradeLevel(w.id,t),0), lvlMax = Object.keys(UPGRADE_SPECS).length*5;
     html += `<div class="shop-wname">${w.name} ${rarityBadge(w.rarity)} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`;
     if(w.melee){
@@ -1845,12 +1903,20 @@ function renderShop(){
   } else if(shopTab === 'boost'){   // onglet Boost (#28) : grille de cartes (C-3 : panneau gauche, perso visible)
     html += `<div class="shop-wname">Boost</div><div class="shop-grid">`;
     for(const bo of BOOSTS){
-      const owned = save.ownedBoosts.includes(bo.id), eq = save.equippedBoosts[bo.slot] === bo.id;
+      const owned = save.ownedBoosts.includes(bo.id);
+      const eq = save.equippedBoosts[bo.slot] === bo.id;
+      const runOff = runBoostOverrides[bo.slot] === null;   // #53 : déséquipé pour ce run
       const statTxt = bo.stat === 'health' ? `+${bo.bonus} Vie` : bo.stat === 'speed' ? `+${Math.round(bo.bonus*100)}% Vit.` : `+${bo.bonus} Régén`;
-      const foot = eq ? `<span class="icbtn on">${ico('check')} Équipé</span>`
-        : owned ? `<button class="icbtn" data-equipboost="${bo.id}">Équiper</button>`
-        : `<button class="icbtn buy" data-buyboost="${bo.id}"${save.money >= bo.price ? '' : ' disabled'}>${ico('coin')}${bo.price}</button>`;
-      html += itemCard({ rc:rarityInfo(bo.rarity).color, icon:boostIcon(bo.slot), name:bo.name, rarity:bo.rarity, sub:statTxt, foot, on:eq, owned });
+      let foot;
+      if(eq && runOff)   // équipé en save mais désactivé pour ce run
+        foot = `<span class="icbtn on muted">${ico('check')} Équipé</span><button class="icbtn" data-equipboost="${bo.id}">Réactiver</button>`;
+      else if(eq)
+        foot = `<span class="icbtn on">${ico('check')} Équipé</span><button class="icbtn muted" data-unequipboost="${bo.slot}" title="Désactiver pour ce run">✕ Run</button>`;
+      else if(owned)
+        foot = `<button class="icbtn" data-equipboost="${bo.id}">Équiper</button>`;
+      else
+        foot = `<button class="icbtn buy" data-buyboost="${bo.id}"${save.money >= bo.price ? '' : ' disabled'}>${ico('coin')}${bo.price}</button>`;
+      html += itemCard({ rc:rarityInfo(bo.rarity).color, icon:boostIcon(bo.slot), name:bo.name, rarity:bo.rarity, sub:statTxt, foot, on:(eq && !runOff), owned });
     }
     html += `</div>`;
   } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
@@ -1888,13 +1954,12 @@ function renderShop(){
   info.classList.toggle('grid', shopTab === 'accessories' || shopTab === 'boost');   // C-3 : panneau docké à gauche (accessoires/boost), perso 3D visible à droite
   info.innerHTML = html;
   info.querySelectorAll('[data-wcat]').forEach(b => b.onclick = () => {
-    shopWeaponCategory = b.dataset.wcat;
-    const idx = shopWeaponCategory === 'all' ? 0 : WEAPONS.findIndex(w => w.category === shopWeaponCategory);
-    if(idx >= 0) setShopWeapon(idx); else renderShop();
+    shopWeaponCategory = b.dataset.wcat;   // #49 : reset index à 0 dans la nouvelle catégorie
+    setShopWeapon(0);
   });
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
-  info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(WEAPONS[shopWeaponIndex].id, b.dataset.upg)) renderShop(); });
+  info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { const fw=filteredWeapons(); if(buyUpgrade((fw[shopWeaponIndex]||fw[0]).id, b.dataset.upg)) renderShop(); });   // #49
   info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
   info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
   info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)) renderShop(); });   // maj visuelle du lobby à la fermeture (carrousel #25)
@@ -1904,6 +1969,7 @@ function renderShop(){
   info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(selectAccessory(shopAccSlot, b.dataset.selacc)){ shopAccPreview[shopAccSlot] = null; renderShop(); } });
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
+  info.querySelectorAll('[data-unequipboost]').forEach(b => b.onclick = () => unequipBoostRun(b.dataset.unequipboost));   // #53
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
   info.querySelectorAll('[data-previewdance]').forEach(b => b.onclick = () => { previewDance(b.dataset.previewdance); });   // aperçu live (même non possédée)
   info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { if(toggleDance(b.dataset.seldance)) renderShop(); });
@@ -2039,10 +2105,32 @@ function _meleeStrike(reach, damage, cd){
   if(best){ damageEnemy(best, damage); flashHitMarker(); return true; }
   return false;
 }
-function playerMelee(){ return _meleeStrike(PLAYER_MELEE_REACH, PLAYER_MELEE_DAMAGE, 0.6); }   // touche X (free melee)
-function playerMeleeWeapon(){                                                                    // arme couteau équipée (E/clic)
+// #50 : flash visuel couteau sur la caméra pendant 300ms
+let knifeFlashObj = null, knifeFlashTimer = 0;
+function showKnifeFlash(){
+  if(!camera) return;
+  if(!knifeFlashObj){
+    const wid = effectiveWeaponId(); const w = weaponById(wid);
+    knifeFlashObj = (w && w.melee && w.build) ? w.build() : buildKnifeMesh('basic');
+    knifeFlashObj.position.set(0.14, -0.12, -0.25);
+    knifeFlashObj.rotation.set(0.15, -1.2, 0.3);
+    knifeFlashObj.scale.setScalar(1.0);
+    knifeFlashObj.userData.knifeFlash = true;
+    camera.add(knifeFlashObj);
+  }
+  knifeFlashObj.visible = true;
+  knifeFlashTimer = 0.30;
+}
+function updateKnifeFlash(dt){
+  if(!knifeFlashObj || !knifeFlashObj.visible) return;
+  knifeFlashTimer -= dt;
+  if(knifeFlashTimer <= 0){ knifeFlashObj.visible = false; }
+}
+function playerMelee(){ showKnifeFlash(); return _meleeStrike(PLAYER_MELEE_REACH, PLAYER_MELEE_DAMAGE, 0.6); }   // touche X (#45/#50)
+function playerMeleeWeapon(){
   const s = weaponStats(effectiveWeaponId());
   const dmg = Math.round(PLAYER_MELEE_DAMAGE * s.dmgMult);
+  showKnifeFlash();
   const hit = _meleeStrike(PLAYER_MELEE_REACH, dmg, s.cooldown || 0.45);
   if(hit || playerMeleeCd > 0){ runShots++; if(hit) runHits++; }
   return hit;
@@ -2179,7 +2267,7 @@ function updateCombat(dt){
   if(input.fire) tryFire();
   const t = nowS();
   for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
-  updateTracers(dt); updateDamageNumbers();
+  updateTracers(dt); updateDamageNumbers(); updateKnifeFlash(dt);   // #50
   const aiming = input.aim && G.phase==='playing';
   document.getElementById('sight').classList.toggle('show', aiming);
   document.getElementById('scope').classList.toggle('show', aiming);
@@ -2257,11 +2345,14 @@ const BOOST_VISUAL = {
                                           { name:'RightFoot', re:/right.*foot|foot.*r\b|r_foot/i, off:{x:0,y:0,z:0} }] },
   medal: { build:buildMedalMesh, attach:[{ name:'Neck', re:/neck/i, off:{x:0,y:0,z:0} }] },
 };
+// #53 : id effectif d'un slot boost (tient compte des overrides run-based)
+function effectiveBoostId(slot){ return (slot in runBoostOverrides) ? runBoostOverrides[slot] : save.equippedBoosts[slot]; }
+function unequipBoostRun(slot){ runBoostOverrides[slot] = null; applyPlayerStats(); applyBoosts(model); renderShop(); }
 function applyBoosts(root){
   if(!root) return;
   clearBoneTag(root, 'boost');                              // retire les anciens visuels de boost
   for(const slot of BOOST_SLOTS){
-    const id = save.equippedBoosts[slot]; if(!id) continue;
+    const id = effectiveBoostId(slot); if(!id) continue;   // #53 : respecte les overrides run
     const vis = BOOST_VISUAL[slot]; if(!vis) continue;
     for(const at of vis.attach){ const bone = findBoneNamed(root, at.name, at.re); if(bone) attachToBoneWorld(bone, vis.build(), 'boost', at.off); }
   }
@@ -2269,13 +2360,14 @@ function applyBoosts(root){
 G.debug.boostAttachedCount = () => { if(!model) return 0; let n=0; model.traverse(o=>{ if(o.userData && o.userData.accSlot==='boost') n++; }); return n; };
 function boostById(id){ return BOOSTS.find(b => b.id === id) || null; }
 function boostBonuses(){ const acc = { health:0, regen:0, speed:0 };
-  for(const slot of BOOST_SLOTS){ const b = boostById(save.equippedBoosts[slot]); if(b) acc[b.stat] += b.bonus; }
+  for(const slot of BOOST_SLOTS){ const b = boostById(effectiveBoostId(slot)); if(b) acc[b.stat] += b.bonus; }   // #53
   return acc; }
 function buyBoost(id){ const b = boostById(id); if(!b) return false;
   if(save.ownedBoosts.includes(id) || save.money < b.price) return false;
   save.money -= b.price; G.money = save.money; save.ownedBoosts.push(id);
   persist(); updateMoneyHud(); updateHomeMeta(); return true; }
 function equipBoost(id){ const b = boostById(id); if(!b || !save.ownedBoosts.includes(id)) return false;
+  delete runBoostOverrides[b.slot];   // #53 : lever l'override si on ré-équipe
   save.equippedBoosts[b.slot] = id; persist(); applyPlayerStats(); applyBoosts(model); return true; }
 function applyPlayerStats(){
   const b = characterById(save.selectedCharacterId).base;   // base du perso + améliorations (#15) + boosts (#28)
@@ -2310,6 +2402,7 @@ G.debug.shop.buyBoost = (id) => buyBoost(id);
 G.debug.shop.equipBoost = (id) => equipBoost(id);
 G.debug.equippedBoosts = () => Object.assign({}, save.equippedBoosts);
 G.debug.boostBonuses = () => boostBonuses();
+G.debug.unequipBoostRun = (slot) => unequipBoostRun(slot);
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
@@ -2490,6 +2583,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
+  runBoostOverrides = {};                                       // #53 : reset overrides boost run-based
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // restart : reset arme/combo/power/annonces/stats (#23/#29/#34/#38/#43)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
@@ -2734,11 +2828,17 @@ function makeHitbox(scale = 1){
 }
 function randomSpawn(){
   // anneau autour du joueur, AU-DELÀ du rayon de détection (apparition en patrouille, pas d'aggro instantané)
-  const a = Math.random()*Math.PI*2, r = DETECT_RADIUS + 3 + Math.random()*6; // [15,21]
+  // #48 : réessayer jusqu'à 10 fois pour éviter de spawner à l'intérieur d'un obstacle
   const px = model ? model.position.x : 0, pz = model ? model.position.z : 0;
-  const x = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, px + Math.cos(a)*r));
-  const z = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, pz + Math.sin(a)*r));
-  return { x, z };
+  let best = null;
+  for(let attempt = 0; attempt < 10; attempt++){
+    const a = Math.random()*Math.PI*2, r = DETECT_RADIUS + 3 + Math.random()*6;
+    const x = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, px + Math.cos(a)*r));
+    const z = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, pz + Math.sin(a)*r));
+    if(!best) best = { x, z };
+    if(!pointInObstacle(x, z)){ best = { x, z }; break; }
+  }
+  return best;
 }
 function rigHeightOf(obj){
   obj.updateMatrixWorld(true);
@@ -2817,7 +2917,7 @@ function updateEnemies(dt){
       e.root.updateMatrixWorld(true);
       let lo = Infinity; const bp = new THREE.Vector3();
       e.root.traverse(o => { if(o.isBone){ o.getWorldPosition(bp); if(bp.y < lo) lo = bp.y; } });
-      if(isFinite(lo) && lo < ENEMY_FOOT_Y + 0.05) e.root.position.y += (ENEMY_FOOT_Y + 0.05 - lo);
+      if(isFinite(lo)) e.root.position.y += (ENEMY_FOOT_Y + 0.05 - lo);   // #47 : bidirectionnel (anti-float ET anti-sink)
       continue;
     }
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
@@ -3152,16 +3252,100 @@ function buildLmgMesh(){
   g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
   return g;
 }
-function buildKnifeMesh(){
+// #50 : buildKnifeMesh(variant) — 3 designs distincts
+function buildKnifeMesh(variant){
   const g = new THREE.Group();
   const steel = new THREE.MeshStandardMaterial({ color:0xbec8d5, metalness:0.95, roughness:0.10 });
   const dark  = new THREE.MeshStandardMaterial({ color:0x18191f, metalness:0.3, roughness:0.7 });
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.022,0.010,0.25), steel); blade.position.set(0,0.018,0.16);
-  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.064,0.016,0.014), steel); guard.position.set(0,0.016,0.035);
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.010,0.11,8), dark); handle.rotation.x=Math.PI/2; handle.position.set(0,0.012,-0.05);
-  g.add(blade,guard,handle);
+  const bronze= new THREE.MeshStandardMaterial({ color:0x8b5e1c, metalness:0.8, roughness:0.2 });
+  const purple= new THREE.MeshStandardMaterial({ color:0x7a00ff, metalness:0.95, roughness:0.05, emissive:new THREE.Color(0x3300aa), emissiveIntensity:0.4 });
+  if(variant === 'bowie'){   // Bowie sanglante — lame large + crossguard en T + manche en os
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.032,0.012,0.28), steel); blade.position.set(0,0.018,0.18);
+    const clip  = new THREE.Mesh(new THREE.BoxGeometry(0.008,0.006,0.06), steel); clip.position.set(-0.010,0.027,0.28); clip.rotation.z=0.4;
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.080,0.018,0.016), bronze); guard.position.set(0,0.012,0.035);
+    const handle= new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.013,0.12,8), dark); handle.rotation.x=Math.PI/2; handle.position.set(0,0.010,-0.062);
+    g.add(blade,clip,guard,handle);
+  } else if(variant === 'phantom'){   // Lame Fantôme — dague effilée, lueur violette
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.010,0.32,6), purple); blade.rotation.x=Math.PI/2; blade.position.set(0,0.018,0.20);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.056,0.012,0.012), purple); guard.position.set(0,0.015,0.040);
+    const handle= new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.009,0.10,6), dark); handle.rotation.x=Math.PI/2; handle.position.set(0,0.012,-0.050);
+    const wrap  = new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.011,0.10,6), purple); wrap.rotation.x=Math.PI/2; wrap.position.set(0,0.012,-0.050); wrap.scale.x=0.3;
+    g.add(blade,guard,handle,wrap);
+  } else {   // 'basic' — couteau standard
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.022,0.010,0.25), steel); blade.position.set(0,0.018,0.16);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.064,0.016,0.014), steel); guard.position.set(0,0.016,0.035);
+    const handle= new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.010,0.11,8), dark); handle.rotation.x=Math.PI/2; handle.position.set(0,0.012,-0.05);
+    g.add(blade,guard,handle);
+  }
   g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
   return g;
+}
+// ====== Nouvelles armes primitives (#49) ======
+function buildRaptorMesh(){   // Raptor X5 — fusil assault carré, silencieux
+  const g = new THREE.Group();
+  const steel= new THREE.MeshStandardMaterial({ color:0x2a2e38, metalness:0.8, roughness:0.4 });
+  const tan  = new THREE.MeshStandardMaterial({ color:0x7a6c5a, roughness:0.5 });
+  const body  = new THREE.Mesh(new THREE.BoxGeometry(0.056,0.10,0.38), steel); body.position.set(0,0,0.02);
+  const barrel= new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.013,0.38,8), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.025,0.30);
+  const supp  = new THREE.Mesh(new THREE.CylinderGeometry(0.020,0.018,0.12,8), tan); supp.rotation.x=Math.PI/2; supp.position.set(0,0.025,0.46);
+  const foregrip= new THREE.Mesh(new THREE.BoxGeometry(0.04,0.09,0.05), tan); foregrip.position.set(0,-0.085,0.16); foregrip.rotation.x=0.2;
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.048,0.07,0.16), tan); stock.position.set(0,-0.01,-0.24);
+  g.add(body,barrel,supp,foregrip,stock); g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g;
+}
+function buildCycloneMesh(){   // Cyclone MK3 — assault futuriste, chargeur courbe
+  const g = new THREE.Group();
+  const steel= new THREE.MeshStandardMaterial({ color:0x1a1e26, metalness:0.9, roughness:0.3 });
+  const oran = new THREE.MeshStandardMaterial({ color:0xff6600, emissive:new THREE.Color(0xaa3300), emissiveIntensity:0.3, metalness:0.5, roughness:0.3 });
+  const body  = new THREE.Mesh(new THREE.BoxGeometry(0.058,0.11,0.42), steel); body.position.set(0,0,0.02);
+  const barrel= new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.42,8), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.028,0.32);
+  const rail  = new THREE.Mesh(new THREE.BoxGeometry(0.010,0.012,0.40), oran); rail.position.set(0,0.062,0.06);
+  const mag   = new THREE.Mesh(new THREE.BoxGeometry(0.048,0.12,0.058), steel); mag.position.set(0,-0.11,-0.01); mag.rotation.x=-0.25;
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.050,0.08,0.18), steel); stock.position.set(0,-0.008,-0.26);
+  g.add(body,barrel,rail,mag,stock); g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g;
+}
+function buildStorm9Mesh(){   // Storm-9 — SMG compact
+  const g = new THREE.Group();
+  const steel= new THREE.MeshStandardMaterial({ color:0x3a3d48, metalness:0.75, roughness:0.45 });
+  const dark = new THREE.MeshStandardMaterial({ color:0x14151a, metalness:0.4, roughness:0.7 });
+  const body  = new THREE.Mesh(new THREE.BoxGeometry(0.052,0.09,0.28), steel); body.position.set(0,0,0.02);
+  const barrel= new THREE.Mesh(new THREE.CylinderGeometry(0.010,0.010,0.22,8), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.020,0.22);
+  const mag   = new THREE.Mesh(new THREE.BoxGeometry(0.044,0.10,0.045), dark); mag.position.set(0,-0.09,-0.02); mag.rotation.x=-0.15;
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.030,0.008,0.14), steel); stock.position.set(0,-0.004,-0.20); stock.rotation.x=-0.1;
+  g.add(body,barrel,mag,stock); g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g;
+}
+function buildPhantomSrMesh(){   // Phantom L115 — sniper lourd
+  const g = new THREE.Group();
+  const steel= new THREE.MeshStandardMaterial({ color:0x1c2030, metalness:0.85, roughness:0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color:0x0a0a10, metalness:0.4, roughness:0.7 });
+  const body  = new THREE.Mesh(new THREE.BoxGeometry(0.060,0.10,0.48), steel); body.position.set(0,0,0.04);
+  const barrel= new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.60,10), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.012,0.52);
+  const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.026,0.18,10), dark); scope.rotation.x=Math.PI/2; scope.position.set(0,0.095,0.06);
+  const lens1 = new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.015,10), new THREE.MeshStandardMaterial({color:0x0044ff,metalness:1,roughness:0})); lens1.rotation.x=Math.PI/2; lens1.position.set(0,0.095,0.155);
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.046,0.09,0.22), dark); stock.position.set(0,-0.02,-0.30);
+  const bipo1 = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.16,5), dark); bipo1.position.set(-0.03,-0.14,0.38); bipo1.rotation.z=0.25;
+  const bipo2 = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.16,5), dark); bipo2.position.set( 0.03,-0.14,0.38); bipo2.rotation.z=-0.25;
+  g.add(body,barrel,scope,lens1,stock,bipo1,bipo2); g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g;
+}
+function buildBreacherMesh(){   // Breacher MK2 — shotgun semi-auto
+  const g = new THREE.Group();
+  const steel= new THREE.MeshStandardMaterial({ color:0x2e3240, metalness:0.65, roughness:0.55 });
+  const wood = new THREE.MeshStandardMaterial({ color:0x4e3015, roughness:0.75 });
+  const body  = new THREE.Mesh(new THREE.BoxGeometry(0.065,0.11,0.44), steel); body.position.set(0,0,0.02);
+  const barrel= new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.028,0.44,10), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.024,0.30);
+  const mag   = new THREE.Mesh(new THREE.CylinderGeometry(0.040,0.038,0.08,8), steel); mag.rotation.x=Math.PI/2; mag.position.set(0,-0.08,-0.04);
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.052,0.09,0.18), wood); stock.position.set(0,-0.02,-0.26);
+  const pump  = new THREE.Mesh(new THREE.BoxGeometry(0.054,0.050,0.10), wood); pump.position.set(0,-0.055,0.18);
+  g.add(body,barrel,mag,stock,pump); g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g;
+}
+function buildJackalMesh(){   // Jackal-45 — pistolet lourd
+  const g = new THREE.Group();
+  const steel= new THREE.MeshStandardMaterial({ color:0x1e2128, metalness:0.9, roughness:0.2 });
+  const dark = new THREE.MeshStandardMaterial({ color:0x0e0e14, metalness:0.4, roughness:0.7 });
+  const body  = new THREE.Mesh(new THREE.BoxGeometry(0.056,0.10,0.20), steel); body.position.set(0,0.005,0.04);
+  const barrel= new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.18,8), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.030,0.14);
+  const comp  = new THREE.Mesh(new THREE.BoxGeometry(0.048,0.024,0.06), steel); comp.position.set(0,0.043,0.20);
+  const grip  = new THREE.Mesh(new THREE.BoxGeometry(0.044,0.12,0.060), dark); grip.position.set(0,-0.11,-0.02); grip.rotation.x=0.12;
+  g.add(body,barrel,comp,grip); g.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); return g;
 }
 // auto-découverte d'un .glb dans un dossier (1 niveau de sous-dossiers) — convention assets (#39)
 async function findGlbInDir(dir){
@@ -3429,7 +3613,8 @@ function animate(){
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
     else if(model){ model.rotation.y += dt*0.6; }
   }
-  if (mixer) mixer.update(dt);
+  if(mixer) mixer.update(dt);
+  if(shopOpen && shopTab==='player') shopCharMixers.forEach(mx => mx.update(dt));   // #52 : persos vitrine animés
   renderer.render(scene, camera);
 }
 animate();
