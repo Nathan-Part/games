@@ -2395,3 +2395,44 @@ test('#54 kill feed : feed vidé au restart', async ({ page }) => {
   const count = await page.evaluate(() => __game.debug.killFeedCount());
   expect(count).toBe(0);
 });
+
+// ====== #55 — Challenges ======
+test('#55 challenges : HUD présent dans le DOM', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.locator('#challenges-hud').count()).toBe(1);
+});
+
+test('#55 challenges : 3 challenges créés au start', async ({ page }) => {
+  await startPlaying(page);
+  const count = await page.evaluate(() => __game.debug.challengeCount());
+  expect(count).toBe(3);
+});
+
+test('#55 challenges : forceCompleteChallenge credite l argent', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.money);
+  const reward = await page.evaluate(() => __game.debug.challengeReward(0));
+  await page.evaluate(() => __game.debug.forceCompleteChallenge(0));
+  const moneyAfter = await page.evaluate(() => __game.money);
+  expect(moneyAfter).toBe(moneyBefore + reward);
+});
+
+test('#55 challenges : challenge marque done apres forceComplete', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceCompleteChallenge(0));
+  const done = await page.evaluate(() => __game.debug.challengeDone(0));
+  expect(done).toBe(true);
+});
+
+test('#55 challenges : reset au restart => 3 nouveaux challenges', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
+  const count = await page.evaluate(() => __game.debug.challengeCount());
+  expect(count).toBe(3);
+});
+
+test('#55 challenges : HUD visible en playing', async ({ page }) => {
+  await startPlaying(page);
+  await expect(page.locator('#challenges-hud')).toBeVisible();
+});

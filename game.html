@@ -258,6 +258,21 @@
     color:#fff;white-space:nowrap;animation:kfIn .25s ease;opacity:1;transition:opacity .5s}
   .kf-entry.fade-out{opacity:0}
   @keyframes kfIn{from{transform:translateX(18px);opacity:0}to{transform:translateX(0);opacity:1}}
+  #challenges-hud{position:fixed;left:16px;bottom:148px;z-index:10;min-width:200px;pointer-events:none}
+  .ch-title{font-family:var(--font-display);font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.12em;color:var(--text-3);margin-bottom:5px}
+  .ch-entry{background:rgba(0,0,0,.55);padding:5px 9px 6px;margin-bottom:3px;border-left:2px solid var(--accent);
+    font-family:var(--font-display);font-size:11px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.04em;color:var(--text-2);overflow:hidden}
+  .ch-entry.done{border-color:var(--gold);color:var(--gold)}
+  .ch-entry .ch-bar{height:2px;margin-top:4px;background:var(--accent);transition:width .2s}
+  .ch-entry.done .ch-bar{background:var(--gold)}
+  #challenge-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(10px);z-index:14;
+    background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.5);padding:10px 18px;
+    font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;color:var(--accent);font-size:var(--t-md);
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;--ch:8px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #challenge-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   #vignette{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s;
     box-shadow:inset 0 0 140px 40px rgba(200,20,20,.85)}
   #vignette.show{opacity:1}
@@ -535,6 +550,8 @@
 <div id="wave-banner"></div>
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
+<div id="challenges-hud" class="hidden"></div>
+<div id="challenge-toast"></div>
 <div id="achievement-toast"></div>
 <div id="vignette"></div>
 <div id="heal-flash"></div>
@@ -1259,7 +1276,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // reset loot/combo/power/annonces/stats (#23/#29/#34/#38/#43)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges();   // reset + init challenges (#55)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -2109,7 +2126,7 @@ function _meleeStrike(reach, damage, cd){
     const d = Math.hypot(dx, dz); if(d > reach) continue;
     const dot = (dx*dir.x + dz*dir.z) / (d||1); if(dot < 0.2) continue;
     if(d < bestD){ best = e; bestD = d; } }
-  if(best){ damageEnemy(best, damage); flashHitMarker(); return true; }
+  if(best){ best.lastHitMelee = true; damageEnemy(best, damage); best.lastHitMelee = false; flashHitMarker(); return true; }
   return false;
 }
 // #50 : flash visuel couteau sur la caméra pendant 300ms
@@ -2496,6 +2513,7 @@ function damagePlayer(amount){
   if(G.phase !== 'playing') return;
   amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
   health = Math.max(0, health - amount); G.health = health; lastDamageAt = nowS();
+  dmgThisWave += amount;
   flashDamage(); updateHealthHud(); playSound('playerHit');
   if(health <= 0) playerDie();
 }
@@ -2589,7 +2607,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // restart : reset arme/combo/power/annonces/stats (#23/#29/#34/#38/#43)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges();   // restart : reset + init challenges (#55)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -3115,7 +3133,7 @@ function killCallout(e){
   else if(n >= 2) showCallout(n===2 ? 'DOUBLE KILL' : n===3 ? 'TRIPLE KILL' : 'MULTI KILL !');
   else if(e.lastHitHead) showCallout('HEADSHOT');
 }
-function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); resetKillFeed(); }
+function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); resetKillFeed(); resetChallenges(); }
 G.debug.lastCallout = () => lastCalloutText;
 // ====== #54 Kill Feed ======
 const KF_COLORS = { rusher:'#ff6b35', shooter:'#4fc3f7', tank:'#81c784', bomber:'#ffb300', boss:'#ce93d8' };
@@ -3140,6 +3158,64 @@ function addKillFeedEntry(e){
 function resetKillFeed(){ const f = document.getElementById('kill-feed'); if(f) f.innerHTML = ''; }
 G.debug.killFeedCount = () => { const f = document.getElementById('kill-feed'); return f ? f.children.length : 0; };
 G.debug.lastKillFeedText = () => { const f = document.getElementById('kill-feed'); return f && f.firstChild ? f.firstChild.textContent : ''; };
+// ====== #55 Challenges ======
+const CHALLENGES = [
+  { id:'kills_5',        desc:'Tuer 5 ennemis',        target:5,  reward:150, type:'kills' },
+  { id:'kills_10',       desc:'Tuer 10 ennemis',       target:10, reward:300, type:'kills' },
+  { id:'headshots_2',    desc:'2 headshots',           target:2,  reward:200, type:'headshots' },
+  { id:'headshots_5',    desc:'5 headshots',           target:5,  reward:400, type:'headshots' },
+  { id:'wave_3',         desc:'Atteindre la vague 3',  target:3,  reward:250, type:'wave' },
+  { id:'wave_5',         desc:'Atteindre la vague 5',  target:5,  reward:500, type:'wave' },
+  { id:'no_damage_wave', desc:'Vague sans dégâts',     target:1,  reward:350, type:'nodmg' },
+  { id:'melee_3',        desc:'3 kills au couteau',    target:3,  reward:300, type:'melee' },
+];
+let sessionChallenges = [];
+let dmgThisWave = 0;
+let challengeMeleeKills = 0;
+let challengeToastT = null;
+function initChallenges(){
+  const pool = [...CHALLENGES].sort(() => Math.random() - 0.5);
+  sessionChallenges = pool.slice(0, 3).map(def => ({ def, progress:0, done:false }));
+  dmgThisWave = 0; challengeMeleeKills = 0;
+  updateChallengesHud();
+}
+function checkChallenges(type, value){
+  if(!sessionChallenges.length) return;
+  for(const c of sessionChallenges){
+    if(c.done || c.def.type !== type) continue;
+    c.progress = Math.max(c.progress, value);
+    if(c.progress >= c.def.target) completeChallenge(c);
+  }
+  updateChallengesHud();
+}
+function completeChallenge(c){
+  c.done = true; c.progress = c.def.target;
+  addMoney(c.def.reward);
+  const el = document.getElementById('challenge-toast'); if(!el) return;
+  el.textContent = '✓ Défi : ' + c.def.desc + ' +' + c.def.reward + '$';
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(challengeToastT);
+  challengeToastT = setTimeout(() => el.classList.remove('show'), 2500);
+}
+function updateChallengesHud(){
+  const el = document.getElementById('challenges-hud'); if(!el) return;
+  if(!sessionChallenges.length){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '<div class="ch-title">Défis</div>' + sessionChallenges.map(c => {
+    const frac = Math.min(1, c.progress / c.def.target);
+    return `<div class="ch-entry${c.done?' done':''}">${c.done?'✓ ':''}${c.def.desc}<div class="ch-bar" style="width:${Math.round(frac*100)}%"></div></div>`;
+  }).join('');
+}
+function resetChallenges(){
+  sessionChallenges = []; dmgThisWave = 0; challengeMeleeKills = 0;
+  const el = document.getElementById('challenges-hud'); if(el) el.classList.add('hidden');
+}
+G.debug.challengeCount    = () => sessionChallenges.length;
+G.debug.challengeDone     = (i) => sessionChallenges[i]?.done ?? false;
+G.debug.challengeProgress = (i) => { const c = sessionChallenges[i]; return c ? {progress:c.progress, target:c.def.target} : null; };
+G.debug.challengeReward   = (i) => sessionChallenges[i]?.def.reward ?? 0;
+G.debug.challengeIds      = () => sessionChallenges.map(c => c.def.id);
+G.debug.forceCompleteChallenge = (i) => { const c = sessionChallenges[i]; if(c && !c.done) completeChallenge(c); updateChallengesHud(); };
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
@@ -3156,6 +3232,8 @@ function killEnemy(e){
   }
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
+  checkChallenges('kills', runKills); if(e.lastHitHead) checkChallenges('headshots', runHeadshots);
+  if(e.lastHitMelee){ challengeMeleeKills++; checkChallenges('melee', challengeMeleeKills); }
   checkAchievements(mult);                             // succès (#44)
   flashHitMarker(); playSound('enemyDie');
   addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money));   // argent par kill × combo × difficulté (#46)
@@ -3172,12 +3250,14 @@ function startWave(w){
   wave = w; G.wave = w; checkAchievements();          // succès (#44) : survivant à la vague 5
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
-  waveState = 'active'; refillGrenades(); spawnBarrels();                     // grenades rechargées + barils frais chaque vague (#33/#41)
+  dmgThisWave = 0; waveState = 'active'; refillGrenades(); spawnBarrels();    // grenades + barils (#33/#41) ; reset dmgThisWave (#55)
+  checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
 }
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
+  if(dmgThisWave === 0) checkChallenges('nodmg', 1);
   addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
