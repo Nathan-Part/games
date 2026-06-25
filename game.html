@@ -656,7 +656,6 @@ function loadSave(){
   } catch(e){ return defaultSave(); }
 }
 let save = loadSave();
-let runBoostOverrides = {};   // #53 : déséquipement temporaire par partie (non persisté) ; slot→null = déséquipé pour ce run
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
 const MONEY_PER_KILL = 10, MONEY_PER_WAVE = 25;
 // ====== Modes de difficulté (#46) ======
@@ -1520,34 +1519,34 @@ document.addEventListener('pointerlockchange', () => {
 const WEAPONS = [
   // Fusils d'assaut (assault)
   { id:'default', name:'Viper-AR', price:0, glb:true, rarity:'commun', category:'assault',
-    stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
+    stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0, range:60 }, build:buildWeaponMesh },
   { id:'raptor', name:'Raptor X5', price:900, rarity:'rare', category:'assault',
-    stats:{ mag:18, cooldown:0.10, reload:1.1, dmgMult:1.2, recoil:0.9 }, build:buildRaptorMesh },
+    stats:{ mag:18, cooldown:0.10, reload:1.1, dmgMult:1.2, recoil:0.9, range:65 }, build:buildRaptorMesh },
   { id:'cyclone', name:'Cyclone MK3', price:2000, rarity:'epique', category:'assault',
-    stats:{ mag:30, cooldown:0.08, reload:1.0, dmgMult:1.4, recoil:0.75 }, build:buildCycloneMesh },
+    stats:{ mag:30, cooldown:0.08, reload:1.0, dmgMult:1.4, recoil:0.75, range:70 }, build:buildCycloneMesh },
   // Mitraillettes (smg)
   { id:'smg', name:'Hornet PDW', price:700, rarity:'rare', category:'smg',
-    stats:{ mag:24, cooldown:0.07, reload:1.4, dmgMult:0.6, recoil:0.6 }, build:buildSmgMesh },
+    stats:{ mag:24, cooldown:0.07, reload:1.4, dmgMult:0.6, recoil:0.6, range:25 }, build:buildSmgMesh },
   { id:'storm', name:'Storm-9', price:1400, rarity:'epique', category:'smg',
-    stats:{ mag:32, cooldown:0.055, reload:1.3, dmgMult:0.7, recoil:0.5 }, build:buildStorm9Mesh },
+    stats:{ mag:32, cooldown:0.055, reload:1.3, dmgMult:0.7, recoil:0.5, range:30 }, build:buildStorm9Mesh },
   // Snipers
   { id:'sniper', name:'Eclipse SR', price:1500, rarity:'epique', category:'sniper',
-    stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2 }, build:buildSniperMesh },
+    stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2, range:160 }, build:buildSniperMesh },
   { id:'phantom_sr', name:'Phantom L115', price:2800, rarity:'legendaire', category:'sniper',
-    stats:{ mag:4, cooldown:1.1, reload:2.2, dmgMult:4.5, recoil:2.8 }, build:buildPhantomSrMesh },
+    stats:{ mag:4, cooldown:1.1, reload:2.2, dmgMult:4.5, recoil:2.8, range:200 }, build:buildPhantomSrMesh },
   // Fusils à pompe (shotgun)
   { id:'shotgun', name:'Devastator 870', price:1100, rarity:'epique', category:'shotgun',
-    stats:{ mag:6, cooldown:0.7, reload:2.0, dmgMult:0.55, recoil:2.6, pellets:8 }, build:buildShotgunMesh },
+    stats:{ mag:6, cooldown:0.7, reload:2.0, dmgMult:0.55, recoil:2.6, pellets:8, range:14 }, build:buildShotgunMesh },
   { id:'breacher', name:'Breacher MK2', price:1700, rarity:'rare', category:'shotgun',
-    stats:{ mag:8, cooldown:0.55, reload:1.7, dmgMult:0.45, recoil:2.2, pellets:10 }, build:buildBreacherMesh },
+    stats:{ mag:8, cooldown:0.55, reload:1.7, dmgMult:0.45, recoil:2.2, pellets:10, range:12 }, build:buildBreacherMesh },
   // Pistolets
   { id:'pistol', name:'Specter-P', price:300, rarity:'commun', category:'pistol',
-    stats:{ mag:15, cooldown:0.22, reload:0.9, dmgMult:0.9, recoil:0.65 }, build:buildPistolMesh },
+    stats:{ mag:15, cooldown:0.22, reload:0.9, dmgMult:0.9, recoil:0.65, range:28 }, build:buildPistolMesh },
   { id:'jackal', name:'Jackal-45', price:600, rarity:'rare', category:'pistol',
-    stats:{ mag:12, cooldown:0.18, reload:0.85, dmgMult:1.3, recoil:0.8 }, build:buildJackalMesh },
+    stats:{ mag:12, cooldown:0.18, reload:0.85, dmgMult:1.3, recoil:0.8, range:35 }, build:buildJackalMesh },
   // Mitrailleuse lourde (lmg)
   { id:'lmg', name:'Thunderer LMG', price:1800, rarity:'legendaire', category:'lmg',
-    stats:{ mag:50, cooldown:0.09, reload:3.2, dmgMult:0.75, recoil:1.4 }, build:buildLmgMesh },
+    stats:{ mag:50, cooldown:0.09, reload:3.2, dmgMult:0.75, recoil:1.4, range:75 }, build:buildLmgMesh },
   // Corps-à-corps (#50 : 3 couteaux, le premier gratuit et possédé par défaut)
   { id:'knife', name:'Lame franche', price:0, rarity:'commun', category:'melee', melee:true,
     stats:{ mag:1, cooldown:0.55, reload:0, dmgMult:3.0, recoil:0 }, build:() => buildKnifeMesh('basic') },
@@ -1579,11 +1578,11 @@ function buyUpgrade(weaponId, type){
 }
 function weaponStats(id = effectiveWeaponId()){
   const b = weaponById(id).stats;
-  const s = { mag:b.mag, cooldown:b.cooldown, reload:b.reload, dmgMult:b.dmgMult, recoil:b.recoil, pellets:b.pellets || 1 };
+  const s = { mag:b.mag, cooldown:b.cooldown, reload:b.reload, dmgMult:b.dmgMult, recoil:b.recoil, pellets:b.pellets || 1, range:b.range ?? SHOT_RANGE };
   for(const type in UPGRADE_SPECS){ const l = upgradeLevel(id, type); if(l > 0) UPGRADE_SPECS[type].apply(s, l); }
   return s;
 }
-let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1, curPellets = 1;
+let curMag = 12, curCooldown = 0.12, curReload = 1.2, curDmgMult = 1, curRecoil = 1, curPellets = 1, curRange = 80;
 let activePower = null, powerExpireAt = 0;   // #34 power-up actif (déclaré tôt : utilisé par applyWeaponStats)
 function powerFactor(){ const f = { dmg:1, cd:1 }; if(activePower === 'dmgx2') f.dmg = 2; else if(activePower === 'rapid') f.cd = 1/1.8; return f; }   // #34
 function enemyTimeScale(){ return activePower === 'slowmo' ? 0.4 : 1; }   // #42 slow-mo : ralentit les ennemis
@@ -1593,7 +1592,7 @@ function applyWeaponStats(){ const s = weaponStats(), pf = powerFactor();
   if(wDef && wDef.melee){
     curMag=1; curCooldown=s.cooldown; curReload=0; curDmgMult=s.dmgMult; curRecoil=0; curPellets=1;
   } else {
-    curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; curPellets=s.pellets || 1;
+    curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; curPellets=s.pellets || 1; curRange=s.range ?? SHOT_RANGE;
   }
 }
 G.debug.weaponStats = (id) => weaponStats(id);
@@ -1740,12 +1739,16 @@ async function buildCharDisplay(id){
   if(hips){ m.position.x -= hips.x; m.position.z -= hips.z; }
   if(isFinite(lo)) m.position.y -= lo;
   const wrap = new THREE.Group(); wrap.add(m);
-  // #52 : appliquer une animation idle looping sur le perso de vitrine
+  // #52 : animation idle looping — retarget vers le squelette de CE perso (pas le joueur)
   if(anims.length){
     const clp = anims.find(a => /casual.*walk|walk.*casual/i.test(a.key))
       || anims.find(a => /walk/i.test(a.key))
       || anims.find(a => /idle/i.test(a.key));
-    if(clp){ const clip = retargetClipWorld(clp.clip);
+    if(clp){
+      const prevBO = targetBoneOrder, prevR = targetRest, prevRW = targetRestWorld;
+      targetBoneOrder = boneOrder(m); targetRest = captureRest(m); targetRestWorld = captureRestWorld(m);
+      const clip = retargetClipWorld(clp.clip);
+      targetBoneOrder = prevBO; targetRest = prevR; targetRestWorld = prevRW;
       if(clip){ const mx = new THREE.AnimationMixer(m);
         mx.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
         wrap.userData.shopMixer = mx; shopCharMixers.push(mx); } }
@@ -1873,7 +1876,8 @@ function renderShop(){
       const dmg = Math.round(60 * s.dmgMult), rpm = Math.round(60 / s.cooldown);
       html += `<div class="shop-statcards">`
         + statBar('Dégâts', dmg/200*100, dmg) + statBar('Cadence', rpm/900*100, rpm)
-        + statBar('Chargeur', s.mag/55*100, s.mag) + statBar('Stabilité', (3-s.recoil)/3*100, (3-s.recoil).toFixed(1)) + `</div>`;
+        + statBar('Chargeur', s.mag/55*100, s.mag) + statBar('Stabilité', (3-s.recoil)/3*100, (3-s.recoil).toFixed(1))
+        + statBar('Portée', (s.range??80)/200*100, s.range+'m') + `</div>`;
     }
     html += `<div class="shop-btns">`;
     if(equipped) html += `<div class="shop-badge">${ico('check')} Équipée</div>`;
@@ -1905,18 +1909,15 @@ function renderShop(){
     for(const bo of BOOSTS){
       const owned = save.ownedBoosts.includes(bo.id);
       const eq = save.equippedBoosts[bo.slot] === bo.id;
-      const runOff = runBoostOverrides[bo.slot] === null;   // #53 : déséquipé pour ce run
       const statTxt = bo.stat === 'health' ? `+${bo.bonus} Vie` : bo.stat === 'speed' ? `+${Math.round(bo.bonus*100)}% Vit.` : `+${bo.bonus} Régén`;
       let foot;
-      if(eq && runOff)   // équipé en save mais désactivé pour ce run
-        foot = `<span class="icbtn on muted">${ico('check')} Équipé</span><button class="icbtn" data-equipboost="${bo.id}">Réactiver</button>`;
-      else if(eq)
-        foot = `<span class="icbtn on">${ico('check')} Équipé</span><button class="icbtn muted" data-unequipboost="${bo.slot}" title="Désactiver pour ce run">✕ Run</button>`;
+      if(eq)   // équipé → cliquer dé-équipe (toggle)
+        foot = `<button class="icbtn on" data-equipboost="${bo.id}">${ico('check')} Équipé</button>`;
       else if(owned)
         foot = `<button class="icbtn" data-equipboost="${bo.id}">Équiper</button>`;
       else
         foot = `<button class="icbtn buy" data-buyboost="${bo.id}"${save.money >= bo.price ? '' : ' disabled'}>${ico('coin')}${bo.price}</button>`;
-      html += itemCard({ rc:rarityInfo(bo.rarity).color, icon:boostIcon(bo.slot), name:bo.name, rarity:bo.rarity, sub:statTxt, foot, on:(eq && !runOff), owned });
+      html += itemCard({ rc:rarityInfo(bo.rarity).color, icon:boostIcon(bo.slot), name:bo.name, rarity:bo.rarity, sub:statTxt, foot, on:eq, owned });
     }
     html += `</div>`;
   } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
@@ -1969,7 +1970,6 @@ function renderShop(){
   info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(selectAccessory(shopAccSlot, b.dataset.selacc)){ shopAccPreview[shopAccSlot] = null; renderShop(); } });
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
-  info.querySelectorAll('[data-unequipboost]').forEach(b => b.onclick = () => unequipBoostRun(b.dataset.unequipboost));   // #53
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
   info.querySelectorAll('[data-previewdance]').forEach(b => b.onclick = () => { previewDance(b.dataset.previewdance); });   // aperçu live (même non possédée)
   info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { if(toggleDance(b.dataset.seldance)) renderShop(); });
@@ -2039,10 +2039,10 @@ function fireRay(sx, sy){                                    // un plomb / rayon
   for(const e of enemies) if(e.alive) shoot.push(e.hitbox);
   for(const b of barrels) shoot.push(b.hitbox);              // barils tirables (#41)
   const hits = _ray.intersectObjects(shoot, false);
-  const end = hits.length ? hits[0].point.clone()
-    : _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(SHOT_RANGE));
+  const end = hits.length && hits[0].distance <= curRange ? hits[0].point.clone()
+    : _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(curRange));
   spawnTracer(_ray.ray.origin, end);
-  if(hits.length){
+  if(hits.length && hits[0].distance <= curRange){
     const obj = hits[0].object;
     const t = targets.find(t => t.mesh === obj);
     if(t) hitTarget(t);
@@ -2345,14 +2345,11 @@ const BOOST_VISUAL = {
                                           { name:'RightFoot', re:/right.*foot|foot.*r\b|r_foot/i, off:{x:0,y:0,z:0} }] },
   medal: { build:buildMedalMesh, attach:[{ name:'Neck', re:/neck/i, off:{x:0,y:0,z:0} }] },
 };
-// #53 : id effectif d'un slot boost (tient compte des overrides run-based)
-function effectiveBoostId(slot){ return (slot in runBoostOverrides) ? runBoostOverrides[slot] : save.equippedBoosts[slot]; }
-function unequipBoostRun(slot){ runBoostOverrides[slot] = null; applyPlayerStats(); applyBoosts(model); renderShop(); }
 function applyBoosts(root){
   if(!root) return;
-  clearBoneTag(root, 'boost');                              // retire les anciens visuels de boost
+  clearBoneTag(root, 'boost');
   for(const slot of BOOST_SLOTS){
-    const id = effectiveBoostId(slot); if(!id) continue;   // #53 : respecte les overrides run
+    const id = save.equippedBoosts[slot]; if(!id) continue;
     const vis = BOOST_VISUAL[slot]; if(!vis) continue;
     for(const at of vis.attach){ const bone = findBoneNamed(root, at.name, at.re); if(bone) attachToBoneWorld(bone, vis.build(), 'boost', at.off); }
   }
@@ -2360,15 +2357,17 @@ function applyBoosts(root){
 G.debug.boostAttachedCount = () => { if(!model) return 0; let n=0; model.traverse(o=>{ if(o.userData && o.userData.accSlot==='boost') n++; }); return n; };
 function boostById(id){ return BOOSTS.find(b => b.id === id) || null; }
 function boostBonuses(){ const acc = { health:0, regen:0, speed:0 };
-  for(const slot of BOOST_SLOTS){ const b = boostById(effectiveBoostId(slot)); if(b) acc[b.stat] += b.bonus; }   // #53
+  for(const slot of BOOST_SLOTS){ const b = boostById(save.equippedBoosts[slot]); if(b) acc[b.stat] += b.bonus; }
   return acc; }
 function buyBoost(id){ const b = boostById(id); if(!b) return false;
   if(save.ownedBoosts.includes(id) || save.money < b.price) return false;
   save.money -= b.price; G.money = save.money; save.ownedBoosts.push(id);
   persist(); updateMoneyHud(); updateHomeMeta(); return true; }
 function equipBoost(id){ const b = boostById(id); if(!b || !save.ownedBoosts.includes(id)) return false;
-  delete runBoostOverrides[b.slot];   // #53 : lever l'override si on ré-équipe
-  save.equippedBoosts[b.slot] = id; persist(); applyPlayerStats(); applyBoosts(model); return true; }
+  // toggle : si déjà équipé dans ce slot → déséquiper ; sinon équiper
+  if(save.equippedBoosts[b.slot] === id) save.equippedBoosts[b.slot] = null;
+  else save.equippedBoosts[b.slot] = id;
+  persist(); applyPlayerStats(); applyBoosts(model); return true; }
 function applyPlayerStats(){
   const b = characterById(save.selectedCharacterId).base;   // base du perso + améliorations (#15) + boosts (#28)
   const bb = boostBonuses();
@@ -2402,7 +2401,7 @@ G.debug.shop.buyBoost = (id) => buyBoost(id);
 G.debug.shop.equipBoost = (id) => equipBoost(id);
 G.debug.equippedBoosts = () => Object.assign({}, save.equippedBoosts);
 G.debug.boostBonuses = () => boostBonuses();
-G.debug.unequipBoostRun = (slot) => unequipBoostRun(slot);
+G.debug.unequipBoost = (slot) => { save.equippedBoosts[slot] = null; persist(); applyPlayerStats(); applyBoosts(model); };
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
@@ -2583,7 +2582,6 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  runBoostOverrides = {};                                       // #53 : reset overrides boost run-based
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats();   // restart : reset arme/combo/power/annonces/stats (#23/#29/#34/#38/#43)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
@@ -2632,7 +2630,7 @@ function meshMaxZ(obj){ obj.updateMatrixWorld(true); const b = new THREE.Box3().
 // courbes de progression des vagues (pures) : nombre + PV croissants, plafonnés
 function isBossWave(w){ return w > 0 && w % 5 === 0; }                          // #31 : boss tous les 5 niveaux
 function enemiesForWave(w){ return isBossWave(w) ? 3 : Math.min(2 + w, MAX_PER_WAVE); }
-function enemyHpForWave(w){ return Math.round(ENEMY_HP * (1 + 0.2*(w-1)) * curDiff().hp); }   // #46 difficulté
+function enemyHpForWave(w){ return Math.round(ENEMY_HP * Math.pow(1.18, w-1) * curDiff().hp); }   // +18%/vague (exponentiel)
 // composition d'une vague (pure) : boss tous les 5 niveaux ; sinon shooter[0], rusher dès v2, tank dès v3
 function waveComposition(w){
   if(isBossWave(w)) return ['boss', 'shooter', 'shooter'];                      // boss + 2 sbires (#31)
@@ -2911,13 +2909,15 @@ function updateEnemies(dt){
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
     if(e.state === 'dead'){
-      e.root.rotation.x = Math.min(Math.PI * 0.5, e.root.rotation.x + dt * 3);   // couche toujours à plat (complète l'anim Dead si présente)
-      e.mixer.update(dt);                                  // le corps reste jusqu'au début de la vague suivante
-      // garde le corps SUR le sol (l'anim Dead descend le bassin et l'enfoncerait dans le sol)
+      if(!e.deadAnimDone){
+        e.mixer.update(dt);
+      } else if(e.frozenPose){
+        for(const fp of e.frozenPose){ fp.bone.position.copy(fp.p); fp.bone.quaternion.copy(fp.q); }
+      }
       e.root.updateMatrixWorld(true);
       let lo = Infinity; const bp = new THREE.Vector3();
       e.root.traverse(o => { if(o.isBone){ o.getWorldPosition(bp); if(bp.y < lo) lo = bp.y; } });
-      if(isFinite(lo)) e.root.position.y += (ENEMY_FOOT_Y + 0.05 - lo);   // #47 : bidirectionnel (anti-float ET anti-sink)
+      if(isFinite(lo)) e.root.position.y += (ENEMY_FOOT_Y + 0.05 - lo);
       continue;
     }
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
@@ -2965,7 +2965,6 @@ function updateEnemies(dt){
     setEnemyLoco(e, desired);
     e.hitbox.position.set(e.root.position.x, e.root.position.y + (e.hbY || 0.9), e.root.position.z);
     e.hitbox.updateMatrixWorld();
-    if(e.flashUntil && nowS() >= e.flashUntil){ setEnemyEmissive(e, false); e.flashUntil = 0; }
     if(e.muzzleFlashUntil && nowS() >= e.muzzleFlashUntil){ if(e.muzzleFlash) e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
     e.mixer.update(dt);
   }
@@ -3038,7 +3037,7 @@ function setEnemyEmissive(e, on){
 }
 function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
-  e.hp -= amount; setEnemyEmissive(e, true); e.flashUntil = nowS() + ENEMY_FLASH; playSound('hit');
+  e.hp -= amount; playSound('hit');
   if(e.hp <= 0){ killEnemy(e); return; }
   if(e.state === 'patrol') e.state = 'chase';   // touché => s'aggrave et se retourne/fonce vers le joueur
   e.lostFor = 0;
@@ -3106,12 +3105,27 @@ G.debug.lastCallout = () => lastCalloutText;
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
+  e.deadAnimDone = false; e.frozenPose = null;
   e.mixer.stopAllAction();
   if(e.muzzleFlash){ e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
   setEnemyEmissive(e, false); e.flashUntil = 0;                 // fin du flash rouge bloqué (corps propre)
   if(e.hitbox && e.hitbox.parent) e.hitbox.parent.remove(e.hitbox);  // hitbox off (corps non ciblable / traversable)
-  if(e.actions.dead){                                  // joue l'anim de mort (Dead) et garde la pose finale
-    e.actions.dead.reset(); e.actions.dead.setLoop(THREE.LoopOnce, 1); e.actions.dead.clampWhenFinished = true; e.actions.dead.play();
+  if(e.actions.dead){
+    Object.values(e.actions).forEach(a => { if(a && a !== e.actions.dead) a.fadeOut(0.15); });
+    e.actions.dead.reset().setLoop(THREE.LoopOnce, 1);
+    e.actions.dead.clampWhenFinished = true;
+    e.actions.dead.play();
+    const onDeadFinished = (ev) => {
+      if(ev.action !== e.actions.dead) return;
+      e.mixer.removeEventListener('finished', onDeadFinished);
+      const pose = [];
+      e.root.traverse(o => { if(o.isBone) pose.push({ bone: o, p: o.position.clone(), q: o.quaternion.clone() }); });
+      e.frozenPose = pose;
+      e.deadAnimDone = true;
+    };
+    e.mixer.addEventListener('finished', onDeadFinished);
+  } else {
+    e.deadAnimDone = true;
   }
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
