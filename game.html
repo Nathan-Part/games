@@ -2909,8 +2909,13 @@ function updateEnemies(dt){
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
     if(e.state === 'dead'){
-      if(!e.deadAnimDone){
+      if(!e.actions.dead || !e.actions.dead.paused){
         e.mixer.update(dt);
+        if(e.actions.dead && e.actions.dead.paused && !e.frozenPose){
+          const pose = [];
+          e.root.traverse(o => { if(o.isBone) pose.push({ bone:o, p:o.position.clone(), q:o.quaternion.clone() }); });
+          e.frozenPose = pose;
+        }
       } else if(e.frozenPose){
         for(const fp of e.frozenPose){ fp.bone.position.copy(fp.p); fp.bone.quaternion.copy(fp.q); }
       }
@@ -3105,7 +3110,7 @@ G.debug.lastCallout = () => lastCalloutText;
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
-  e.deadAnimDone = false; e.frozenPose = null;
+  e.frozenPose = null;
   e.mixer.stopAllAction();
   if(e.muzzleFlash){ e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
   setEnemyEmissive(e, false); e.flashUntil = 0;                 // fin du flash rouge bloqué (corps propre)
@@ -3115,17 +3120,6 @@ function killEnemy(e){
     e.actions.dead.reset().setLoop(THREE.LoopOnce, 1);
     e.actions.dead.clampWhenFinished = true;
     e.actions.dead.play();
-    const onDeadFinished = (ev) => {
-      if(ev.action !== e.actions.dead) return;
-      e.mixer.removeEventListener('finished', onDeadFinished);
-      const pose = [];
-      e.root.traverse(o => { if(o.isBone) pose.push({ bone: o, p: o.position.clone(), q: o.quaternion.clone() }); });
-      e.frozenPose = pose;
-      e.deadAnimDone = true;
-    };
-    e.mixer.addEventListener('finished', onDeadFinished);
-  } else {
-    e.deadAnimDone = true;
   }
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
