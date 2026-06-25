@@ -869,6 +869,39 @@ test('boutique : catalogue d armes avec prix croissants', async ({ page }) => {
   expect(cat.find(w => w.id === 'sniper').price).toBeGreaterThan(cat.find(w => w.id === 'smg').price);
 });
 
+test('boutique : catalogue contient pistolet, mitrailleuse et couteau avec categories', async ({ page }) => {
+  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  const cat = await page.evaluate(() => __game.debug.shop.catalog());
+  const ids = cat.map(w => w.id);
+  expect(ids).toContain('pistol');
+  expect(ids).toContain('lmg');
+  expect(ids).toContain('knife');
+  expect(cat.every(w => w.category)).toBe(true);       // toutes les armes ont une catégorie
+  expect(cat.find(w => w.id === 'knife').melee).toBe(true);
+});
+
+test('couteau : acheter + equiper -> tryFire fait des degats mêlée sans consommer de balle', async ({ page }) => {
+  test.setTimeout(60000);   // démarrage lent hors suite (chargement perso GLB)
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.save.addMoney(2000);
+    __game.debug.setEnemyAccuracy(0);   // empêche les ennemis de tuer le joueur
+  });
+  expect(await page.evaluate(() => __game.debug.shop.buy('knife'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.equip('knife'))).toBe(true);
+  // Spawn ennemi et gèle le jeu en un seul éval (l'ennemi ne peut pas s'enfuir avant tryFire)
+  await page.evaluate(() => {
+    __game.debug.setView('first'); __game.debug.setPitch(0);
+    __game.debug.spawnEnemyInFront(2);
+    __game.debug.setPaused(true);        // l'ennemi ne bouge plus, reste à 2u devant
+  });
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(await page.evaluate(() => __game.debug.tryFire())).toBe(true);
+  await page.evaluate(() => __game.debug.setPaused(false));
+  const hp1 = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hp1).toBeLessThan(hp0);                      // dégâts infligés par le couteau
+});
+
 test('boutique : l arme de depart garde les stats actuelles (compat)', async ({ page }) => {
   await startPlaying(page);
   const s = await page.evaluate(() => __game.debug.weaponStats());

@@ -66,10 +66,11 @@
   .statbar>.trk>i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
   .statbar>.val{font-family:var(--font-display);font-weight:700;text-align:right;color:var(--text);font-feature-settings:'tnum' 1}
   /* --- badge rareté (M-8 : le hex litéral reste dans l'attribut style via --rc, requis par les tests) --- */
-  .rb{font-family:var(--font-display);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-    padding:2px 8px;display:inline-block;vertical-align:middle;color:var(--rc,#9aa3b2);
-    background:var(--rc,#9aa3b2);background:color-mix(in srgb,var(--rc,#9aa3b2) 16%,transparent);
-    box-shadow:inset 0 0 0 1px var(--rc,#9aa3b2);--ch:5px;
+  .rb{font-family:var(--font-display);font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    padding:3px 10px;display:inline-block;vertical-align:middle;color:var(--rc,#9aa3b2);
+    background:color-mix(in srgb,var(--rc,#9aa3b2) 22%,transparent);
+    box-shadow:inset 0 0 0 1px var(--rc,#9aa3b2),0 0 10px color-mix(in srgb,var(--rc,#9aa3b2) 40%,transparent);
+    --ch:5px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   /* --- carte d'item (boutique) --- */
   .icard{position:relative;background:var(--bg-600);padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;
@@ -1149,13 +1150,13 @@ async function playLobbyIdle(){
   const target = model;
   try { if(!anims.length) await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); } catch(e){ return; }
   if(model !== target) return;                          // un autre perso a été sélectionné entre-temps
-  // lobby = perso sans arme → pose debout détendue (bras le long du corps) : 1er frame de "Agree_Gesture" figé.
-  // (l'idle EN JEU reste "Alert" — correct car le perso tient alors son arme.)
-  const calm = anims.find(a => a.key === 'Agree_Gesture');
-  const clip = calm ? retargetClipWorld(calm.clip) : retargetRole('idle');
+  // lobby = perso sans arme → pose détendue : cherche Agree_Gesture sinon n'importe quel idle/walk figé au 1er frame
+  const calm = anims.find(a => a.key === 'Agree_Gesture')
+    || anims.find(a => /agree|greet|stand|wave/i.test(a.key))
+    || anims.find(a => /idle/i.test(a.key));
+  const clip = calm ? retargetClipWorld(calm.clip) : (retargetRole('idle') || retargetRole('walk'));
   if(clip){ mixer = new THREE.AnimationMixer(model); const act = mixer.clipAction(clip);
-    if(calm){ act.play(); act.paused = true; act.time = 0.05; mixer.update(0); }   // pose figée naturelle
-    else act.play();
+    act.play(); act.paused = true; act.time = 0.05; mixer.update(0);   // pose figée naturelle
     lobbyIdle = true; }
 }
 G.debug.lobbyAnimated = () => lobbyIdle;
@@ -1229,7 +1230,7 @@ async function startGame(){
   if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
   model.rotation.y = 0;
   mixer = new THREE.AnimationMixer(model);                      // mixer de jeu sur le modèle déjà chargé
-  danceActionCache = {}; dancing = false; danceAction = null;   // nouvelles actions de danse sur ce mixer (#27)
+  danceActionCache = {}; dancing = false; danceAction = null; meleeAnimCache = null;   // nouvelles actions de danse sur ce mixer (#27)
   actions.idle = mixer.clipAction(retargetRole('idle'));
   const wc = retargetRole('walk'); actions.walk = wc ? mixer.clipAction(wc) : null;
   const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
@@ -1503,14 +1504,20 @@ document.addEventListener('pointerlockchange', () => {
 //    -> l'image s'affiche dans la vitrine ; dès qu'un .glb est dans `artefact/lmg/`, le MODÈLE s'affiche
 //       automatiquement (auto-découverte, zéro changement de code). Marche pour toute future catégorie.
 const WEAPONS = [
-  { id:'default', name:"Fusil d'assaut", price:0, glb:true, rarity:'commun',
+  { id:'default', name:"Fusil d'assaut", price:0, glb:true, rarity:'commun', category:'assault',
     stats:{ mag:12, cooldown:0.12, reload:1.2, dmgMult:1.0, recoil:1.0 }, build:buildWeaponMesh },
-  { id:'smg', name:'Mitraillette', price:700, rarity:'rare',
+  { id:'smg', name:'Mitraillette', price:700, rarity:'rare', category:'smg',
     stats:{ mag:24, cooldown:0.07, reload:1.4, dmgMult:0.6, recoil:0.6 }, build:buildSmgMesh },
-  { id:'sniper', name:'Sniper', price:1500, rarity:'epique',
+  { id:'sniper', name:'Sniper', price:1500, rarity:'epique', category:'sniper',
     stats:{ mag:5, cooldown:0.85, reload:1.9, dmgMult:3.0, recoil:2.2 }, build:buildSniperMesh },
-  { id:'shotgun', name:'Fusil à pompe', price:1100, rarity:'epique',
+  { id:'shotgun', name:'Fusil à pompe', price:1100, rarity:'epique', category:'shotgun',
     stats:{ mag:6, cooldown:0.7, reload:2.0, dmgMult:0.55, recoil:2.6, pellets:8 }, build:buildShotgunMesh },
+  { id:'pistol', name:'Pistolet', price:300, rarity:'commun', category:'pistol',
+    stats:{ mag:15, cooldown:0.22, reload:0.9, dmgMult:0.9, recoil:0.65 }, build:buildPistolMesh },
+  { id:'lmg', name:'Mitrailleuse', price:1800, rarity:'legendaire', category:'smg',
+    stats:{ mag:50, cooldown:0.09, reload:3.2, dmgMult:0.75, recoil:1.4 }, build:buildLmgMesh },
+  { id:'knife', name:'Couteau', price:450, rarity:'rare', category:'melee', melee:true,
+    stats:{ mag:1, cooldown:0.45, reload:0, dmgMult:3.5, recoil:0 }, build:buildKnifeMesh },
 ];
 function weaponById(id){ return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
 // ====== Améliorations d'arme (#14) ======
@@ -1545,7 +1552,13 @@ function powerFactor(){ const f = { dmg:1, cd:1 }; if(activePower === 'dmgx2') f
 function enemyTimeScale(){ return activePower === 'slowmo' ? 0.4 : 1; }   // #42 slow-mo : ralentit les ennemis
 G.debug.enemyTimeScale = () => enemyTimeScale();
 function applyWeaponStats(){ const s = weaponStats(), pf = powerFactor();
-  curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; curPellets=s.pellets || 1; }
+  const wDef = weaponById(effectiveWeaponId());
+  if(wDef && wDef.melee){
+    curMag=1; curCooldown=s.cooldown; curReload=0; curDmgMult=s.dmgMult; curRecoil=0; curPellets=1;
+  } else {
+    curMag=s.mag; curCooldown=s.cooldown*pf.cd; curReload=s.reload; curDmgMult=s.dmgMult*pf.dmg; curRecoil=s.recoil; curPellets=s.pellets || 1;
+  }
+}
 G.debug.weaponStats = (id) => weaponStats(id);
 function buyWeapon(id){
   const w = weaponById(id);
@@ -1558,7 +1571,7 @@ function equipWeapon(id){
   save.selectedWeapon = id; persist(); applyWeaponStats(); return true;
 }
 G.debug.shop = {
-  catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price, rarity:w.rarity })); },
+  catalog(){ return WEAPONS.map(w => ({ id:w.id, name:w.name, price:w.price, rarity:w.rarity, category:w.category, melee:w.melee||false })); },
   rarities(){ return RARITY_ORDER.map(k => ({ id:k, name:RARITIES[k].name, color:RARITIES[k].color, tier:RARITIES[k].tier })); },
   rarityBadge(key){ return rarityBadge(key); },
   buy(id){ return buyWeapon(id); }, equip(id){ return equipWeapon(id); },
@@ -1566,7 +1579,7 @@ G.debug.shop = {
   playerUpgrade(type){ return buyPlayerUpgrade(type); }, playerUpgradeCost(type){ return playerUpgradeCost(type); },
 };
 // ====== Boutique v2 : carrousel 3D + navigation ======
-let shopOpen = false, shopTab = 'weapons', shopWeaponIndex = 0;
+let shopOpen = false, shopTab = 'weapons', shopWeaponIndex = 0, shopWeaponCategory = 'all';
 let shopWeaponObj = null, shopSideL = null, shopSideR = null, shopGlbCache = null, shopAmeliorerOpen = false, shopBuildSeq = 0;
 let shopCharIndex = 0, shopCharObj = null, shopCharL = null, shopCharR = null, shopCharSeq = 0;   // carrousel perso (#25)
 let shopAccSlot = 'helmet';   // sous-onglet accessoires (#26) : 'helmet' | 'costume'
@@ -1785,13 +1798,25 @@ function renderShop(){
   const mv = document.getElementById('shop-money-val'); if(mv) mv.textContent = save.money;
   let html = '';
   if(shopTab === 'weapons'){
+    // Sous-onglets catégorie
+    const WCATS = { all:'Tout', assault:'Fusil', smg:'Auto', sniper:'Sniper', shotgun:'Pompe', pistol:'Pistol', melee:'Mêlée' };
+    html += `<div class="subtabs">` + Object.entries(WCATS).map(([c,l]) =>
+      `<button class="subtab${shopWeaponCategory===c?' on':''}" data-wcat="${c}">${l}</button>`
+    ).join('') + `</div>`;
     const w = WEAPONS[shopWeaponIndex], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
     const lvlTotal = Object.keys(UPGRADE_SPECS).reduce((a,t)=>a+upgradeLevel(w.id,t),0), lvlMax = Object.keys(UPGRADE_SPECS).length*5;
-    const dmg = Math.round(60 * s.dmgMult), rpm = Math.round(60 / s.cooldown);
     html += `<div class="shop-wname">${w.name} ${rarityBadge(w.rarity)} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`;
-    html += `<div class="shop-statcards">`
-      + statBar('Dégâts', dmg/200*100, dmg) + statBar('Cadence', rpm/900*100, rpm)
-      + statBar('Chargeur', s.mag/40*100, s.mag) + statBar('Stabilité', (3-s.recoil)/3*100, (3-s.recoil).toFixed(1)) + `</div>`;
+    if(w.melee){
+      const dmg = Math.round(PLAYER_MELEE_DAMAGE * s.dmgMult), spd = Math.round(1/s.cooldown*10)/10;
+      html += `<div class="shop-statcards">`
+        + statBar('Dégâts', dmg/600*100, dmg) + statBar('Vitesse', spd/3*100, spd+'/s')
+        + statBar('Portée', 2.6/4*100, '2.6m') + `</div>`;
+    } else {
+      const dmg = Math.round(60 * s.dmgMult), rpm = Math.round(60 / s.cooldown);
+      html += `<div class="shop-statcards">`
+        + statBar('Dégâts', dmg/200*100, dmg) + statBar('Cadence', rpm/900*100, rpm)
+        + statBar('Chargeur', s.mag/55*100, s.mag) + statBar('Stabilité', (3-s.recoil)/3*100, (3-s.recoil).toFixed(1)) + `</div>`;
+    }
     html += `<div class="shop-btns">`;
     if(equipped) html += `<div class="shop-badge">${ico('check')} Équipée</div>`;
     else if(owned) html += `<button class="shop-cta" data-equip="${w.id}">Équiper</button>`;
@@ -1862,6 +1887,11 @@ function renderShop(){
   }
   info.classList.toggle('grid', shopTab === 'accessories' || shopTab === 'boost');   // C-3 : panneau docké à gauche (accessoires/boost), perso 3D visible à droite
   info.innerHTML = html;
+  info.querySelectorAll('[data-wcat]').forEach(b => b.onclick = () => {
+    shopWeaponCategory = b.dataset.wcat;
+    const idx = shopWeaponCategory === 'all' ? 0 : WEAPONS.findIndex(w => w.category === shopWeaponCategory);
+    if(idx >= 0) setShopWeapon(idx); else renderShop();
+  });
   info.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { if(buyWeapon(b.dataset.buy)) renderShop(); });
   info.querySelectorAll('[data-equip]').forEach(b => b.onclick = () => { if(equipWeapon(b.dataset.equip)) renderShop(); });
   info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { if(buyUpgrade(WEAPONS[shopWeaponIndex].id, b.dataset.upg)) renderShop(); });
@@ -1959,7 +1989,9 @@ function fireRay(sx, sy){                                    // un plomb / rayon
   }
 }
 function tryFire(){
-  if(G.phase!=='playing' || reloading || ammo <= 0) return false;
+  if(G.phase!=='playing') return false;
+  if(weaponById(effectiveWeaponId()).melee) return playerMeleeWeapon();   // couteau → corps-à-corps
+  if(reloading || ammo <= 0) return false;
   if(nowS() - lastShot < curCooldown) return false;
   lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil;
   runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
@@ -1968,22 +2000,52 @@ function tryFire(){
   if(_fireConnected) runHits++;                             // ce tir a touché ≥1 ennemi (#43)
   return true;
 }
-// ====== Corps-à-corps (#45) : couteau, touche X ======
+// ====== Corps-à-corps (#45) : couteau touche X + couteau arme (E/clic) ======
 const PLAYER_MELEE_REACH = 2.6, PLAYER_MELEE_DAMAGE = 150;
 let playerMeleeCd = 0;
-function playerMelee(){
+let meleeAnimCache = null;
+function playMeleeAnim(){
+  if(!mixer) return;
+  const keys = ['Attack','Boxing_Practice','Triple_Combo_Attack','Skill_01'];
+  if(!meleeAnimCache){
+    for(const k of keys){
+      const raw = anims.find(a => a.key === k)?.clip; if(!raw) continue;
+      const clip = retargetClipWorld(raw); if(!clip) continue;
+      const act = mixer.clipAction(clip); act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true;
+      meleeAnimCache = act; break;
+    }
+  }
+  if(!meleeAnimCache) return;
+  const prev = actions[curLoco]; if(prev) prev.fadeOut(0.10);
+  meleeAnimCache.reset().setEffectiveWeight(1).fadeIn(0.06).play();
+  const dur = meleeAnimCache.getClip().duration;
+  setTimeout(() => { try {
+    meleeAnimCache.fadeOut(0.15);
+    const cur = actions[curLoco]; if(cur) cur.reset().fadeIn(0.15).play();
+  } catch(e){} }, (Math.min(dur, 0.5)) * 1000);
+}
+function _meleeStrike(reach, damage, cd){
   if(G.phase !== 'playing' || playerMeleeCd > 0) return false;
-  playerMeleeCd = 0.6;
+  playerMeleeCd = cd;
+  shake = 0.6; weaponRecoil = 1.8; playSound('melee'); playMeleeAnim();
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0;
-  if(dir.lengthSq() < 1e-6) return false; dir.normalize();
-  let best = null, bestD = PLAYER_MELEE_REACH;
+  if(!model || dir.lengthSq() < 1e-6) return false; dir.normalize();
+  let best = null, bestD = reach;
   for(const e of enemies){ if(!e.alive) continue;
     const dx = e.root.position.x - model.position.x, dz = e.root.position.z - model.position.z;
-    const d = Math.hypot(dx, dz); if(d > PLAYER_MELEE_REACH) continue;
-    const dot = (dx*dir.x + dz*dir.z) / (d || 1); if(dot < 0.2) continue;   // grossièrement devant
+    const d = Math.hypot(dx, dz); if(d > reach) continue;
+    const dot = (dx*dir.x + dz*dir.z) / (d||1); if(dot < 0.2) continue;
     if(d < bestD){ best = e; bestD = d; } }
-  if(best){ playSound('shot'); damageEnemy(best, PLAYER_MELEE_DAMAGE); flashHitMarker(); return true; }
+  if(best){ damageEnemy(best, damage); flashHitMarker(); return true; }
   return false;
+}
+function playerMelee(){ return _meleeStrike(PLAYER_MELEE_REACH, PLAYER_MELEE_DAMAGE, 0.6); }   // touche X (free melee)
+function playerMeleeWeapon(){                                                                    // arme couteau équipée (E/clic)
+  const s = weaponStats(effectiveWeaponId());
+  const dmg = Math.round(PLAYER_MELEE_DAMAGE * s.dmgMult);
+  const hit = _meleeStrike(PLAYER_MELEE_REACH, dmg, s.cooldown || 0.45);
+  if(hit || playerMeleeCd > 0){ runShots++; if(hit) runHits++; }
+  return hit;
 }
 G.debug.playerMelee = () => playerMelee();
 function reload(){
@@ -2101,9 +2163,14 @@ function flashHitMarker(){
   clearTimeout(hmT); hmT = setTimeout(() => hm.classList.remove('show'), 120);
 }
 function updateCombatHud(){
-  document.getElementById('combat').innerHTML =
-    `<div class="hud-ammo">${ico('weapon')}<b>${reloading ? '—' : ammo}</b><span class="mag">/ ${curMag}</span></div>`
-    + `<div class="hud-line${reloading ? ' reload' : ''}">${reloading ? 'Recharge…' : 'Score ' + score}</div>`;
+  const isMelee = weaponById(effectiveWeaponId()).melee;
+  const ammoLine = isMelee
+    ? `<div class="hud-ammo">${ico('weapon')}<b>⚔</b><span class="mag">MÊLÉE</span></div>`
+    : `<div class="hud-ammo">${ico('weapon')}<b>${reloading ? '—' : ammo}</b><span class="mag">/ ${curMag}</span></div>`;
+  const statusLine = isMelee
+    ? `<div class="hud-line${playerMeleeCd > 0 ? ' reload' : ''}">${playerMeleeCd > 0 ? 'Récup…' : 'Score ' + score}</div>`
+    : `<div class="hud-line${reloading ? ' reload' : ''}">${reloading ? 'Recharge…' : 'Score ' + score}</div>`;
+  document.getElementById('combat').innerHTML = ammoLine + statusLine;
 }
 function updateCombat(dt){
   if(G.phase!=='playing') return;
@@ -2744,7 +2811,7 @@ function updateEnemies(dt){
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
     if(e.state === 'dead'){
-      if(!e.actions.dead) e.root.rotation.x = Math.min(1.45, e.root.rotation.x + dt*3); // repli : bascule en code si pas d'anim Dead
+      e.root.rotation.x = Math.min(Math.PI * 0.5, e.root.rotation.x + dt * 3);   // couche toujours à plat (complète l'anim Dead si présente)
       e.mixer.update(dt);                                  // le corps reste jusqu'au début de la vague suivante
       // garde le corps SUR le sol (l'anim Dead descend le bassin et l'enfoncerait dans le sol)
       e.root.updateMatrixWorld(true);
@@ -2828,7 +2895,14 @@ function moveToward(e, tx, tz, spd, dt){
   faceDir(e, dx/len, dz/len, dt);
 }
 function pickPatrol(e){
-  e.target = { x:(Math.random()*2-1)*MAP_HALF*0.9, z:(Math.random()*2-1)*MAP_HALF*0.9 };
+  // Patrouille dans un rayon 12-20u autour du joueur : corrige les vagues vides (ennemis qui s'éloignaient aux coins)
+  // sans être trop agressif (DETECT_RADIUS=12, donc certains cibles sont hors portée, certaines dedans)
+  const px = model ? model.position.x : 0, pz = model ? model.position.z : 0;
+  const r = DETECT_RADIUS + Math.random() * 8, a = Math.random() * Math.PI * 2;
+  e.target = {
+    x: Math.max(-MAP_HALF*0.85, Math.min(MAP_HALF*0.85, px + Math.cos(a)*r)),
+    z: Math.max(-MAP_HALF*0.85, Math.min(MAP_HALF*0.85, pz + Math.sin(a)*r))
+  };
 }
 function faceToward(e, tx, tz, dt){
   const dx = tx - e.root.position.x, dz = tz - e.root.position.z;
@@ -3050,6 +3124,43 @@ function buildShotgunMesh(){   // fusil à pompe (#36) : canon large + pompe + c
   const stock  = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.09,0.18), wood); stock.position.set(0,-0.02,-0.22);
   g.add(body,barrel,pump,stock);
   g.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+  return g;
+}
+function buildPistolMesh(){
+  const g = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color:0x2a2d33, metalness:0.85, roughness:0.25 });
+  const dark  = new THREE.MeshStandardMaterial({ color:0x14151a, metalness:0.4, roughness:0.7 });
+  const body   = new THREE.Mesh(new THREE.BoxGeometry(0.052,0.095,0.17), steel); body.position.set(0,0.006,0.03);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.013,0.16,8), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.026,0.12);
+  const grip   = new THREE.Mesh(new THREE.BoxGeometry(0.040,0.11,0.055), dark); grip.position.set(0,-0.106,-0.01); grip.rotation.x=0.15;
+  const slide  = new THREE.Mesh(new THREE.BoxGeometry(0.045,0.028,0.14), steel); slide.position.set(0,0.068,0.04);
+  g.add(body,barrel,grip,slide);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+  return g;
+}
+function buildLmgMesh(){
+  const g = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color:0x252830, metalness:0.7, roughness:0.5 });
+  const dark  = new THREE.MeshStandardMaterial({ color:0x14151a, metalness:0.4, roughness:0.7 });
+  const body   = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.12,0.55), steel); body.position.set(0,0,0.04);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.55,10), steel); barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.022,0.40);
+  const bipod1 = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.18,5), dark); bipod1.position.set(-0.04,-0.12,0.32); bipod1.rotation.z=0.3;
+  const bipod2 = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.18,5), dark); bipod2.position.set(0.04,-0.12,0.32); bipod2.rotation.z=-0.3;
+  const drum   = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.045,16), dark); drum.rotation.x=Math.PI/2; drum.position.set(0,-0.09,0.06);
+  const stock  = new THREE.Mesh(new THREE.BoxGeometry(0.055,0.09,0.20), dark); stock.position.set(0,-0.01,-0.29);
+  g.add(body,barrel,bipod1,bipod2,drum,stock);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+  return g;
+}
+function buildKnifeMesh(){
+  const g = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color:0xbec8d5, metalness:0.95, roughness:0.10 });
+  const dark  = new THREE.MeshStandardMaterial({ color:0x18191f, metalness:0.3, roughness:0.7 });
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.022,0.010,0.25), steel); blade.position.set(0,0.018,0.16);
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.064,0.016,0.014), steel); guard.position.set(0,0.016,0.035);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.010,0.11,8), dark); handle.rotation.x=Math.PI/2; handle.position.set(0,0.012,-0.05);
+  g.add(blade,guard,handle);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
   return g;
 }
 // auto-découverte d'un .glb dans un dossier (1 niveau de sous-dossiers) — convention assets (#39)
@@ -3280,6 +3391,7 @@ function playSound(type){
       case 'playerHit': tone(110, 0.18, 'sine', 0.6, 70); break;
       case 'gameover':  tone(440, 0.9, 'sine', 0.5, 90); break;
       case 'reload':    noise(0.03, 0.3, 2500); setTimeout(() => { try{ noise(0.03, 0.3, 2500); }catch(e){} }, 120); break;
+      case 'melee':     noise(0.09, 0.10, 5000); tone(90, 0.12, 'sawtooth', 0.35, 180); break;
     }
   } catch(e){}
 }
