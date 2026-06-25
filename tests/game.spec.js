@@ -2582,3 +2582,44 @@ test('#59 hitmarker : classe headshot quand showHitMarker(true)', async ({ page 
   const hs = await page.evaluate(() => document.getElementById('hit-marker').classList.contains('hm-head'));
   expect(hs).toBe(true);
 });
+
+// ====== #60 — XP + niveaux ======
+test('#60 xp : niveau initial = 1', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const lv = await page.evaluate(() => __game.debug.playerLevel());
+  expect(lv).toBe(1);
+});
+
+test('#60 xp : addXp augmente le total', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(200));
+  const xp = await page.evaluate(() => __game.debug.xpTotal());
+  expect(xp).toBeGreaterThanOrEqual(200);
+});
+
+test('#60 xp : suffisamment d xp = niveau 2', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(100)); // 100 XP = level 2
+  const lv = await page.evaluate(() => __game.debug.playerLevel());
+  expect(lv).toBeGreaterThanOrEqual(2);
+});
+
+test('#60 xp : playerTitle retourne une chaine', async ({ page }) => {
+  await startPlaying(page);
+  const t = await page.evaluate(() => __game.debug.playerTitle());
+  expect(typeof t).toBe('string');
+  expect(t.length).toBeGreaterThan(0);
+});
+
+test('#60 xp : kill en jeu donne de l xp', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const before = await page.evaluate(() => __game.debug.xpTotal());
+  await page.evaluate(() => __game.debug.spawnEnemyInFront());
+  await page.evaluate(() => __game.debug.damageEnemy(0, 9999));
+  const after = await page.evaluate(() => __game.debug.xpTotal());
+  expect(after).toBeGreaterThan(before);
+});

@@ -278,6 +278,11 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #xp-hud{position:fixed;left:16px;bottom:76px;z-index:10;width:240px}
+  #xp-label{font-family:var(--font-display);font-size:var(--t-xs);text-transform:uppercase;letter-spacing:.05em;
+    color:var(--text-2);font-weight:700;margin-bottom:3px}
+  #xp-track{height:4px;background:var(--bg-600);border-radius:2px;overflow:hidden}
+  #xp-fill{height:100%;width:0%;background:linear-gradient(90deg,#7c5cbf,#b388ff);border-radius:2px;transition:width .3s}
   #hit-marker{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:25;pointer-events:none;
     width:20px;height:20px;opacity:0;transition:opacity .06s}
   #hit-marker.hm-show{opacity:1}
@@ -576,6 +581,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="xp-hud" class="hidden"><div id="xp-label">Niv. 1  Recrue</div><div id="xp-track"><div id="xp-fill"></div></div></div>
 <div id="hit-marker" class="hidden"></div>
 <div id="ks-banner" class="hidden"></div>
 <div id="flashbang-hud" class="hidden">⚡ 2</div>
@@ -693,7 +699,7 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 
 // ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
 const SAVE_KEY = 'cod-save-v1';
-function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestCombo:0, selectedCharacterId:null,
+function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestCombo:0, xp:0, selectedCharacterId:null,
   ownedWeapons:['default','knife'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},   // knife gratuit possédé par défaut (#50)
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
@@ -1316,6 +1322,7 @@ async function startGame(){
   document.getElementById('radar').classList.remove('hidden');   // mini-carte (#21)
   document.getElementById('grenade-hud').classList.remove('hidden'); updateGrenadeHud();   // compteur grenades (#33)
   document.getElementById('flashbang-hud').classList.remove('hidden'); refillFlashbangs(); // flashbangs (#57)
+  document.getElementById('xp-hud').classList.remove('hidden'); updateXpHud();            // XP (#60)
   document.getElementById('dash-hud').classList.remove('hidden'); updateDashHud();         // dash (#35)
   updateCombatHud();
   if(!enemyBase) await buildEnemyAssets(char);
@@ -2284,6 +2291,29 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #60 XP + niveaux ======
+const XP_KILL=25, XP_HEAD=25, XP_WAVE=100; // headshot = 25 bonus (total 50)
+const LEVEL_TITLES = ['Recrue','Soldat','Caporal','Sergent','Lieutenant','Capitaine','Major','Colonel','Général','Légende'];
+function xpForLevel(n){ return 100*n*(n+1)/2; }      // XP cumulé pour atteindre le niveau n+1
+function calcLevel(xp){ let l=1; while(l<50 && xp>=xpForLevel(l)) l++; return l; }
+function playerLevel(){ return calcLevel(save.xp||0); }
+function playerTitle(){ const l=playerLevel(); return LEVEL_TITLES[Math.min(9, Math.floor((l-1)/5))]; }
+function xpNextLevel(){ const l=playerLevel(); return xpForLevel(l); }
+function addXp(n){
+  save.xp = (save.xp||0) + n; persist();
+  updateXpHud();
+}
+function updateXpHud(){
+  const el = document.getElementById('xp-hud'); if(!el) return;
+  const xp=save.xp||0, lv=playerLevel(), nxt=xpNextLevel(), prev=xpForLevel(lv-1);
+  const frac = lv>=50 ? 1 : Math.max(0, Math.min(1,(xp-prev)/(nxt-prev)));
+  const fill = el.querySelector('#xp-fill'); if(fill) fill.style.width = (frac*100)+'%';
+  const label = el.querySelector('#xp-label'); if(label) label.textContent = `Niv. ${lv}  ${playerTitle()}`;
+}
+G.debug.xpTotal = () => save.xp||0;
+G.debug.playerLevel = () => playerLevel();
+G.debug.playerTitle = () => playerTitle();
+G.debug.addXp = (n) => addXp(n);
 // ====== #59 Hit-marker ======
 let hmTimer = null;
 function showHitMarker(headshot){
@@ -2761,7 +2791,7 @@ G.debug.restart = () => restartGame();
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
   resetCombo(); resetPower();
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -3386,6 +3416,7 @@ function killEnemy(e){
   killCallout(e);                                       // annonce HEADSHOT/multi-kill/BOSS DOWN (#38)
   addKillFeedEntry(e);                                  // journal kill (#54)
   registerKsKill();                                     // récompenses killstreak (#58)
+  addXp(XP_KILL + (e.lastHitHead ? XP_HEAD : 0));      // XP par kill (#60)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
@@ -3401,6 +3432,7 @@ function checkWaveCleared(){
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
   if(dmgThisWave === 0) checkChallenges('nodmg', 1);
   addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
+  addXp(XP_WAVE * wave);                                                           // XP par vague (#60)
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 function updateWaves(dt){
