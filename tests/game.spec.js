@@ -2436,3 +2436,48 @@ test('#55 challenges : HUD visible en playing', async ({ page }) => {
   await startPlaying(page);
   await expect(page.locator('#challenges-hud')).toBeVisible();
 });
+
+// ====== #56 — Stamina ======
+test('#56 stamina : stamina = 100 au debut de partie', async ({ page }) => {
+  await startPlaying(page);
+  const s = await page.evaluate(() => __game.debug.stamina());
+  expect(s).toBe(100);
+});
+
+test('#56 stamina : sprint vide la stamina', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
+  await page.waitForFunction(() => __game.debug.stamina() < 90, null, {timeout:5000});
+  const s = await page.evaluate(() => __game.debug.stamina());
+  expect(s).toBeLessThan(90);
+});
+
+test('#56 stamina : sans sprint la stamina regenere', async ({ page }) => {
+  await startPlaying(page);
+  // Vider partiellement
+  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
+  await page.waitForFunction(() => __game.debug.stamina() < 80, null, {timeout:5000});
+  // Arrêter le sprint
+  await page.evaluate(() => __game.debug.setInput({forward:false, sprint:false}));
+  const s1 = await page.evaluate(() => __game.debug.stamina());
+  await page.waitForFunction(v => __game.debug.stamina() > v + 5, s1, {timeout:5000});
+  const s2 = await page.evaluate(() => __game.debug.stamina());
+  expect(s2).toBeGreaterThan(s1);
+});
+
+test('#56 stamina : staminaDepleted=true quand stamina=0', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setStamina(0));
+  const depleted = await page.evaluate(() => __game.debug.staminaDepleted());
+  expect(depleted).toBe(true);
+});
+
+test('#56 stamina : reset a 100 apres restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
+  await page.waitForFunction(() => __game.debug.stamina() < 80, null, {timeout:5000});
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
+  const s = await page.evaluate(() => __game.debug.stamina());
+  expect(s).toBe(100);
+});

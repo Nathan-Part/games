@@ -273,6 +273,11 @@
     opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;--ch:8px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #challenge-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #stamina-hud{position:fixed;left:16px;bottom:104px;width:240px;height:6px;z-index:10;
+    background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);overflow:hidden;--ch:3px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
+  #stamina-fill.low{background:#ff6b35}
   #vignette{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s;
     box-shadow:inset 0 0 140px 40px rgba(200,20,20,.85)}
   #vignette.show{opacity:1}
@@ -550,6 +555,7 @@
 <div id="wave-banner"></div>
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
+<div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
 <div id="challenges-hud" class="hidden"></div>
 <div id="challenge-toast"></div>
 <div id="achievement-toast"></div>
@@ -1276,7 +1282,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges();   // reset + init challenges (#55)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina();   // reset + init (#55/#56)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -1437,6 +1443,22 @@ function updateCamera(dt){
   camera.lookAt(p.x + right.x*sh, ty, p.z + right.z*sh);
 }
 
+// ====== #56 Stamina ======
+const STAMINA_MAX = 100, STAMINA_DRAIN = 25, STAMINA_REGEN = 15, STAMINA_MIN_RUN = 20;
+let stamina = STAMINA_MAX, staminaDepleted = false;
+function updateStaminaHud(){
+  const el = document.getElementById('stamina-hud'); if(!el) return;
+  if(G.phase !== 'playing'){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const fill = document.getElementById('stamina-fill'); if(!fill) return;
+  fill.style.width = Math.round(stamina / STAMINA_MAX * 100) + '%';
+  fill.classList.toggle('low', staminaDepleted);
+}
+function resetStamina(){ stamina = STAMINA_MAX; staminaDepleted = false; updateStaminaHud(); }
+G.debug.stamina = () => stamina;
+G.debug.staminaDepleted = () => staminaDepleted;
+G.debug.setStamina = (v) => { stamina = Math.max(0, Math.min(STAMINA_MAX, v)); if(stamina===0) staminaDepleted=true; updateStaminaHud(); };
+
 // ====== Contrôleur + machine d'état locomotion ======
 const WALK_SPEED = 2.4, RUN_SPEED = 5.4, TURN_LERP = 12;
 let curLoco = 'idle';
@@ -1484,13 +1506,21 @@ function updateController(dt){
     const dir = cameraRelative({forward:f, strafe:s}, camYaw);
     const len = Math.hypot(dir.x, dir.z) || 1;
     const vx = dir.x/len, vz = dir.z/len;
-    speed = (input.sprint ? RUN_SPEED : WALK_SPEED) * speedMult;
+    const canRun = input.sprint && !staminaDepleted;
+    if(canRun){ stamina = Math.max(0, stamina - STAMINA_DRAIN*dt); if(stamina===0) staminaDepleted=true; }
+    else { stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt); if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; }
+    updateStaminaHud();
+    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult;
     model.position.x += vx*speed*dt;
     model.position.z += vz*speed*dt;
     const target = Math.atan2(vx, vz);
     let a = model.rotation.y;
     let diff = ((target - a + Math.PI)%(Math.PI*2)) - Math.PI;
     model.rotation.y = a + diff*Math.min(1, dt*TURN_LERP);
+  } else {
+    stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt);
+    if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false;
+    updateStaminaHud();
   }
   // bornes de map
   model.position.x = Math.max(-MAP_HALF, Math.min(MAP_HALF, model.position.x));
@@ -1506,7 +1536,7 @@ function updateController(dt){
     model.position.y += velY*dt;
     if(model.position.y <= groundY){ model.position.y = groundY; velY = 0; grounded = true; }
   }
-  setLoco(locomotionState(speed, input.sprint));
+  setLoco(locomotionState(speed, input.sprint && !staminaDepleted));
 }
 
 // ====== UI : HUD, pause, overlay ======
@@ -2607,7 +2637,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges();   // restart : reset + init challenges (#55)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina();   // restart (#55/#56)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
