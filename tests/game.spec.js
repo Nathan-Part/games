@@ -2521,3 +2521,40 @@ test('#57 flashbang : rechargé par vague', async ({ page }) => {
   await page.waitForFunction(() => __game.debug.flashbangCount() > 0, null, {timeout:10000});
   expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(2);
 });
+
+// ====== #58 — Killstreak Rewards ======
+test('#58 ks : killstreak initial = 0', async ({ page }) => {
+  await startPlaying(page);
+  const n = await page.evaluate(() => __game.debug.ksCount());
+  expect(n).toBe(0);
+});
+
+test('#58 ks : 3 kills rapides declenche rechargement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<3;i++) __game.debug.registerKsKill(); });
+  const rewarded = await page.evaluate(() => __game.debug.ksRewardFired(3));
+  expect(rewarded).toBe(true);
+});
+
+test('#58 ks : 5 kills rapides = bouclier actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<5;i++) __game.debug.registerKsKill(); });
+  const shielded = await page.evaluate(() => __game.debug.ksShieldActive());
+  expect(shielded).toBe(true);
+});
+
+test('#58 ks : 7 kills rapides = double argent actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<7;i++) __game.debug.registerKsKill(); });
+  const dbl = await page.evaluate(() => __game.debug.ksMoneyMult());
+  expect(dbl).toBe(2);
+});
+
+test('#58 ks : reset au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<5;i++) __game.debug.registerKsKill(); });
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForFunction(() => __game.phase === 'playing', null, {timeout:20000});
+  const n = await page.evaluate(() => __game.debug.ksCount());
+  expect(n).toBe(0);
+});

@@ -278,6 +278,12 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #ks-banner{position:fixed;top:28%;left:50%;transform:translateX(-50%);z-index:20;font-family:var(--font-display);
+    font-size:2rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;text-shadow:0 0 24px currentColor;
+    pointer-events:none;opacity:0}
+  #ks-banner.ks-pop{animation:ksPop 2s forwards}
+  @keyframes ksPop{0%{opacity:0;transform:translateX(-50%) scale(.7)}10%{opacity:1;transform:translateX(-50%) scale(1.08)}
+    80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
   #flashbang-hud{position:fixed;left:16px;top:90px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
     padding:7px 13px;font-family:var(--font-display);text-transform:uppercase;font-size:var(--t-sm);font-weight:600;
     letter-spacing:.05em;color:var(--text-2);white-space:nowrap;--ch:7px;
@@ -563,6 +569,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="ks-banner" class="hidden"></div>
 <div id="flashbang-hud" class="hidden">⚡ 2</div>
 <div id="flash-screen"></div>
 <div id="challenges-hud" class="hidden"></div>
@@ -706,7 +713,7 @@ const DIFFICULTIES = {
 function curDiff(){ return DIFFICULTIES[(save.settings && save.settings.difficulty) || 'normal'] || DIFFICULTIES.normal; }
 G.debug.difficulty = () => curDiff().id;
 G.debug.setDifficulty = (id) => { if(DIFFICULTIES[id]){ save.settings.difficulty = id; persist(); if(typeof renderSettings === 'function') renderSettings(); } };
-function addMoney(n){ save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
+function addMoney(n){ n = Math.round(n * ksMoneyMultiplier()); save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `${ico('coin')} ${save.money}`; }
 function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b> internes, garde l'icône SVG)
@@ -1291,7 +1298,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina();   // reset + init (#55/#56)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
@@ -2268,6 +2275,39 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #58 Killstreak Rewards ======
+const KS_WINDOW = 8, KS_THRESHOLDS = [3, 5, 7];
+let ksKillTimes = [], ksAwarded = new Set();
+let ksShieldUntil = 0, ksMoneyMultUntil = 0;
+function registerKsKill(){
+  const t = nowS(); ksKillTimes.push(t);
+  ksKillTimes = ksKillTimes.filter(t2 => t - t2 < KS_WINDOW);
+  const n = ksKillTimes.length;
+  for(const thr of KS_THRESHOLDS){ if(n >= thr && !ksAwarded.has(thr)){ ksAwarded.add(thr); fireKsReward(thr); } }
+}
+function fireKsReward(thr){
+  if(thr === 3){ ammo = curMag; G.ammo = ammo; showKsBanner('TRIPLE KILL  ⚡ Rechargé', '#f0c040'); }
+  else if(thr === 5){ ksShieldUntil = nowS() + 5; showKsBanner('RAMPAGE  🛡 Bouclier actif', '#4fc3f7'); }
+  else if(thr === 7){ ksMoneyMultUntil = nowS() + 10; showKsBanner('UNSTOPPABLE  💰 ×2 Argent', '#81c784'); }
+}
+function showKsBanner(txt, color){
+  let el = document.getElementById('ks-banner'); if(!el) return;
+  el.textContent = txt; el.style.color = color; el.classList.remove('hidden','ks-pop');
+  void el.offsetWidth; el.classList.add('ks-pop');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 2000);
+}
+function ksShieldActive(){ return nowS() < ksShieldUntil; }
+function ksMoneyMultiplier(){ return (nowS() < ksMoneyMultUntil) ? 2 : 1; }
+function updateKillstreak(){
+  const t = nowS(); ksKillTimes = ksKillTimes.filter(t2 => t - t2 < KS_WINDOW);
+  if(ksKillTimes.length < KS_THRESHOLDS[0]) ksAwarded.clear();
+}
+function resetKillstreak(){ ksKillTimes = []; ksAwarded.clear(); ksShieldUntil = 0; ksMoneyMultUntil = 0; }
+G.debug.registerKsKill = () => registerKsKill();
+G.debug.ksCount = () => { const t = nowS(); return ksKillTimes.filter(t2 => t - t2 < KS_WINDOW).length; };
+G.debug.ksRewardFired = (thr) => ksAwarded.has(thr);
+G.debug.ksShieldActive = () => ksShieldActive();
+G.debug.ksMoneyMult = () => ksMoneyMultiplier();
 // ====== #57 Flashbang ======
 const MAX_FLASHBANGS = 2, FLASH_FUSE = 1.5, FLASH_BLIND_R = 9, FLASH_BLIND_DUR = 2.0, FLASH_PLAYER_R = 10;
 let flashbangs = MAX_FLASHBANGS, flashbangProjs = [], flashScreenT = null;
@@ -2592,6 +2632,7 @@ function flashDamage(){
 function damagePlayer(amount){
   if(G.phase !== 'playing') return;
   amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
+  if(ksShieldActive()) amount = Math.round(amount * 0.5); // bouclier killstreak #58
   health = Math.max(0, health - amount); G.health = health; lastDamageAt = nowS();
   dmgThisWave += amount;
   flashDamage(); updateHealthHud(); playSound('playerHit');
@@ -2687,7 +2728,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina();   // restart (#55/#56)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // restart (#55-#58)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -3325,6 +3366,7 @@ function killEnemy(e){
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
   killCallout(e);                                       // annonce HEADSHOT/multi-kill/BOSS DOWN (#38)
   addKillFeedEntry(e);                                  // journal kill (#54)
+  registerKsKill();                                     // récompenses killstreak (#58)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
@@ -3811,7 +3853,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
