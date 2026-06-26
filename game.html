@@ -273,6 +273,10 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #precision-hud{position:fixed;top:26%;left:50%;transform:translateX(-50%);color:#00e5ff;font-weight:900;font-size:1rem;letter-spacing:.25em;text-shadow:0 0 10px #00e5ff;pointer-events:none;opacity:0}
+  #precision-hud::before{content:'PRECISION'}
+  #precision-hud.ps-show{animation:psPop 1.5s forwards}
+  @keyframes psPop{0%{opacity:1;transform:translateX(-50%) scale(1.1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%)}}
   #longshot-hud{position:fixed;top:22%;left:50%;transform:translateX(-50%);color:#ffd700;font-weight:900;font-size:1.3rem;letter-spacing:.2em;text-shadow:0 0 14px #ffd700;pointer-events:none;opacity:0;transition:opacity .2s}
   #longshot-hud.ls-show{opacity:1;animation:lsPop 2s forwards}
   @keyframes lsPop{0%{opacity:1;transform:translateX(-50%) scale(1.2)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
@@ -648,6 +652,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="precision-hud"></div>
 <div id="longshot-hud"></div>
 <div id="flank-hud" class="hidden"></div>
 <div id="overheat-hud" class="hidden" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none"></div>
@@ -2236,7 +2241,8 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY);
         const bsMult = isBackstab(enemies.indexOf(e)) ? BACKSTAB_MULT : 1;
-        const dmg = Math.round(hz.damage * curDmgMult * bsMult);
+        let dmg = Math.round(hz.damage * curDmgMult * bsMult);
+        if(isPrecisionShot()){ dmg = Math.round(dmg*PRECISION_MULT); registerPrecisionHit(); } else { lastWasPrecision_=false; }
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
         _fireConnected = true;                                 // tir au but : précision (#43)
         showHitMarker(hz.zone === 'head');                     // hit-marker (#59)
@@ -2414,6 +2420,16 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #105 Precision shot bonus ======
+const PRECISION_MULT = 1.3;
+let precisionShotCount_ = 0, lastWasPrecision_ = false;
+function isPrecisionShot(){ return !!input.aim && !input.forward && !input.back && !input.left && !input.right && !input.sprint; }
+function applyPrecisionMult(dmg){ if(!isPrecisionShot()) return dmg; return Math.round(dmg * PRECISION_MULT); }
+function registerPrecisionHit(){ precisionShotCount_++; lastWasPrecision_=true; const el=document.getElementById('precision-hud'); if(el){ el.classList.add('ps-show'); setTimeout(()=>el.classList.remove('ps-show'),1500); } }
+function forcePrecisionShot(){ precisionShotCount_++; lastWasPrecision_=true; }
+G.debug.precisionShotCount = () => precisionShotCount_;
+G.debug.lastWasPrecision = () => lastWasPrecision_;
+G.debug.forcePrecisionShot = () => forcePrecisionShot();
 // ====== #103 Screen shake explosion ======
 let explosionShake_ = 0;
 function triggerScreenShake(intensity){ explosionShake_ = Math.max(explosionShake_, intensity); shake = Math.max(shake, intensity * 3); }

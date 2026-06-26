@@ -3563,3 +3563,21 @@ test('#104 berserker : berserker apparait en vague 6+', async ({ page }) => {
   const comp = await page.evaluate(() => __game.debug.waveComposition(6));
   expect(comp).toContain('berserker');
 });
+
+// ====== #105 — Precision shot bonus ======
+test('#105 precision : precisionShotCount() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.precisionShotCount())).toBe(0);
+});
+
+test('#105 precision : forcePrecisionShot() incremente compteur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forcePrecisionShot());
+  expect(await page.evaluate(() => __game.debug.precisionShotCount())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.lastWasPrecision())).toBe(true);
+});
+
+test('#105 precision : lastWasPrecision() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastWasPrecision())).toBe(false);
+});
