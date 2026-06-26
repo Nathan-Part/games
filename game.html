@@ -2377,6 +2377,27 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #79 Orbes d'argent ======
+const ORB_COLLECT_R = 1.5, ORB_FLOAT_AMP = 0.12, ORB_FLOAT_FREQ = 2;
+let moneyOrbs = [], orbTime = 0;
+const _orbGeo = new THREE.SphereGeometry(0.18, 8, 6);
+const _orbMat = new THREE.MeshBasicMaterial({color:0xffd700});
+function spawnMoneyOrb(x, z, amount){
+  const m = new THREE.Mesh(_orbGeo, _orbMat.clone()); m.position.set(x, 0.4, z);
+  scene.add(m); moneyOrbs.push({mesh:m, baseY:0.4, amount, t:Math.random()*Math.PI*2});
+}
+function updateMoneyOrbs(dt){
+  orbTime += dt; const pp = G.position();
+  for(let i=moneyOrbs.length-1;i>=0;i--){ const o=moneyOrbs[i];
+    o.t += dt; o.mesh.position.y = o.baseY + Math.sin(o.t*ORB_FLOAT_FREQ*Math.PI*2)*ORB_FLOAT_AMP;
+    if(Math.hypot(pp.x-o.mesh.position.x, pp.z-o.mesh.position.z) < ORB_COLLECT_R){
+      scene.remove(o.mesh); o.mesh.material.dispose(); moneyOrbs.splice(i,1);
+    }
+  }
+}
+function clearMoneyOrbs(){ for(const o of moneyOrbs){ scene.remove(o.mesh); o.mesh.material.dispose(); } moneyOrbs.length=0; }
+G.debug.moneyOrbCount = () => moneyOrbs.length;
+G.debug.spawnMoneyOrb = (x,z,amount) => spawnMoneyOrb(x,z,amount||50);
 // ====== #78 Mode semi-auto ======
 const SEMI_AUTO_WEAPONS = new Set(['sniper','phantom_sr','pistol','specter_p','jackal_45']);
 let semiAuto = false, firePrev = false;
@@ -3486,7 +3507,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearPowerUps(); clearBarrels(); clearMines(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearPowerUps(); clearBarrels(); clearMines(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -3839,6 +3860,7 @@ function killEnemy(e){
   registerKsKill();                                     // récompenses killstreak (#58)
   addXp(XP_KILL + (e.lastHitHead ? XP_HEAD : 0));      // XP par kill (#60)
   onStreakKill();                                         // streak counter (#72)
+  spawnMoneyOrb(e.root.position.x, e.root.position.z, MONEY_PER_KILL); // orbe argent (#79)
   trackDailyKill('kills'); if(e.lastHitHead) trackDailyKill('headshots'); if(e.lastHitMelee) trackDailyKill('melee'); // contrats (#62)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
@@ -4345,7 +4367,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

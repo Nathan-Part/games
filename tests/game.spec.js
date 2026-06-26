@@ -3029,3 +3029,23 @@ test('#78 semiauto : setSemiAuto(false) desactive le mode', async ({ page }) => 
   await page.evaluate(() => { __game.debug.setSemiAuto(true); __game.debug.setSemiAuto(false); });
   expect(await page.evaluate(() => __game.debug.semiAutoMode())).toBe(false);
 });
+
+// ====== #79 — Orbes d'argent ======
+test('#79 moneyorb : moneyOrbCount initial = 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(0);
+});
+
+test('#79 moneyorb : spawnMoneyOrb cree un orbe', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnMoneyOrb(5, 5, 50));
+  expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(1);
+});
+
+test('#79 moneyorb : orbe collecte quand joueur proche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.spawnMoneyOrb(0, 0, 50); });
+  // attendre un frame de collecte
+  await page.waitForFunction(() => __game.debug.moneyOrbCount() === 0, null, { timeout: 5000 });
+  expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(0);
+});
