@@ -2757,3 +2757,27 @@ test('#65 mine : explosion tue ennemi proche', async ({ page }) => {
   const dead = await page.evaluate(() => __game.debug.enemyState(0) === 'dead');
   expect(dead).toBe(true);
 });
+
+// ====== #66 — Barres de vie ennemis ======
+test('#66 hpbar : container #enemy-hp-bars existe', async ({ page }) => {
+  await startPlaying(page);
+  const exists = await page.evaluate(() => !!document.getElementById('enemy-hp-bars'));
+  expect(exists).toBe(true);
+});
+
+test('#66 hpbar : une barre cree apres spawn ennemi', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront());
+  await page.waitForTimeout(200);
+  const count = await page.evaluate(() => document.querySelectorAll('#enemy-hp-bars .ehb').length);
+  expect(count).toBeGreaterThanOrEqual(1);
+});
+
+test('#66 hpbar : enemyHpBarFrac retourne fraction PV', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront());
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));
+  const frac = await page.evaluate(() => __game.debug.enemyHpBarFrac(0));
+  expect(frac).toBeGreaterThan(0);
+  expect(frac).toBeLessThan(1);
+});

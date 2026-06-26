@@ -278,6 +278,10 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #enemy-hp-bars{position:fixed;inset:0;pointer-events:none;z-index:12;overflow:hidden}
+  .ehb{position:absolute;transform:translate(-50%,-100%);width:44px}
+  .ehb-track{height:4px;background:rgba(0,0,0,.55);border-radius:2px;overflow:hidden}
+  .ehb-fill{height:100%;border-radius:2px;transition:width .1s,background .2s}
   #mine-hud{position:fixed;left:16px;top:120px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
     padding:6px 12px;font-family:var(--font-display);text-transform:uppercase;font-size:var(--t-sm);font-weight:600;
     letter-spacing:.05em;color:var(--text-2);--ch:7px;
@@ -603,6 +607,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="enemy-hp-bars"></div>
 <div id="mine-hud" class="hidden">💣mines <b>2</b></div>
 <div id="firemode-hud" class="hidden">AUTO</div>
 <div id="dmgdir-top" class="dmgdir"></div>
@@ -2325,6 +2330,29 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #66 Barres de vie ennemis ======
+const EHB_RANGE = 20, EHB_HEIGHT = 2.4;
+function updateEnemyHpBars(){
+  const container = document.getElementById('enemy-hp-bars'); if(!container) return;
+  // sync pool : un div par ennemi
+  while(container.children.length < enemies.length){ const d=document.createElement('div'); d.className='ehb'; d.innerHTML='<div class="ehb-track"><div class="ehb-fill"></div></div>'; container.appendChild(d); }
+  while(container.children.length > enemies.length) container.removeChild(container.lastChild);
+  const W=window.innerWidth, H=window.innerHeight;
+  enemies.forEach((e,i)=>{
+    const el=container.children[i]; if(!el) return;
+    if(!e.alive||!model){ el.style.display='none'; return; }
+    const dist = model.position.distanceTo(e.root.position);
+    if(dist > EHB_RANGE){ el.style.display='none'; return; }
+    const pos3 = e.root.position.clone(); pos3.y += EHB_HEIGHT;
+    pos3.project(camera);
+    if(pos3.z > 1){ el.style.display='none'; return; }
+    const sx=Math.round((pos3.x*0.5+0.5)*W), sy=Math.round((-pos3.y*0.5+0.5)*H);
+    el.style.display=''; el.style.left=sx+'px'; el.style.top=sy+'px';
+    const frac=Math.max(0,Math.min(1,(e.hp||0)/(e.maxHp||1)));
+    const fill=el.querySelector('.ehb-fill'); if(fill){ fill.style.width=(frac*100)+'%'; fill.style.background=frac>0.5?'#4caf50':frac>0.25?'#ff9800':'#f44336'; }
+  });
+}
+G.debug.enemyHpBarFrac = (i) => { const e=enemies[i]; return e ? Math.max(0,Math.min(1,(e.hp||0)/(e.maxHp||1))) : 0; };
 // ====== #65 Claymore / mines de proximité ======
 const MAX_MINES = 2, MINE_DETECT_R = 2, MINE_EXPLODE_R = 4, MINE_DAMAGE = 200;
 let mineStock = MAX_MINES, mines = [];
@@ -4078,7 +4106,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
