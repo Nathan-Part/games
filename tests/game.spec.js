@@ -3442,3 +3442,24 @@ test('#98 inf ammo : setInfiniteAmmo(false) retablit consommation normale', asyn
   const ammoAfter = await page.evaluate(() => __game.ammo);
   expect(ammoAfter).toBe(ammoBefore - 1);
 });
+
+// ====== #99 — Flank warning ======
+test('#99 flank : flankWarning() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<__game.debug.enemyCount();i++) __game.debug.moveEnemy(i,100,100); __game.debug.expireFlank(); });
+  expect(await page.evaluate(() => __game.debug.flankWarning())).toBe(false);
+});
+
+test('#99 flank : triggerFlank("left") affiche avertissement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerFlank('left'));
+  expect(await page.evaluate(() => __game.debug.flankWarning())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.lastFlankDir())).toBe('left');
+});
+
+test('#99 flank : flankWarning() false apres expiration', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerFlank('right'));
+  await page.evaluate(() => __game.debug.expireFlank());
+  expect(await page.evaluate(() => __game.debug.flankWarning())).toBe(false);
+});

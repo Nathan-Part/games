@@ -273,6 +273,8 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  .flank-left,.flank-right{position:fixed;top:50%;transform:translateY(-50%);color:#f44;font-weight:900;font-size:1.4rem;text-shadow:0 0 12px #f44;pointer-events:none;letter-spacing:.1em}
+  .flank-left{left:18px} .flank-right{right:18px}
   #hardcore-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#f44;font-weight:900;font-size:.85rem;letter-spacing:.15em;text-shadow:0 0 8px #f44;pointer-events:none}
   .go-rank{text-align:center;font-size:1.1rem;letter-spacing:.2em;color:#aaa;margin-top:8px}
   .go-rank-letter{font-size:2.8rem;font-weight:900;color:#ffd700;text-shadow:0 0 16px #ffd700}
@@ -643,6 +645,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="flank-hud" class="hidden"></div>
 <div id="overheat-hud" class="hidden" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none"></div>
 <div id="hardcore-hud" class="hidden">☠ HARDCORE</div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
@@ -2406,6 +2409,34 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #99 Flank Warning ======
+const FLANK_ANGLE = Math.cos(100 * Math.PI / 180); // cos(100°) ≈ -0.174 : ennemi dans le dos/flanc
+const FLANK_DUR = 1.0;
+let flankDir_ = null, flankExpireAt_ = 0;
+function triggerFlank(dir){ flankDir_ = dir; flankExpireAt_ = nowS() + FLANK_DUR; updateFlankHud(); }
+function expireFlank(){ flankDir_ = null; flankExpireAt_ = 0; updateFlankHud(); }
+function flankWarning(){ return flankDir_ !== null && nowS() < flankExpireAt_; }
+function updateFlankHud(){ const el=document.getElementById('flank-hud'); if(!el) return; if(!flankWarning()){ el.textContent=''; el.classList.add('hidden'); return; } el.textContent = flankDir_==='left' ? '◄ FLANC' : 'FLANC ►'; el.className = flankDir_==='left' ? 'flank-left' : 'flank-right'; }
+function checkEnemyFlanks(){
+  if(!model || G.phase !== 'playing') return;
+  const t = nowS(); if(flankDir_ && t < flankExpireAt_) return; // déjà actif
+  const yaw = camera.rotation.y;
+  const fwdX = Math.sin(yaw), fwdZ = Math.cos(yaw);
+  for(const e of enemies){ if(!e.alive) continue;
+    const dx = e.root.position.x - model.position.x, dz = e.root.position.z - model.position.z;
+    const dist = Math.hypot(dx,dz); if(dist > 20) continue;
+    const dot = (fwdX*dx + fwdZ*dz) / dist;
+    if(dot < FLANK_ANGLE){
+      const cross = fwdX*dz - fwdZ*dx;
+      triggerFlank(cross > 0 ? 'right' : 'left'); break;
+    }
+  }
+  if(flankDir_ && t >= flankExpireAt_) expireFlank();
+}
+G.debug.flankWarning = () => flankWarning();
+G.debug.lastFlankDir = () => flankDir_;
+G.debug.triggerFlank = (dir) => triggerFlank(dir);
+G.debug.expireFlank = () => expireFlank();
 // ====== #98 Munitions infinies (mode debug) ======
 let infiniteAmmo_ = false;
 G.debug.infiniteAmmoActive = () => infiniteAmmo_;
@@ -4713,7 +4744,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
