@@ -235,11 +235,6 @@
   #power-hud .pbar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent)}
   #radar{position:fixed;right:16px;top:14px;z-index:10;width:150px;height:150px;border-radius:50%;
     background:rgba(12,14,18,.66);box-shadow:inset 0 0 0 1px var(--line-2),0 4px 18px rgba(0,0,0,.5)}
-  #wave-banner{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.82);z-index:21;
-    font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:56px;
-    color:var(--text);text-shadow:0 4px 24px rgba(0,0,0,.75),0 0 30px var(--accent-glow);
-    opacity:0;transition:opacity .25s ease,transform .25s ease;pointer-events:none;text-align:center;white-space:nowrap}
-  #wave-banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
   #kill-callout{position:fixed;left:50%;top:150px;transform:translateX(-50%) scale(.8);z-index:12;
     font-family:var(--font-display);font-size:30px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
     color:var(--gold);text-shadow:0 2px 8px #000,0 0 18px rgba(255,209,92,.5);
@@ -278,6 +273,15 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #wave-banner{position:fixed;top:22%;left:50%;transform:translateX(-50%);z-index:25;pointer-events:none;
+    text-align:center;opacity:0;white-space:nowrap}
+  #wave-banner.wb-show{animation:wbAnim 2.5s forwards}
+  #wave-banner .wb-title{font-family:var(--font-display);font-size:3rem;font-weight:900;text-transform:uppercase;
+    letter-spacing:.15em;color:#fff;text-shadow:0 0 40px #ff9800,0 2px 8px #000}
+  #wave-banner .wb-sub{font-family:var(--font-display);font-size:1.1rem;font-weight:700;text-transform:uppercase;
+    letter-spacing:.2em;color:#ff9800;margin-top:4px}
+  @keyframes wbAnim{0%{opacity:0;transform:translateX(-50%) translateY(-30px)}12%{opacity:1;transform:translateX(-50%) translateY(0)}
+    70%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(0)}}
   #blood-screen{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;
     background:radial-gradient(ellipse at center, transparent 40%, rgba(180,0,0,.85) 100%);
     transition:opacity .08s}
@@ -625,11 +629,11 @@
 <div id="power-hud" class="hidden"></div>
 <div id="money-hud" class="hidden"></div>
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
-<div id="wave-banner"></div>
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
+<div id="wave-banner"><div class="wb-title"></div><div class="wb-sub"></div></div>
 <div id="blood-screen"></div>
 <div id="streak-hud" class="hidden"></div>
 <div id="reload-bar" class="hidden"><svg viewBox="0 0 36 36" width="48" height="48"><circle cx="18" cy="18" r="16"/></svg></div>
@@ -3803,7 +3807,7 @@ function startWave(w){
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   dmgThisWave = 0; waveState = 'active'; refillGrenades(); spawnBarrels();    // grenades + barils (#33/#41) ; reset dmgThisWave (#55)
   checkChallenges('wave', w);
-  updateWaveHud(); updateBossHud(); showWaveBanner(isBossWave(w) ? '⚠ BOSS — Vague ' + w : 'Vague ' + w);
+  updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
 }
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
@@ -3825,11 +3829,19 @@ function updateWaveHud(){
   el.innerHTML = `<b>Vague ${wave}</b> · ${remaining} ennemi${remaining > 1 ? 's' : ''}`;
 }
 let waveBannerT = null;
-function showWaveBanner(text){
+function showWaveBanner(nOrText, isBoss){
   const el = document.getElementById('wave-banner'); if(!el) return;
-  el.textContent = text; el.classList.add('show');
-  clearTimeout(waveBannerT); waveBannerT = setTimeout(() => el.classList.remove('show'), 1800);
+  const title = el.querySelector('.wb-title'), sub = el.querySelector('.wb-sub');
+  if(typeof nOrText === 'number'){
+    if(title) title.textContent = `VAGUE ${nOrText}`;
+    if(sub) sub.textContent = isBoss ? '⚠ BOSS ⚠' : (nOrText===1 ? 'BONNE CHANCE !' : `${nOrText} ENNEMIS`);
+  } else {
+    if(title) title.textContent = nOrText; if(sub) sub.textContent='';
+  }
+  el.classList.remove('wb-show'); void el.offsetWidth; el.classList.add('wb-show');
+  clearTimeout(waveBannerT); waveBannerT = setTimeout(() => el.classList.remove('wb-show'), 2500);
 }
+G.debug.showWaveBanner = (n, isBoss) => showWaveBanner(n, !!isBoss);
 G.debug.waveState = () => waveState;
 G.debug.forceNextWave = () => startWave(wave + 1);
 G.debug.killAllEnemies = () => { for(const e of enemies) if(e.alive) killEnemy(e); };

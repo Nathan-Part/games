@@ -2956,3 +2956,23 @@ test('#74 blood : gros degat (>=20) declenche blood screen', async ({ page }) =>
   const opacity = await page.evaluate(() => parseFloat(document.getElementById('blood-screen').style.opacity || '0'));
   expect(opacity).toBeGreaterThan(0);
 });
+
+// ====== #75 — Banner de vague ======
+test('#75 wavebanner : element #wave-banner existe', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => !!document.getElementById('wave-banner'))).toBe(true);
+});
+
+test('#75 wavebanner : showWaveBanner affiche le numero de vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showWaveBanner(3, false));
+  const txt = await page.evaluate(() => document.getElementById('wave-banner').textContent);
+  expect(txt).toContain('3');
+});
+
+test('#75 wavebanner : showWaveBanner boss affiche BOSS', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showWaveBanner(5, true));
+  const txt = await page.evaluate(() => document.getElementById('wave-banner').textContent.toUpperCase());
+  expect(txt).toContain('BOSS');
+});
