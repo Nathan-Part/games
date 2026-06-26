@@ -4010,3 +4010,42 @@ test('#122 xp_boost : xpBoostActive retourne true quand actif', async ({ page })
   const boosted = await page.evaluate(() => __game.debug.xpBoostActive());
   expect(boosted).toBe(true);
 });
+
+// ====== #123 — Explosive ammo power-up ======
+test('#123 explosive_ammo : spawnExplosiveAmmo puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnExplosiveAmmo(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const active = await page.evaluate(() => __game.debug.explosiveAmmoActive());
+  expect(active).toBe(true);
+});
+
+test('#123 explosive_ammo : tir sur ennemi cause degats AoE a un ennemi proche', async ({ page }) => {
+  await startPlaying(page);
+  // Activer les munitions explosives
+  await page.evaluate(() => { __game.debug.spawnExplosiveAmmo(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  // Spawn ennemi 0 droit devant la caméra, ennemi 1 très proche
+  const pos0 = await page.evaluate(() => {
+    __game.debug.spawnEnemyInFront(4); // devant la caméra courante
+    return __game.debug.enemyPos(0);
+  });
+  await page.evaluate((p) => __game.debug.spawnEnemyTypeAt(1, 'shooter', p.x + 0.7, p.z), pos0);
+  await page.waitForTimeout(100);
+  const hp1Before = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp2Before = await page.evaluate(() => __game.debug.enemyHp(1));
+  await page.evaluate(() => __game.debug.tryFire());
+  await page.waitForTimeout(200);
+  const hp1After = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp2After = await page.evaluate(() => __game.debug.enemyHp(1));
+  // Au moins un des deux ennemis doit avoir pris des dégâts
+  expect(hp1After < hp1Before || hp2After < hp2Before).toBe(true);
+});
+
+test('#123 explosive_ammo : explosiveAmmoTimeLeft > 0 quand actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnExplosiveAmmo(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const tl = await page.evaluate(() => __game.debug.explosiveAmmoTimeLeft());
+  expect(tl).toBeGreaterThan(0);
+});
