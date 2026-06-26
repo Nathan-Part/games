@@ -2238,7 +2238,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
         showHitMarker(hz.zone === 'head');                     // hit-marker (#59)
         damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
       else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
-  }
+  } else { lastRicochetHit_=false; tryRicochet(_ray.ray.origin, _ray.ray.direction); }    // miss → ricochet (#101)
 }
 function tryFire(){
   if(G.phase!=='playing') return false;
@@ -2409,6 +2409,40 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #101 Ricochet balle ======
+const RICOCHET_CHANCE = 0.20, RICOCHET_DMG_MULT = 0.4;
+let ricochetsTotal_ = 0, lastRicochetHit_ = false;
+function tryRicochet(missOrigin, missDir){
+  if(Math.random() > RICOCHET_CHANCE) return;
+  // Trouver l'obstacle le plus proche dans la direction du tir
+  let bestT = Infinity, bestObstacle = null, bestNorm = null;
+  for(const ob of obstacles){
+    const cx=(ob.minX+ob.maxX)/2, cz=(ob.minZ+ob.maxZ)/2;
+    const dx=cx-missOrigin.x, dz=cz-missOrigin.z;
+    const proj=dx*missDir.x+dz*missDir.z; if(proj<=0) continue;
+    const t=proj; if(t<bestT){ bestT=t; bestObstacle=ob;
+      const nx=Math.abs(dx)/(ob.maxX-ob.minX)*2, nz=Math.abs(dz)/(ob.maxZ-ob.minZ)*2;
+      bestNorm = nx>nz ? { x:Math.sign(dx), z:0 } : { x:0, z:Math.sign(dz) }; }
+  }
+  if(!bestObstacle || bestT>curRange) return;
+  // Reflet du vecteur de tir
+  const d=missDir, n=bestNorm;
+  const dot2=2*(d.x*n.x+d.z*n.z);
+  const rx=d.x-dot2*n.x, rz=d.z-dot2*n.z;
+  const bx=missOrigin.x+d.x*bestT, bz=missOrigin.z+d.z*bestT;
+  // Vérifier si un ennemi est dans la direction réfléchie
+  for(const e of enemies){ if(!e.alive) continue;
+    const ex=e.root.position.x-bx, ez=e.root.position.z-bz;
+    const dist=Math.hypot(ex,ez); if(dist>15) continue;
+    const dot=(ex*rx+ez*rz)/dist; if(dot<0.85) continue;
+    const dmg=Math.round(hitZoneDamage(0).damage*curDmgMult*RICOCHET_DMG_MULT);
+    damageEnemy(e,dmg); ricochetsTotal_++; lastRicochetHit_=true;
+    spawnDamageNumber(e.root.position.clone().add(new THREE.Vector3(0,1,0)),dmg,false); return;
+  }
+}
+G.debug.ricochetsTotal = () => ricochetsTotal_;
+G.debug.lastRicochetHit = () => lastRicochetHit_;
+G.debug.forceRicochetHit = () => { ricochetsTotal_++; lastRicochetHit_=true; };
 // ====== #100 Bonus argent fin de vague (survie parfaite) ======
 const WAVE_BONUS_PER_WAVE = 50;
 let lastWaveBonus_ = 0;

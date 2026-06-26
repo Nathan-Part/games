@@ -3486,3 +3486,21 @@ test('#100 wave bonus : forceWaveBonus(3) ajoute 150', async ({ page }) => {
   const moneyAfter = await page.evaluate(() => __game.money);
   expect(moneyAfter - moneyBefore).toBe(150);
 });
+
+// ====== #101 — Ricochet balle ======
+test('#101 ricochet : ricochetsTotal() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.ricochetsTotal())).toBe(0);
+});
+
+test('#101 ricochet : forceRicochetHit() incremente le compteur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceRicochetHit());
+  expect(await page.evaluate(() => __game.debug.ricochetsTotal())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.lastRicochetHit())).toBe(true);
+});
+
+test('#101 ricochet : lastRicochetHit() false avant tout ricochet', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastRicochetHit())).toBe(false);
+});
