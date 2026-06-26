@@ -643,6 +643,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="overheat-hud" class="hidden" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none"></div>
 <div id="hardcore-hud" class="hidden">☠ HARDCORE</div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
 <div id="semiauto-hud" class="hidden">SEMI</div>
@@ -2240,9 +2241,10 @@ function tryFire(){
   if(G.phase!=='playing') return false;
   if(weaponById(effectiveWeaponId()).melee) return playerMeleeWeapon();   // couteau → corps-à-corps
   if(reloading || ammo <= 0) return false;
+  if(overheatPaused_) return false;
   if(nowS() - lastShot < curCooldown) return false;
   if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; } // initier la rafale (#64)
-  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil;
+  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil; registerOverheatShot();
   cameraKick(input.aim ? 1 : 0); // camera kick (#77)
   runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
   const sp = currentSpread(); const spR = (sp-1) * 0.022; // spread NDC (#92)
@@ -2404,6 +2406,24 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #96 LMG Overheat ======
+const OVERHEAT_MAX = 20, OVERHEAT_PAUSE = 2, OVERHEAT_COOLDOWN = 0.8;
+let overheat_ = 0, overheatPaused_ = false, overheatPauseUntil_ = 0;
+function isLmg(){ return effectiveWeaponId() === 'lmg'; }
+function overheatLevel(){ return overheat_; }
+function overheatPaused(){ return overheatPaused_; }
+function forceOverheat(){ overheat_ = OVERHEAT_MAX; overheatPaused_ = true; overheatPauseUntil_ = nowS() + OVERHEAT_PAUSE; updateOverheatHud(); }
+function registerOverheatShot(){ if(!isLmg()) return; overheat_ = Math.min(OVERHEAT_MAX, overheat_ + 1); if(overheat_ >= OVERHEAT_MAX){ overheatPaused_=true; overheatPauseUntil_=nowS()+OVERHEAT_PAUSE; } updateOverheatHud(); }
+function updateOverheat(dt){
+  if(overheatPaused_ && nowS() >= overheatPauseUntil_){ overheatPaused_=false; overheat_=0; }
+  else if(!overheatPaused_ && overheat_ > 0) overheat_ = Math.max(0, overheat_ - OVERHEAT_COOLDOWN*dt*OVERHEAT_MAX);
+  updateOverheatHud();
+}
+function updateOverheatHud(){ const el=document.getElementById('overheat-hud'); if(!el) return; if(!isLmg()||overheat_<=0){ el.classList.add('hidden'); return; } el.classList.remove('hidden'); const frac=overheat_/OVERHEAT_MAX; const c=overheatPaused_?'#f44':`hsl(${Math.round(30+frac*30)},100%,55%)`; el.innerHTML=`<div style="font-size:.7rem;letter-spacing:.1em;color:${c}">${overheatPaused_?'SURCHAUFFE !':'CHALEUR'}</div><div style="width:80px;height:6px;background:#333;border-radius:3px;margin-top:3px"><div style="width:${Math.round(frac*100)}%;height:100%;background:${c};border-radius:3px"></div></div>`; }
+G.debug.overheatLevel = () => overheat_;
+G.debug.overheatPaused = () => overheatPaused_;
+G.debug.forceOverheat = () => forceOverheat();
+G.debug.setOverheat = (n) => { overheat_ = Math.min(OVERHEAT_MAX, Math.max(0, n)); if(overheat_ >= OVERHEAT_MAX){ overheatPaused_=true; overheatPauseUntil_=nowS()+OVERHEAT_PAUSE; } updateOverheatHud(); };
 // ====== #94 Mode hardcore ======
 let hardcore_ = false;
 function hardcoreMode(){ return hardcore_; }
@@ -3499,7 +3519,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); // restart (#55-#94)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; // restart (#55-#96)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -4661,7 +4681,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

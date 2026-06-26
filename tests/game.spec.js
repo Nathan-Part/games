@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 // Collecte les erreurs console/page pour les assertions « pas d'erreur ».
 function trackErrors(page) {
@@ -3376,4 +3376,25 @@ test('#95 extmag : extMagTimeLeft() > 0 apres collecte', async ({ page }) => {
   await page.evaluate(() => { __game.debug.spawnExtMag(0, 0); __game.debug.setPos(0, 0); });
   await page.waitForTimeout(500);
   expect(await page.evaluate(() => __game.debug.extMagTimeLeft())).toBeGreaterThan(0);
+});
+
+// ====== #96 — LMG Overheat ======
+test('#96 overheat : overheatLevel() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.overheatLevel())).toBe(0);
+});
+
+test('#96 overheat : forceOverheat() bloque le tir', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forceEquipWeapon('lmg'); __game.debug.forceOverheat(); });
+  const fired = await page.evaluate(() => __game.debug.tryFire());
+  expect(fired).toBe(false);
+  expect(await page.evaluate(() => __game.debug.overheatPaused())).toBe(true);
+});
+
+test('#96 overheat : setOverheat(20) sur LMG declenche overheat', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forceEquipWeapon('lmg'); __game.debug.setOverheat(20); });
+  expect(await page.evaluate(() => __game.debug.overheatPaused())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.overheatLevel())).toBe(20);
 });
