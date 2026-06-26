@@ -2843,3 +2843,28 @@ test('#68 lvlup : addXp suffisant declenche le toast', async ({ page }) => {
   const vis = await page.evaluate(() => document.getElementById('levelup-toast').classList.contains('lu-show'));
   expect(vis).toBe(true);
 });
+
+// ====== #69 — Grenade fumigène ======
+test('#69 smoke : stock initial = 2', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.smokeStock())).toBe(2);
+});
+
+test('#69 smoke : throwSmoke reduit le stock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwSmoke());
+  expect(await page.evaluate(() => __game.debug.smokeStock())).toBe(1);
+});
+
+test('#69 smoke : explodeSmokeAt cree un nuage', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.explodeSmokeAt(0, 0));
+  expect(await page.evaluate(() => __game.debug.smokeCount())).toBe(1);
+});
+
+test('#69 smoke : ennemi dans fumee = in smoke true', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 0));
+  await page.evaluate(() => __game.debug.explodeSmokeAt(0, 0));
+  expect(await page.evaluate(() => __game.debug.enemyInSmoke(0))).toBe(true);
+});

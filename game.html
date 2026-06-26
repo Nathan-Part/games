@@ -278,6 +278,11 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #smoke-hud{position:fixed;left:16px;top:150px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
+    padding:6px 12px;font-family:var(--font-display);text-transform:uppercase;font-size:var(--t-sm);font-weight:600;
+    letter-spacing:.05em;color:var(--text-2);--ch:7px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #smoke-hud b{color:#90a4ae}
   #levelup-toast{position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:26;pointer-events:none;
     font-family:var(--font-display);font-size:1.5rem;font-weight:800;text-transform:uppercase;
     letter-spacing:.1em;color:#b388ff;text-shadow:0 0 30px #b388ff;opacity:0;white-space:nowrap}
@@ -615,6 +620,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
 <div id="levelup-toast"></div>
 <div id="shield-bar" class="hidden"><div id="shield-fill"></div></div>
 <div id="enemy-hp-bars"></div>
@@ -1369,6 +1375,7 @@ async function startGame(){
   document.getElementById('firemode-hud').classList.remove('hidden'); resetFireMode(); updateFiremodeHud(); // burst (#64)
   clearMines(); mineStock = MAX_MINES; document.getElementById('mine-hud').classList.remove('hidden'); updateMineHud(); // claymore (#65)
   resetShield(); document.getElementById('shield-bar').classList.remove('hidden'); // shield (#67)
+  refillSmokes(); document.getElementById('smoke-hud').classList.remove('hidden');  // smoke (#69)
   document.getElementById('xp-hud').classList.remove('hidden'); updateXpHud();            // XP (#60)
   document.getElementById('dash-hud').classList.remove('hidden'); updateDashHud();         // dash (#35)
   updateCombatHud();
@@ -1444,6 +1451,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyN' && G.phase==='playing') throwFlashbang();                        // N = lancer une flashbang (#57)
   if(e.code==='KeyT' && G.phase==='playing') fireModeToggle();                        // T = basculer auto/burst (#64)
   if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
+  if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
   if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
@@ -2338,9 +2346,43 @@ function updateGrenades(dt){ const t = nowS();
     f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
 function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
   for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
-function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
+function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #69 Grenade fumigène ======
+const MAX_SMOKES = 2, SMOKE_FUSE = 1.2, SMOKE_R = 4, SMOKE_DUR = 5, SMOKE_ACC = 0.05;
+let smokeStock = MAX_SMOKES, smokeProjs = [], smokeClouds = [];
+function buildSmokeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6), new THREE.MeshBasicMaterial({color:0xcccccc})); }
+function buildCloudMesh(r){ return new THREE.Mesh(new THREE.SphereGeometry(r,12,8), new THREE.MeshBasicMaterial({color:0xaaaaaa,transparent:true,opacity:0.38,depthWrite:false})); }
+function throwSmoke(){
+  if(G.phase!=='playing'||smokeStock<=0) return false;
+  smokeStock--; updateSmokeHud();
+  const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+  const m=buildSmokeMesh(); m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir,0.5);
+  scene.add(m); const vel=dir.multiplyScalar(7); vel.y+=3;
+  smokeProjs.push({mesh:m,vel,explodeAt:nowS()+SMOKE_FUSE}); return true;
+}
+function explodeSmokeAt(x,z){
+  const cm=buildCloudMesh(SMOKE_R); cm.position.set(x,1,z); scene.add(cm);
+  smokeClouds.push({mesh:cm,expiresAt:nowS()+SMOKE_DUR,x,z});
+}
+function enemyInSmoke(i){ const e=enemies[i]; if(!e||!e.alive) return false;
+  return smokeClouds.some(c=>Math.hypot(e.root.position.x-c.x,e.root.position.z-c.z)<SMOKE_R); }
+function updateSmokes(dt){ const t=nowS();
+  for(let i=smokeProjs.length-1;i>=0;i--){ const g=smokeProjs[i];
+    g.vel.y-=GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel,dt);
+    if(g.mesh.position.y<=0.12){g.mesh.position.y=0.12;g.vel.y=-g.vel.y*0.4;g.vel.x*=0.6;g.vel.z*=0.6;}
+    if(t>=g.explodeAt){explodeSmokeAt(g.mesh.position.x,g.mesh.position.z);scene.remove(g.mesh);smokeProjs.splice(i,1);} }
+  for(let i=smokeClouds.length-1;i>=0;i--){ const c=smokeClouds[i];
+    if(t>=c.expiresAt){scene.remove(c.mesh);smokeClouds.splice(i,1);}
+    else{ const frac=Math.max(0,(c.expiresAt-t)/SMOKE_DUR); if(c.mesh.material) c.mesh.material.opacity=0.38*frac; } }
+}
+function clearSmokes(){ for(const g of smokeProjs) scene.remove(g.mesh); smokeProjs.length=0; for(const c of smokeClouds) scene.remove(c.mesh); smokeClouds.length=0; }
+function refillSmokes(){ smokeStock=MAX_SMOKES; updateSmokeHud(); }
+function updateSmokeHud(){ const el=document.getElementById('smoke-hud'); if(el) el.innerHTML=`🌫 <b>${smokeStock}</b>`; }
+G.debug.smokeStock=()=>smokeStock; G.debug.smokeCount=()=>smokeClouds.length;
+G.debug.throwSmoke=()=>throwSmoke(); G.debug.explodeSmokeAt=(x,z)=>explodeSmokeAt(x,z);
+G.debug.enemyInSmoke=(i)=>enemyInSmoke(i);
 // ====== #68 Toast level-up ======
 let luTimer = null;
 function showLevelUpToast(n){
@@ -3188,8 +3230,9 @@ function enemyTryShoot(e, dt){
   spawnTracer(from, to); playSound('enemyShot');                    // traceur (depuis le canon) + son
   if(e.muzzleFlash){ e.muzzleFlash.visible = true; e.muzzleFlashUntil = nowS() + 0.05; }   // flash de bouche bref
   const dist = Math.hypot(to.x - from.x, to.z - from.z);
+  const smokeAcc = enemyInSmoke(enemies.indexOf(e)) ? SMOKE_ACC : 1;
   const acc = enemyAccOverride != null ? enemyAccOverride
-            : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4));
+            : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4)) * smokeAcc;
   if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1))); damageDirFromEnemy(e); } // dir indicator (#63)
   // rafale (#11) : enchaîne spec.burst cartouches espacées, puis longue pause
   e.burstLeft = (e.burstLeft || 1) - 1;
@@ -3297,7 +3340,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearPowerUps(); clearBarrels(); clearMines(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearPowerUps(); clearBarrels(); clearMines(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -4145,7 +4188,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
