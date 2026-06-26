@@ -273,6 +273,9 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #semiauto-hud{position:fixed;right:16px;bottom:120px;z-index:10;background:var(--bg-700);
+    box-shadow:inset 0 0 0 1px var(--line);padding:4px 10px;font-family:var(--font-display);
+    font-size:var(--t-sm);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#80cbc4}
   #wave-countdown{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);z-index:10;
     font-family:var(--font-display);font-size:var(--t-sm);font-weight:700;text-transform:uppercase;
     letter-spacing:.08em;color:#90caf9;text-shadow:0 0 12px #1565c0;pointer-events:none}
@@ -636,6 +639,7 @@
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
+<div id="semiauto-hud" class="hidden">SEMI</div>
 <div id="wave-countdown" class="hidden"></div>
 <div id="wave-banner"><div class="wb-title"></div><div class="wb-sub"></div></div>
 <div id="blood-screen"></div>
@@ -1473,6 +1477,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyT' && G.phase==='playing') fireModeToggle();                        // T = basculer auto/burst (#64)
   if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
+  if(e.code==='KeyP' && G.phase==='playing'){ semiAuto = !semiAuto; updateSemiAutoHud(); } // P = toggle semi-auto (#78)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
   if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
@@ -2372,6 +2377,17 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #78 Mode semi-auto ======
+const SEMI_AUTO_WEAPONS = new Set(['sniper','phantom_sr','pistol','specter_p','jackal_45']);
+let semiAuto = false, firePrev = false;
+function isSemiAuto(){ return semiAuto || SEMI_AUTO_WEAPONS.has(effectiveWeaponId()); }
+function resetSemiAuto(){ semiAuto = false; firePrev = false; updateSemiAutoHud(); }
+function updateSemiAutoHud(){
+  const el = document.getElementById('semiauto-hud'); if(!el) return;
+  el.classList.toggle('hidden', !isSemiAuto());
+}
+G.debug.semiAutoMode = () => isSemiAuto();
+G.debug.setSemiAuto = (b) => { semiAuto = !!b; updateSemiAutoHud(); };
 // ====== #77 Camera kick on fire ======
 const KICK_PITCH = 0.026, KICK_DUR = 0.08; // ~1.5°, 80ms
 let kickPitch = 0, kickAt = -999, lastKickT = 0;
@@ -2849,7 +2865,8 @@ function updateCombat(dt){
   if(playerMeleeCd > 0) playerMeleeCd -= dt;                 // cooldown couteau (#45)
   if(reloading && nowS() >= reloadAt){ ammo = curMag; reloading = false; G.ammo = ammo; }
   updateReloadBar();
-  if(input.fire) tryFire();
+  const fireRising = input.fire && !firePrev; firePrev = input.fire;
+  if(isSemiAuto() ? fireRising : input.fire) tryFire(); // semi-auto : rising edge seulement (#78)
   const t = nowS();
   for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
   updateTracers(dt); updateDamageNumbers(); updateKnifeFlash(dt);   // #50
@@ -3174,7 +3191,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset();  // restart (#55-#72)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto();  // restart (#55-#78)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();

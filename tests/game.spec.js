@@ -3011,3 +3011,21 @@ test('#77 camkick : lastCameraKickT > 0 apres cameraKick', async ({ page }) => {
   await page.evaluate(() => __game.debug.cameraKick());
   expect(await page.evaluate(() => __game.debug.lastCameraKickT())).toBeGreaterThan(0);
 });
+
+// ====== #78 — Mode semi-auto ======
+test('#78 semiauto : semiAutoMode disponible', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => typeof __game.debug.semiAutoMode)).toBe('function');
+});
+
+test('#78 semiauto : setSemiAuto(true) active le mode', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setSemiAuto(true));
+  expect(await page.evaluate(() => __game.debug.semiAutoMode())).toBe(true);
+});
+
+test('#78 semiauto : setSemiAuto(false) desactive le mode', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setSemiAuto(true); __game.debug.setSemiAuto(false); });
+  expect(await page.evaluate(() => __game.debug.semiAutoMode())).toBe(false);
+});
