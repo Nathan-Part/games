@@ -278,6 +278,8 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #shield-bar{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:11;width:220px;height:5px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden}
+  #shield-fill{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9);border-radius:3px;transition:width .15s}
   #enemy-hp-bars{position:fixed;inset:0;pointer-events:none;z-index:12;overflow:hidden}
   .ehb{position:absolute;transform:translate(-50%,-100%);width:44px}
   .ehb-track{height:4px;background:rgba(0,0,0,.55);border-radius:2px;overflow:hidden}
@@ -607,6 +609,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="shield-bar" class="hidden"><div id="shield-fill"></div></div>
 <div id="enemy-hp-bars"></div>
 <div id="mine-hud" class="hidden">💣mines <b>2</b></div>
 <div id="firemode-hud" class="hidden">AUTO</div>
@@ -1358,6 +1361,7 @@ async function startGame(){
   document.getElementById('flashbang-hud').classList.remove('hidden'); refillFlashbangs(); // flashbangs (#57)
   document.getElementById('firemode-hud').classList.remove('hidden'); resetFireMode(); updateFiremodeHud(); // burst (#64)
   clearMines(); mineStock = MAX_MINES; document.getElementById('mine-hud').classList.remove('hidden'); updateMineHud(); // claymore (#65)
+  resetShield(); document.getElementById('shield-bar').classList.remove('hidden'); // shield (#67)
   document.getElementById('xp-hud').classList.remove('hidden'); updateXpHud();            // XP (#60)
   document.getElementById('dash-hud').classList.remove('hidden'); updateDashHud();         // dash (#35)
   updateCombatHud();
@@ -2330,6 +2334,18 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #67 Bouclier rechargeable ======
+const SHIELD_MAX = 50, SHIELD_REGEN = 15, SHIELD_DELAY = 4;
+let shieldHpVal = SHIELD_MAX, shieldLastDmg = -999;
+function updateShieldHud(){ const el=document.getElementById('shield-fill'); if(el) el.style.width=(shieldHpVal/SHIELD_MAX*100)+'%'; }
+function updateShield(dt){
+  if(shieldHpVal < SHIELD_MAX && nowS() - shieldLastDmg >= SHIELD_DELAY){
+    shieldHpVal = Math.min(SHIELD_MAX, shieldHpVal + SHIELD_REGEN*dt); updateShieldHud(); }
+}
+function resetShield(){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); }
+G.debug.shieldHp = () => Math.round(shieldHpVal);
+G.debug.maxShield = () => SHIELD_MAX;
+G.debug.setShield = (v) => { shieldHpVal = Math.max(0, Math.min(SHIELD_MAX, v)); updateShieldHud(); };
 // ====== #66 Barres de vie ennemis ======
 const EHB_RANGE = 20, EHB_HEIGHT = 2.4;
 function updateEnemyHpBars(){
@@ -2874,6 +2890,9 @@ function damagePlayer(amount){
   if(G.phase !== 'playing') return;
   amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
   if(ksShieldActive()) amount = Math.round(amount * 0.5); // bouclier killstreak #58
+  // bouclier rechargeable (#67)
+  if(shieldHpVal > 0){ const absorbed = Math.min(shieldHpVal, amount); shieldHpVal -= absorbed; amount -= absorbed; shieldLastDmg = nowS(); updateShieldHud(); }
+  if(amount <= 0) return;
   health = Math.max(0, health - amount); G.health = health; lastDamageAt = nowS();
   dmgThisWave += amount;
   flashDamage(); updateHealthHud(); playSound('playerHit');
@@ -2969,7 +2988,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode();   // restart (#55-#64)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield();   // restart (#55-#67)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -4106,7 +4125,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

@@ -2781,3 +2781,36 @@ test('#66 hpbar : enemyHpBarFrac retourne fraction PV', async ({ page }) => {
   expect(frac).toBeGreaterThan(0);
   expect(frac).toBeLessThan(1);
 });
+
+// ====== #67 — Bouclier rechargeable ======
+test('#67 shield : shieldHp initial = 50', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(50);
+});
+
+test('#67 shield : dégâts absorbés par le bouclier en premier', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(50));
+  const hpBefore = await page.evaluate(() => __game.health);
+  await page.evaluate(() => __game.debug.damagePlayer(20));
+  const hpAfter = await page.evaluate(() => __game.health);
+  const shield = await page.evaluate(() => __game.debug.shieldHp());
+  expect(hpAfter).toBe(hpBefore); // HP intact
+  expect(shield).toBe(30);         // shield réduit
+});
+
+test('#67 shield : overflow de dégâts passe sur HP', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(10));
+  await page.evaluate(() => __game.debug.damagePlayer(30));
+  const shield = await page.evaluate(() => __game.debug.shieldHp());
+  const hp = await page.evaluate(() => __game.health);
+  expect(shield).toBe(0);
+  expect(hp).toBeLessThan(await page.evaluate(() => __game.maxHealth));
+});
+
+test('#67 shield : setShield met a jour la valeur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(25));
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(25);
+});
