@@ -273,6 +273,8 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  .go-rank{text-align:center;font-size:1.1rem;letter-spacing:.2em;color:#aaa;margin-top:8px}
+  .go-rank-letter{font-size:2.8rem;font-weight:900;color:#ffd700;text-shadow:0 0 16px #ffd700}
   .hud-ammo.low-ammo{animation:lowAmmoBlink .5s infinite alternate}
   @keyframes lowAmmoBlink{from{color:var(--text)}to{color:#f44;text-shadow:0 0 10px #f44}}
   #semiauto-hud{position:fixed;right:16px;bottom:120px;z-index:10;background:var(--bg-700);
@@ -2399,6 +2401,25 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #90 Rang de fin de partie ======
+let rankKillsOvr = null, rankAccOvr = null, rankWaveOvr = null;
+function rankScore(){
+  const k = rankKillsOvr !== null ? rankKillsOvr : runKills;
+  const acc = rankAccOvr !== null ? rankAccOvr : (runShots ? runHits/runShots : 0);
+  const w = rankWaveOvr !== null ? rankWaveOvr : wave;
+  return Math.round(k * 3 + acc * 100 * 2 + w * 10);
+}
+function runRank(){
+  const s = rankScore();
+  if(s >= 200) return 'S';
+  if(s >= 120) return 'A';
+  if(s >= 70)  return 'B';
+  if(s >= 30)  return 'C';
+  return 'D';
+}
+G.debug.runRank = () => runRank();
+G.debug.rankScore = () => rankScore();
+G.debug.setRunStatsOverride = (kills, acc, w) => { rankKillsOvr=kills; rankAccOvr=acc; rankWaveOvr=w; };
 // ====== #89 Laser sniper ADS ======
 const LASER_MAX = 60;
 let laserLine = null, laserLenVal = 0;
@@ -3381,7 +3402,8 @@ function playerDie(){
     + `<div class="go-tile"><span>Précision</span><b>${runShots ? Math.round(runHits/runShots*100) : 0}%</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
-    + `<div class="go-tile gold"><span>Argent</span><b>${save.money}</b></div></div>`;
+    + `<div class="go-tile gold"><span>Argent</span><b>${save.money}</b></div></div>`
+    + `<div class="go-rank">RANG <span class="go-rank-letter">${runRank()}</span></div>`;
   document.getElementById('gameover').classList.remove('hidden');
 }
 function restartGame(){
@@ -3389,7 +3411,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0;  // restart (#55-#86)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; // restart (#55-#90)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();

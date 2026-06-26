@@ -3256,3 +3256,26 @@ test('#89 laser : sniperLaserLength() > 0 en ADS sniper', async ({ page }) => {
   await page.evaluate(() => { __game.debug.forceEquipWeapon('sniper'); __game.debug.setInput({ aim: true }); });
   expect(await page.evaluate(() => __game.debug.sniperLaserLength())).toBeGreaterThan(0);
 });
+
+// ====== #90 — Rang de fin de partie ======
+test('#90 rang : runRank() retourne une lettre valide', async ({ page }) => {
+  await startPlaying(page);
+  const rank = await page.evaluate(() => __game.debug.runRank());
+  expect(['S','A','B','C','D']).toContain(rank);
+});
+
+test('#90 rang : rankScore() retourne un nombre >= 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.rankScore())).toBeGreaterThanOrEqual(0);
+});
+
+test('#90 rang : rang S avec 20 kills, precision 90%, vague 5', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<20;i++) __game.debug.addLifetimeStat('kills',0); // dummy
+    window.__testKills=20; window.__testAcc=0.9; window.__testWave=5;
+    __game.debug.setRunStatsOverride(20, 0.9, 5);
+  });
+  const rank = await page.evaluate(() => __game.debug.runRank());
+  expect(rank).toBe('S');
+});
