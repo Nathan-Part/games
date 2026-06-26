@@ -779,7 +779,8 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
   ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
-  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal' } }; }
+  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal' },
+  lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -1410,6 +1411,7 @@ async function startGame(){
   document.getElementById('healthbar').classList.remove('hidden'); updateHealthHud();
   initAudio();
   ensureWeapon();                              // chargement non-bloquant (l'arme apparaît dès qu'elle est prête)
+  startLifetimeTimer(); // lifetime playtime (#80)
   G.phase = 'playing';
 }
 G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
@@ -2377,6 +2379,14 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #80 Stats globales persistantes ======
+function lifetimeStats(){ if(!save.lifetime) save.lifetime={kills:0,headshots:0,moneyEarned:0,playtime:0}; return save.lifetime; }
+function addLifetimeStat(key, n){ const lt=lifetimeStats(); lt[key]=(lt[key]||0)+n; persist(); }
+let lifetimeStart = 0;
+function startLifetimeTimer(){ lifetimeStart = nowS(); }
+function flushLifetimeTime(){ if(!lifetimeStart) return; addLifetimeStat('playtime', Math.round(nowS()-lifetimeStart)); lifetimeStart=0; }
+G.debug.lifetimeStats = () => lifetimeStats();
+G.debug.addLifetimeStat = (k,n) => addLifetimeStat(k,n);
 // ====== #79 Orbes d'argent ======
 const ORB_COLLECT_R = 1.5, ORB_FLOAT_AMP = 0.12, ORB_FLOAT_FREQ = 2;
 let moneyOrbs = [], orbTime = 0;
@@ -3193,6 +3203,7 @@ G.debug.liveDamage = () => curDmgMult;
 
 function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');
+  flushLifetimeTime(); // lifetime playtime (#80)
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   if(document.pointerLockElement) document.exitPointerLock?.();
   document.getElementById('go-score').innerHTML =          // G-4 tuiles + stats de partie (#43 : kills/headshots/précision)
@@ -3861,6 +3872,7 @@ function killEnemy(e){
   addXp(XP_KILL + (e.lastHitHead ? XP_HEAD : 0));      // XP par kill (#60)
   onStreakKill();                                         // streak counter (#72)
   spawnMoneyOrb(e.root.position.x, e.root.position.z, MONEY_PER_KILL); // orbe argent (#79)
+  addLifetimeStat('kills', 1); if(e.lastHitHead) addLifetimeStat('headshots', 1); // lifetime stats (#80)
   trackDailyKill('kills'); if(e.lastHitHead) trackDailyKill('headshots'); if(e.lastHitMelee) trackDailyKill('melee'); // contrats (#62)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======

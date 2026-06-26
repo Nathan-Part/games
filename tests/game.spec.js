@@ -3049,3 +3049,24 @@ test('#79 moneyorb : orbe collecte quand joueur proche', async ({ page }) => {
   await page.waitForFunction(() => __game.debug.moneyOrbCount() === 0, null, { timeout: 5000 });
   expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(0);
 });
+
+// ====== #80 — Stats globales persistantes ======
+test('#80 lifestats : lifetimeStats() retourne un objet', async ({ page }) => {
+  await startPlaying(page);
+  const s = await page.evaluate(() => __game.debug.lifetimeStats());
+  expect(typeof s).toBe('object');
+  expect(typeof s.kills).toBe('number');
+});
+
+test('#80 lifestats : addLifetimeStat incremente kills', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.addLifetimeStat('kills', 5); });
+  expect(await page.evaluate(() => __game.debug.lifetimeStats().kills)).toBe(5);
+});
+
+test('#80 lifestats : kill ennemi incremente kills global', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 9999); });
+  expect(await page.evaluate(() => __game.debug.lifetimeStats().kills)).toBeGreaterThan(0);
+});
