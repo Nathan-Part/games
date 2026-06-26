@@ -3350,6 +3350,7 @@ function playerTitle(){ const l=playerLevel(); return LEVEL_TITLES[Math.min(9, M
 function xpNextLevel(){ const l=playerLevel(); return xpForLevel(l); }
 function addXp(n){
   const lvBefore = playerLevel();
+  if(activePower === 'xp_boost') n = n * 2;  // #122 XP boost
   save.xp = (save.xp||0) + n; persist();
   const lvAfter = playerLevel();
   updateXpHud();
@@ -3813,7 +3814,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true } };
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 } }; // #122
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -3825,7 +3826,7 @@ function maybeDropPower(e){ if(forcePowerDrop || e.type==='boss' || Math.random(
   const ks = Object.keys(POWERUPS); spawnPowerUp(ks[Math.floor(Math.random()*ks.length)], e.root.position.x, e.root.position.z); } }
 function activatePower(type){
   if(type === 'shield_orb'){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); lastShieldOrbPickup_=true; flashHeal(); playSound('reload'); return; }
-  activePower = type; powerExpireAt = nowS() + POWER_DURATION; applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload');
+  activePower = type; powerExpireAt = nowS() + (POWERUPS[type]?.duration || POWER_DURATION); applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload');
 }
 function updatePowerUps(dt){ if(!model) return; const t = nowS();
   if(activePower && t >= powerExpireAt){ activePower = null; applyWeaponStats(); }
@@ -3834,7 +3835,7 @@ function updatePowerUps(dt){ if(!model) return; const t = nowS();
   updatePowerHud(); }
 function updatePowerHud(){ const el = document.getElementById('power-hud'); if(!el) return;
   if(!activePower){ el.classList.add('hidden'); return; }
-  const p = POWERUPS[activePower], frac = Math.max(0, (powerExpireAt - nowS())/POWER_DURATION);
+  const p = POWERUPS[activePower], dur = p.duration || POWER_DURATION, frac = Math.max(0, (powerExpireAt - nowS())/dur);
   el.innerHTML = `<span class="pd" style="background:#${p.color.toString(16).padStart(6,'0')}"></span>${p.name}<div class="pbar" style="width:${Math.round(frac*100)}%"></div>`;
   el.classList.remove('hidden'); }
 function resetPower(){ activePower = null; powerExpireAt = 0; updatePowerHud(); }
@@ -3850,6 +3851,9 @@ G.debug.spawnShieldOrb = (x,z) => { lastShieldOrbPickup_=false; spawnPowerUp('sh
 G.debug.extMagActive = () => activePower === 'extended_mag';
 G.debug.extMagTimeLeft = () => activePower === 'extended_mag' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnExtMag = (x,z) => spawnPowerUp('extended_mag', x, z);
+G.debug.xpBoostActive = () => activePower === 'xp_boost';                       // #122
+G.debug.xpBoostTimeLeft = () => activePower === 'xp_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.spawnXpBoost = (x,z) => spawnPowerUp('xp_boost', x, z);
 
 function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');

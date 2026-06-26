@@ -3978,3 +3978,35 @@ test('#121 stunner : stunCount incremente apres stun', async ({ page }) => {
   const count = await page.evaluate(() => __game.debug.stunCount());
   expect(count).toBeGreaterThan(0);
 });
+
+// ====== #122 — XP boost power-up ======
+test('#122 xp_boost : spawnXpBoost cree un power-up ramassable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnXpBoost(0, 0));
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  await page.waitForTimeout(300);
+  const active = await page.evaluate(() => __game.debug.activePowerUp());
+  expect(active).toBe('xp_boost');
+});
+
+test('#122 xp_boost : addXp x2 quand actif', async ({ page }) => {
+  await startPlaying(page);
+  const xpBefore = await page.evaluate(() => __game.debug.xpTotal());
+  await page.evaluate(() => {
+    __game.debug.spawnXpBoost(0, 0);
+    __game.debug.setPos(0, 0);
+  });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.addXp(100));
+  const xpAfter = await page.evaluate(() => __game.debug.xpTotal());
+  expect(xpAfter - xpBefore).toBeGreaterThanOrEqual(150); // at least 100 xp (non-boosted) but should be 200
+});
+
+test('#122 xp_boost : xpBoostActive retourne true quand actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnXpBoost(0, 0));
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  await page.waitForTimeout(300);
+  const boosted = await page.evaluate(() => __game.debug.xpBoostActive());
+  expect(boosted).toBe(true);
+});
