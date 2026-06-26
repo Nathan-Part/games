@@ -3632,7 +3632,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a } };
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true } };
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -3642,7 +3642,10 @@ function spawnPowerUp(type, x, z){ if(!POWERUPS[type]) type='dmgx2'; const m = b
 function clearPowerUps(){ for(const p of powerUps) scene.remove(p.mesh); powerUps.length = 0; }
 function maybeDropPower(e){ if(forcePowerDrop || e.type==='boss' || Math.random() < POWER_DROP_CHANCE){
   const ks = Object.keys(POWERUPS); spawnPowerUp(ks[Math.floor(Math.random()*ks.length)], e.root.position.x, e.root.position.z); } }
-function activatePower(type){ activePower = type; powerExpireAt = nowS() + POWER_DURATION; applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload'); }
+function activatePower(type){
+  if(type === 'shield_orb'){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); lastShieldOrbPickup_=true; flashHeal(); playSound('reload'); return; }
+  activePower = type; powerExpireAt = nowS() + POWER_DURATION; applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload');
+}
 function updatePowerUps(dt){ if(!model) return; const t = nowS();
   if(activePower && t >= powerExpireAt){ activePower = null; applyWeaponStats(); }
   for(let i=powerUps.length-1;i>=0;i--){ const p = powerUps[i]; p.mesh.rotation.y += dt*2; p.mesh.position.y = 0.6 + 0.08*Math.sin(t*3+i);
@@ -3660,6 +3663,9 @@ G.debug.forcePowerDrop = (b) => { forcePowerDrop = !!b; };
 G.debug.activePowerUp = () => activePower;
 G.debug.powerUpTimeLeft = () => activePower ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.liveDamage = () => curDmgMult;
+let lastShieldOrbPickup_ = false;
+G.debug.lastShieldOrbPickup = () => lastShieldOrbPickup_;
+G.debug.spawnShieldOrb = (x,z) => { lastShieldOrbPickup_=false; spawnPowerUp('shield_orb', x, z); };
 G.debug.extMagActive = () => activePower === 'extended_mag';
 G.debug.extMagTimeLeft = () => activePower === 'extended_mag' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnExtMag = (x,z) => spawnPowerUp('extended_mag', x, z);

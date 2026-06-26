@@ -3649,3 +3649,26 @@ test('#108 tactical reload : reload a vide n est pas tactical', async ({ page })
   await page.waitForTimeout(1500);
   expect(await page.evaluate(() => __game.debug.lastReloadWasTactical())).toBe(false);
 });
+
+// ====== #109 — Shield orb power-up ======
+test('#109 shield orb : lastShieldOrbPickup() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastShieldOrbPickup())).toBe(false);
+});
+
+test('#109 shield orb : spawnShieldOrb puis collecte recharge le bouclier', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.spawnShieldOrb(0, 0));
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(50);
+  expect(await page.evaluate(() => __game.debug.lastShieldOrbPickup())).toBe(true);
+});
+
+test('#109 shield orb : spawnShieldOrb incremente powerUpCount', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.powerUpCount());
+  await page.evaluate(() => __game.debug.spawnShieldOrb(50, 50));
+  expect(await page.evaluate(() => __game.debug.powerUpCount())).toBe(before + 1);
+});
