@@ -1381,6 +1381,7 @@ async function startGame(){
   updateCombatHud();
   if(!enemyBase) await buildEnemyAssets(char);
   startWave(1);
+  clearSpawnMarkers(); // spawn markers (#70) — efface les marqueurs du spawn initial (vague 1)
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999;
   document.getElementById('healthbar').classList.remove('hidden'); updateHealthHud();
   initAudio();
@@ -2349,6 +2350,26 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #70 Marqueurs de spawn ======
+const SPAWN_MARK_DUR = 3;
+let spawnMarkers = [];
+const _smGeo = new THREE.RingGeometry(0.8, 1.2, 24);
+const _smMat = new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
+function showSpawnMarker(x, z){
+  const m = new THREE.Mesh(_smGeo, _smMat.clone());
+  m.rotation.x = -Math.PI/2; m.position.set(x, 0.05, z); scene.add(m);
+  spawnMarkers.push({mesh:m, t:0, dur:SPAWN_MARK_DUR});
+}
+function updateSpawnMarkers(dt){
+  for(let i=spawnMarkers.length-1;i>=0;i--){ const s=spawnMarkers[i];
+    s.t += dt; const frac = s.t/s.dur;
+    s.mesh.material.opacity = frac<0.5 ? frac*2*0.7 : (1-frac)*2*0.7;
+    s.mesh.scale.setScalar(0.5 + frac*0.8);
+    if(s.t>=s.dur){ scene.remove(s.mesh); s.mesh.material.dispose(); spawnMarkers.splice(i,1); } }
+}
+function clearSpawnMarkers(){ for(const s of spawnMarkers){ scene.remove(s.mesh); s.mesh.material.dispose(); } spawnMarkers.length=0; }
+G.debug.spawnMarkerCount = () => spawnMarkers.length;
+G.debug.showSpawnMarker = (x,z) => showSpawnMarker(x,z);
 // ====== #69 Grenade fumigène ======
 const MAX_SMOKES = 2, SMOKE_FUSE = 1.2, SMOKE_R = 4, SMOKE_DUR = 5, SMOKE_ACC = 0.05;
 let smokeStock = MAX_SMOKES, smokeProjs = [], smokeClouds = [];
@@ -3340,7 +3361,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearPowerUps(); clearBarrels(); clearMines(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearPowerUps(); clearBarrels(); clearMines(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -3363,6 +3384,7 @@ function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
     const hbY = 0.9 * spec.scale;
     const hitbox = makeHitbox(spec.scale);
     const sp = randomSpawn(); root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
+    showSpawnMarker(sp.x, sp.z); // marqueur visuel (#70)
     hitbox.position.set(sp.x, ENEMY_FOOT_Y + hbY, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
     const ehp = Math.round(hp * spec.hpMult);
     const e = { id:i, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
@@ -4188,7 +4210,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

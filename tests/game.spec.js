@@ -2868,3 +2868,21 @@ test('#69 smoke : ennemi dans fumee = in smoke true', async ({ page }) => {
   await page.evaluate(() => __game.debug.explodeSmokeAt(0, 0));
   expect(await page.evaluate(() => __game.debug.enemyInSmoke(0))).toBe(true);
 });
+
+// ====== #70 — Marqueurs de spawn ======
+test('#70 spawnmark : spawnMarkerCount initial = 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.spawnMarkerCount())).toBe(0);
+});
+
+test('#70 spawnmark : showSpawnMarker cree un marqueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showSpawnMarker(5, 5));
+  expect(await page.evaluate(() => __game.debug.spawnMarkerCount())).toBe(1);
+});
+
+test('#70 spawnmark : plusieurs marqueurs possibles', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.showSpawnMarker(0,0); __game.debug.showSpawnMarker(3,3); __game.debug.showSpawnMarker(-3,3); });
+  expect(await page.evaluate(() => __game.debug.spawnMarkerCount())).toBe(3);
+});
