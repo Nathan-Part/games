@@ -278,6 +278,12 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #levelup-toast{position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:26;pointer-events:none;
+    font-family:var(--font-display);font-size:1.5rem;font-weight:800;text-transform:uppercase;
+    letter-spacing:.1em;color:#b388ff;text-shadow:0 0 30px #b388ff;opacity:0;white-space:nowrap}
+  #levelup-toast.lu-show{animation:luPop 3s forwards}
+  @keyframes luPop{0%{opacity:0;transform:translateX(-50%) scale(.8)}8%{opacity:1;transform:translateX(-50%) scale(1.05)}
+    80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
   #shield-bar{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:11;width:220px;height:5px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden}
   #shield-fill{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9);border-radius:3px;transition:width .15s}
   #enemy-hp-bars{position:fixed;inset:0;pointer-events:none;z-index:12;overflow:hidden}
@@ -609,6 +615,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="levelup-toast"></div>
 <div id="shield-bar" class="hidden"><div id="shield-fill"></div></div>
 <div id="enemy-hp-bars"></div>
 <div id="mine-hud" class="hidden">💣mines <b>2</b></div>
@@ -2334,6 +2341,16 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #68 Toast level-up ======
+let luTimer = null;
+function showLevelUpToast(n){
+  const el = document.getElementById('levelup-toast'); if(!el) return;
+  const title = LEVEL_TITLES[Math.min(9, Math.floor((n-1)/5))];
+  el.textContent = `★ NIVEAU ${n}  —  ${title} ★`;
+  el.classList.remove('lu-show'); void el.offsetWidth; el.classList.add('lu-show');
+  clearTimeout(luTimer); luTimer = setTimeout(() => el.classList.remove('lu-show'), 3000);
+}
+G.debug.showLevelUpToast = (n) => showLevelUpToast(n);
 // ====== #67 Bouclier rechargeable ======
 const SHIELD_MAX = 50, SHIELD_REGEN = 15, SHIELD_DELAY = 4;
 let shieldHpVal = SHIELD_MAX, shieldLastDmg = -999;
@@ -2508,8 +2525,11 @@ function playerLevel(){ return calcLevel(save.xp||0); }
 function playerTitle(){ const l=playerLevel(); return LEVEL_TITLES[Math.min(9, Math.floor((l-1)/5))]; }
 function xpNextLevel(){ const l=playerLevel(); return xpForLevel(l); }
 function addXp(n){
+  const lvBefore = playerLevel();
   save.xp = (save.xp||0) + n; persist();
+  const lvAfter = playerLevel();
   updateXpHud();
+  if(lvAfter > lvBefore) showLevelUpToast(lvAfter); // toast level-up (#68)
 }
 function updateXpHud(){
   const el = document.getElementById('xp-hud'); if(!el) return;

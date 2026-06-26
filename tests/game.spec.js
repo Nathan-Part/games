@@ -2814,3 +2814,32 @@ test('#67 shield : setShield met a jour la valeur', async ({ page }) => {
   await page.evaluate(() => __game.debug.setShield(25));
   expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(25);
 });
+
+// ====== #68 — Toast level-up ======
+test('#68 lvlup : showLevelUpToast debug disponible', async ({ page }) => {
+  await startPlaying(page);
+  const ok = await page.evaluate(() => typeof __game.debug.showLevelUpToast === 'function');
+  expect(ok).toBe(true);
+});
+
+test('#68 lvlup : toast visible apres showLevelUpToast', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showLevelUpToast(5));
+  const vis = await page.evaluate(() => document.getElementById('levelup-toast').classList.contains('lu-show'));
+  expect(vis).toBe(true);
+});
+
+test('#68 lvlup : toast contient le numero de niveau', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showLevelUpToast(12));
+  const txt = await page.evaluate(() => document.getElementById('levelup-toast').textContent);
+  expect(txt).toContain('12');
+});
+
+test('#68 lvlup : addXp suffisant declenche le toast', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(200)); // assez pour monter au niveau 2
+  const vis = await page.evaluate(() => document.getElementById('levelup-toast').classList.contains('lu-show'));
+  expect(vis).toBe(true);
+});
