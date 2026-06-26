@@ -2397,6 +2397,35 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #84 Renforts ennemis ======
+const REINFORCE_DELAY = 12, REINFORCE_TYPES = ['rusher','shooter'];
+function callReinforcement(e){
+  if(e.calledReinforcement || !e.alive) return;
+  e.calledReinforcement = true;
+  const sp = randomSpawn(); const type = REINFORCE_TYPES[Math.floor(Math.random()*REINFORCE_TYPES.length)];
+  const hp = enemyHpForWave(wave || 1);
+  spawnSingleEnemy(sp, type, hp);
+  showCallout('RENFORTS !');
+}
+function spawnSingleEnemy(sp, type, hp){
+  if(!enemyBase || !enemyClips) return;
+  const spec = ENEMY_TYPES[type] || ENEMY_TYPES.shooter;
+  const root = enemyBase.clone(true);
+  const mats = []; root.traverse(o=>{ if(o.isMesh && o.material){ const m=o.material.clone(); o.material=m; mats.push(m); }});
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = {}; for(const k of ['idle','walk','run','attack','dead']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
+  const hbY = 0.9 * spec.scale; const hitbox = makeHitbox(spec.scale);
+  root.position.set(sp.x, ENEMY_FOOT_Y, sp.z); showSpawnMarker(sp.x, sp.z);
+  hitbox.position.set(sp.x, ENEMY_FOOT_Y+hbY, sp.z); hitbox.updateMatrixWorld();
+  const ehp = Math.round(hp * spec.hpMult);
+  const id = enemies.length;
+  const e = { id, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
+              loco:'idle', target:null, lostFor:0, flashUntil:0, weaponId:weaponIdForType(type), looted:false,
+              burstLeft:spec.burst||1, flankSide:(id%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false };
+  actions.idle?.play(); attachWeaponToEnemy(e); scene.add(root); enemies.push(e);
+}
+G.debug.enemyCalledReinforcement = (i) => !!(enemies[i]?.calledReinforcement);
+G.debug.forceCallReinforcement = (i) => { const e=enemies[i]; if(e){ e.spawnedAt=nowS()-REINFORCE_DELAY-1; callReinforcement(e); }};
 // ====== #82 Shockwave ring ======
 const SW_DUR = 0.3, SW_MAX_R = 5;
 let shockwaves = [];
@@ -3588,7 +3617,7 @@ function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
     const ehp = Math.round(hp * spec.hpMult);
     const e = { id:i, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
                 loco:'idle', target:null, lostFor:0, flashUntil:0, weaponId:weaponIdForType(type), looted:false,
-                burstLeft:spec.burst || 1, flankSide:(i%2===0)?1:-1, meleeCd:0 };
+                burstLeft:spec.burst || 1, flankSide:(i%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false };
     actions.idle?.play();
     attachWeaponToEnemy(e);                       // no-op si le template n'est pas encore prêt
     scene.add(root); enemies.push(e);
@@ -3619,6 +3648,7 @@ function updateEnemies(dt){
       continue;
     }
     if(e.flashedUntil && nowS() < e.flashedUntil){ e.mixer.update(dt); setEnemyLoco(e,'idle'); continue; } // aveuglé (#57)
+    if(!e.calledReinforcement && (e.type==='shooter'||e.type==='tank') && nowS()-e.spawnedAt >= REINFORCE_DELAY) callReinforcement(e); // renforts (#84)
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
     const los = hasLineOfSight(e.root.position.x, e.root.position.z, px, pz);

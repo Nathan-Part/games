@@ -3128,3 +3128,26 @@ test('#83 bounce : grenadeFirstBounces() est 0 au depart', async ({ page }) => {
   const first = await page.evaluate(() => __game.debug.grenadeFirstBounces());
   expect(first).toBe(0);
 });
+
+// ====== #84 — Renforts ennemis ======
+test('#84 renforts : enemyCalledReinforcement(0) false au debut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  expect(await page.evaluate(() => __game.debug.enemyCalledReinforcement(0))).toBe(false);
+});
+
+test('#84 renforts : forceCallReinforcement(0) spawn 1 ennemi supplementaire', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  const before = await page.evaluate(() => __game.debug.enemyCount());
+  await page.evaluate(() => __game.debug.forceCallReinforcement(0));
+  const after = await page.evaluate(() => __game.debug.enemyCount());
+  expect(after).toBe(before + 1);
+});
+
+test('#84 renforts : apres forceCallReinforcement, enemyCalledReinforcement vrai', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.forceCallReinforcement(0));
+  expect(await page.evaluate(() => __game.debug.enemyCalledReinforcement(0))).toBe(true);
+});
