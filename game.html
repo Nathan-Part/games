@@ -273,6 +273,9 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #hud-ammo-flash{position:fixed;bottom:58px;right:18px;width:80px;height:50px;pointer-events:none;border-radius:6px;opacity:0}
+  #hud-ammo-flash.empty-flash{animation:emptyFlash 0.3s}
+  @keyframes emptyFlash{0%{opacity:.7;background:#f44}100%{opacity:0;background:#f44}}
   #precision-hud{position:fixed;top:26%;left:50%;transform:translateX(-50%);color:#00e5ff;font-weight:900;font-size:1rem;letter-spacing:.25em;text-shadow:0 0 10px #00e5ff;pointer-events:none;opacity:0}
   #precision-hud::before{content:'PRECISION'}
   #precision-hud.ps-show{animation:psPop 1.5s forwards}
@@ -652,6 +655,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="hud-ammo-flash"></div>
 <div id="precision-hud"></div>
 <div id="longshot-hud"></div>
 <div id="flank-hud" class="hidden"></div>
@@ -2253,7 +2257,8 @@ function fireRay(sx, sy){                                    // un plomb / rayon
 function tryFire(){
   if(G.phase!=='playing') return false;
   if(weaponById(effectiveWeaponId()).melee) return playerMeleeWeapon();   // couteau → corps-à-corps
-  if(reloading || ammo <= 0) return false;
+  if(reloading) return false;
+  if(ammo <= 0){ lastEmptyFire_=false; triggerEmptyFire(); return false; }
   if(overheatPaused_) return false;
   if(nowS() - lastShot < curCooldown) return false;
   if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; } // initier la rafale (#64)
@@ -2420,6 +2425,12 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #106 Empty mag click feedback ======
+let emptyFireCount_ = 0, lastEmptyFire_ = false;
+function triggerEmptyFire(){ emptyFireCount_++; lastEmptyFire_=true; if(actx && !muted) try{ tone(3000, 0.04, 'square', 0.03, 0); }catch(e){} const el=document.getElementById('hud-ammo-flash'); if(el){ el.classList.add('empty-flash'); setTimeout(()=>el.classList.remove('empty-flash'),300); } }
+G.debug.emptyFireCount = () => emptyFireCount_;
+G.debug.lastEmptyFire = () => lastEmptyFire_;
+G.debug.triggerEmptyFire = () => triggerEmptyFire();
 // ====== #105 Precision shot bonus ======
 const PRECISION_MULT = 1.3;
 let precisionShotCount_ = 0, lastWasPrecision_ = false;

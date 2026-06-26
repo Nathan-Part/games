@@ -3581,3 +3581,23 @@ test('#105 precision : lastWasPrecision() false par defaut', async ({ page }) =>
   await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.lastWasPrecision())).toBe(false);
 });
+
+// ====== #106 — Empty mag click feedback ======
+test('#106 empty fire : emptyFireCount() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.emptyFireCount())).toBe(0);
+});
+
+test('#106 empty fire : triggerEmptyFire() incremente compteur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerEmptyFire());
+  expect(await page.evaluate(() => __game.debug.emptyFireCount())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.lastEmptyFire())).toBe(true);
+});
+
+test('#106 empty fire : tir avec ammo=0 declenche emptyFire', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setAmmo(0));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.emptyFireCount())).toBe(1);
+});
