@@ -3070,3 +3070,23 @@ test('#80 lifestats : kill ennemi incremente kills global', async ({ page }) => 
   await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 9999); });
   expect(await page.evaluate(() => __game.debug.lifetimeStats().kills)).toBeGreaterThan(0);
 });
+
+// ====== #81 — Low ammo warning ======
+test('#81 lowammo : isLowAmmo false avec plein chargeur', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.isLowAmmo())).toBe(false);
+});
+
+test('#81 lowammo : isLowAmmo true quand ammo <= 25%', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { const mag = __game.debug.curMag(); __game.debug.setAmmo(Math.floor(mag * 0.2)); });
+  expect(await page.evaluate(() => __game.debug.isLowAmmo())).toBe(true);
+});
+
+test('#81 lowammo : hud-ammo a classe low-ammo quand critique', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { const mag = __game.debug.curMag(); __game.debug.setAmmo(Math.floor(mag * 0.2)); });
+  await page.evaluate(() => __game.debug.updateCombatHudDebug());
+  const hasClass = await page.evaluate(() => !!document.querySelector('.hud-ammo.low-ammo'));
+  expect(hasClass).toBe(true);
+});
