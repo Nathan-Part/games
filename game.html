@@ -2357,7 +2357,7 @@ function throwGrenade(){
   const m = buildGrenadeMesh(); m.castShadow = true;
   m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
   const vel = dir.multiplyScalar(9); vel.y += 3;
-  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE }); return true;
+  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE, bounces:0 }); return true;
 }
 function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),
   new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
@@ -2374,6 +2374,18 @@ function updateGrenades(dt){ const t = nowS();
   for(let i=grenadeProjs.length-1;i>=0;i--){ const g = grenadeProjs[i];
     g.vel.y -= GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel, dt);
     if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
+    if(g.bounces < 2){ // rebond sur murs (#83)
+      const px=g.mesh.position.x, pz=g.mesh.position.z, R=0.12;
+      for(const b of obstacles){
+        const inX = px>=b.minX-R && px<=b.maxX+R, inZ = pz>=b.minZ-R && pz<=b.maxZ+R;
+        if(!inX || !inZ) continue;
+        const dL=px-(b.minX-R), dR=(b.maxX+R)-px, dF=pz-(b.minZ-R), dB=(b.maxZ+R)-pz;
+        const minD=Math.min(dL,dR,dF,dB);
+        if(minD===dL||minD===dR){ g.vel.x*=-0.65; g.mesh.position.x+=g.vel.x*dt*2; }
+        else{ g.vel.z*=-0.65; g.mesh.position.z+=g.vel.z*dt*2; }
+        g.vel.x*=0.75; g.vel.z*=0.75; g.bounces++; break;
+      }
+    }
     if(t >= g.explodeAt){ explodeGrenadeAt(g.mesh.position.x, g.mesh.position.y, g.mesh.position.z); scene.remove(g.mesh); grenadeProjs.splice(i,1); } }
   for(let i=grenadeFx.length-1;i>=0;i--){ const f = grenadeFx[i], e = (t - f.t0)/0.3;
     if(e >= 1){ scene.remove(f.mesh); grenadeFx.splice(i,1); continue; }
@@ -2383,6 +2395,8 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
+G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
 // ====== #82 Shockwave ring ======
 const SW_DUR = 0.3, SW_MAX_R = 5;
 let shockwaves = [];

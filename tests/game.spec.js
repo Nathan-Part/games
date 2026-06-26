@@ -3108,3 +3108,23 @@ test('#82 shockwave : explosion grenade declenche shockwave', async ({ page }) =
   await page.evaluate(() => __game.debug.explodeGrenadeAt(0, 0.1, 0));
   expect(await page.evaluate(() => __game.debug.shockwaveCount())).toBeGreaterThan(0);
 });
+
+// ====== #83 — Rebond grenade sur les murs ======
+test('#83 bounce : grenadeBouncedCount initial 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.grenadeBouncedCount())).toBe(0);
+});
+
+test('#83 bounce : grenade spawne avec bounces=0', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwGrenade());
+  const b = await page.evaluate(() => __game.debug.grenadeBouncedCount());
+  expect(b).toBe(0);
+});
+
+test('#83 bounce : grenadeFirstBounces() est 0 au depart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwGrenade());
+  const first = await page.evaluate(() => __game.debug.grenadeFirstBounces());
+  expect(first).toBe(0);
+});
