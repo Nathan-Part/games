@@ -1658,7 +1658,7 @@ function updateController(dt){
     if(canRun){ stamina = Math.max(0, stamina - STAMINA_DRAIN*dt); if(stamina===0) staminaDepleted=true; }
     else { stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt); if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; }
     updateStaminaHud();
-    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1); // stun (#121)
+    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1) * (rampageActive() ? RAMPAGE_SPEED : 1); // stun (#121) rampage (#125)
     model.position.x += vx*speed*dt;
     model.position.z += vz*speed*dt;
     const target = Math.atan2(vx, vz);
@@ -3121,7 +3121,18 @@ G.debug.impactSparkCount = () => impactSystems.length;
 G.debug.spawnImpactSparks = (x,y,z) => spawnImpactSparks(x,y,z);
 // ====== #72 Streak counter ======
 let streakKillsVal = 0;
-function onStreakKill(){ streakKillsVal++; updateStreakHud(); }
+// ====== #125 Rampage mode ======
+const RAMPAGE_KILLS = 10, RAMPAGE_DURATION = 5, RAMPAGE_SPEED = 1.5;
+let rampageKills_ = 0, rampageUntil_ = 0;
+function rampageActive(){ return nowS() < rampageUntil_; }
+function triggerRampage(){ rampageUntil_ = nowS() + RAMPAGE_DURATION; rampageKills_ = 0; showCallout('RAMPAGE!'); playSound('reload'); }
+function onRampageKill(){ rampageKills_++; if(rampageKills_ >= RAMPAGE_KILLS && !rampageActive()) triggerRampage(); }
+function onRampageReset(){ if(!rampageActive()) rampageKills_ = 0; } // no reset during active rampage
+G.debug.rampageActive = () => rampageActive();
+G.debug.rampageTimeLeft = () => Math.max(0, rampageUntil_ - nowS());
+G.debug.rampageKillCount = () => rampageKills_;
+G.debug.triggerRampage = () => triggerRampage();
+function onStreakKill(){ streakKillsVal++; updateStreakHud(); onRampageKill(); }
 function onStreakReset(){ streakKillsVal = 0; updateStreakHud(); }
 function updateStreakHud(){
   const el = document.getElementById('streak-hud'); if(!el) return;
@@ -3775,7 +3786,8 @@ function flashDamage(){
 }
 function damagePlayer(amount){
   if(G.phase !== 'playing') return;
-  onStreakReset();                                        // tout hit reset le streak (#72), avant guard clauses
+  if(rampageActive()) return;                              // invincible pendant rampage (#125)
+  onStreakReset(); onRampageReset();                                        // tout hit reset le streak (#72), avant guard clauses
   headStreakCount_ = 0;                                  // reset headshot streak (#110)
   amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
   if(ksShieldActive()) amount = Math.round(amount * 0.5); // bouclier killstreak #58
@@ -3920,7 +3932,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; // restart (#55-#121)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; // restart (#55-#125)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();

@@ -4090,3 +4090,34 @@ test('#124 decoy : decoy disparait apres expiration', async ({ page }) => {
   const countExpired = await page.evaluate(() => __game.debug.decoyCount());
   expect(countExpired).toBe(0);
 });
+
+// ====== #125 — Rampage mode ======
+test('#125 rampage : triggerRampage active rampageActive', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerRampage());
+  const active = await page.evaluate(() => __game.debug.rampageActive());
+  expect(active).toBe(true);
+});
+
+test('#125 rampage : rampageActive bloque les degats joueur', async ({ page }) => {
+  await startPlaying(page);
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.triggerRampage());
+  await page.evaluate(() => __game.debug.damagePlayer(50));
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+});
+
+test('#125 rampage : 10 kills sans degats declenchent rampage', async ({ page }) => {
+  await startPlaying(page);
+  // Faire 10 kills via killAllEnemies x vagues successives et re-spawn
+  for(let i=0;i<10;i++){
+    await page.evaluate(() => {
+      __game.debug.spawnEnemyTypeAt(0,'shooter',5,0);
+      __game.debug.damageEnemy(0, 9999);
+    });
+    await page.waitForTimeout(50);
+  }
+  const active = await page.evaluate(() => __game.debug.rampageActive());
+  expect(active).toBe(true);
+});
