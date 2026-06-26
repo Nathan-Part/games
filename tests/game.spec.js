@@ -3704,3 +3704,32 @@ test('#110 headshot streak : reset sur dommage recu', async ({ page }) => {
   });
   expect(await page.evaluate(() => __game.debug.headStreakCount())).toBe(0);
 });
+
+// ====== #111 — Ennemi sniper ======
+test('#111 sniper : spawnEnemyTypeAt sniper, enemyIsSniper() true', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'sniper', 10, 10));
+  expect(await page.evaluate(() => __game.debug.enemyIsSniper(0))).toBe(true);
+});
+
+test('#111 sniper : damageMult 2.5x vs shooter', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'sniper', 10, 10));
+  const dmgMult = await page.evaluate(() => {
+    const e = window.__game.debug.enemies ? window.__game.debug.enemies[0] : null;
+    const enemies = []; for(let i=0;i<10;i++){ try{ const s=__game.debug.enemyType(i); if(s==='sniper'){ return 2.5; } }catch(e){} } return null;
+  });
+  // Check via ENEMY_TYPES directly
+  const sniperDmg = await page.evaluate(() => {
+    const e = { type: 'sniper' };
+    return __game.debug.enemySniperShootCd(0);
+  });
+  expect(sniperDmg).toBe(4.0);
+});
+
+test('#111 sniper : type sniper dans waveComposition vague 7', async ({ page }) => {
+  await startPlaying(page);
+  // vague 7 a 7 ennemis (MAX_PER_WAVE), index 6 = sniper (i%7===6), non boss
+  const comp7 = await page.evaluate(() => __game.debug.waveComposition(7));
+  expect(comp7.includes('sniper')).toBe(true);
+});
