@@ -2701,3 +2701,33 @@ test('#63 dmgdir : showDamageDir(180) active la fleche arriere', async ({ page }
   const vis = await page.evaluate(() => document.getElementById('dmgdir-bot').classList.contains('dmgdir-show'));
   expect(vis).toBe(true);
 });
+
+// ====== #64 — Mode tir burst/auto ======
+test('#64 burst : fireMode initial = auto', async ({ page }) => {
+  await startPlaying(page);
+  const mode = await page.evaluate(() => __game.debug.fireMode());
+  expect(mode).toBe('auto');
+});
+
+test('#64 burst : fireModeToggle bascule en burst', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.fireModeToggle());
+  const mode = await page.evaluate(() => __game.debug.fireMode());
+  expect(mode).toBe('burst');
+});
+
+test('#64 burst : second toggle revient en auto', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.fireModeToggle());
+  await page.evaluate(() => __game.debug.fireModeToggle());
+  const mode = await page.evaluate(() => __game.debug.fireMode());
+  expect(mode).toBe('auto');
+});
+
+test('#64 burst : pas de toggle pour arme non-assaut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceEquipWeapon('sniper'));
+  await page.evaluate(() => __game.debug.fireModeToggle());
+  const mode = await page.evaluate(() => __game.debug.fireMode());
+  expect(mode).toBe('auto'); // toujours auto (sniper non éligible)
+});
