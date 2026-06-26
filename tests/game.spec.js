@@ -2886,3 +2886,22 @@ test('#70 spawnmark : plusieurs marqueurs possibles', async ({ page }) => {
   await page.evaluate(() => { __game.debug.showSpawnMarker(0,0); __game.debug.showSpawnMarker(3,3); __game.debug.showSpawnMarker(-3,3); });
   expect(await page.evaluate(() => __game.debug.spawnMarkerCount())).toBe(3);
 });
+
+// ====== #71 — Barre de rechargement ======
+test('#71 reload-bar : reloadProgress = 0 hors rechargement', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.reloadProgress())).toBe(0);
+});
+
+test('#71 reload-bar : reloadProgress > 0 pendant reload', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setAmmo(0); __game.debug.reload(); });
+  const prog = await page.evaluate(() => __game.debug.reloadProgress());
+  expect(prog).toBeGreaterThan(0);
+});
+
+test('#71 reload-bar : element #reload-bar existe dans le DOM', async ({ page }) => {
+  await startPlaying(page);
+  const exists = await page.evaluate(() => !!document.getElementById('reload-bar'));
+  expect(exists).toBe(true);
+});

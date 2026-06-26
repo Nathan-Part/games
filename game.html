@@ -278,6 +278,9 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #reload-bar{position:fixed;left:50%;top:50%;transform:translate(-50%,18px);z-index:12;pointer-events:none;width:48px;height:48px}
+  #reload-bar circle{fill:none;stroke:#f90;stroke-width:3;stroke-linecap:round;
+    stroke-dasharray:100;stroke-dashoffset:100;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .05s linear}
   #smoke-hud{position:fixed;left:16px;top:150px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
     padding:6px 12px;font-family:var(--font-display);text-transform:uppercase;font-size:var(--t-sm);font-weight:600;
     letter-spacing:.05em;color:var(--text-2);--ch:7px;
@@ -621,6 +624,7 @@
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
+<div id="reload-bar" class="hidden"><svg viewBox="0 0 36 36" width="48" height="48"><circle cx="18" cy="18" r="16"/></svg></div>
 <div id="levelup-toast"></div>
 <div id="shield-bar" class="hidden"><div id="shield-fill"></div></div>
 <div id="enemy-hp-bars"></div>
@@ -2350,6 +2354,15 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #71 Barre de rechargement ======
+function reloadProgress(){ if(!reloading||curReload<=0) return 0; return Math.min(1, 1-(reloadAt-nowS())/curReload); }
+function updateReloadBar(){
+  const el=document.getElementById('reload-bar'); if(!el) return;
+  const p=reloadProgress(); el.classList.toggle('hidden', p<=0||p>=1);
+  el.querySelector('circle').style.strokeDashoffset = 100 - p*100;
+}
+G.debug.reloadProgress = () => reloadProgress();
+G.debug.setAmmo = (n) => { ammo = n; G.ammo = n; updateCombatHud(); };
 // ====== #70 Marqueurs de spawn ======
 const SPAWN_MARK_DUR = 3;
 let spawnMarkers = [];
@@ -2748,6 +2761,7 @@ function updateCombat(dt){
   if(G.phase!=='playing') return;
   if(playerMeleeCd > 0) playerMeleeCd -= dt;                 // cooldown couteau (#45)
   if(reloading && nowS() >= reloadAt){ ammo = curMag; reloading = false; G.ammo = ammo; }
+  updateReloadBar();
   if(input.fire) tryFire();
   const t = nowS();
   for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
