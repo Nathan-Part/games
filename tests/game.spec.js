@@ -4181,3 +4181,33 @@ test('#127 speed_boost : le joueur se deplace avec le boost actif', async ({ pag
   const dist = Math.hypot(pos.x, pos.z);
   expect(dist).toBeGreaterThan(0.1);
 });
+
+// ====== #128 — Ennemi grenadier ======
+test('#128 grenadier : spawnEnemyTypeAt grenadier → enemyIsGrenadier true', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'grenadier', 8, 0));
+  await page.waitForTimeout(100);
+  const is = await page.evaluate(() => __game.debug.enemyIsGrenadier(0));
+  expect(is).toBe(true);
+});
+
+test('#128 grenadier : forceEnemyThrowGrenade incremente enemyGrenadeCount', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.spawnEnemyTypeAt(0, 'grenadier', 15, 0); // loin du joueur (>5m)
+    __game.debug.setPos(0, 0);
+  });
+  await page.waitForTimeout(100);
+  const before = await page.evaluate(() => __game.debug.enemyGrenadeCount());
+  await page.evaluate(() => __game.debug.forceEnemyThrowGrenade(0));
+  const after = await page.evaluate(() => __game.debug.enemyGrenadeCount());
+  expect(after).toBeGreaterThan(before);
+});
+
+test('#128 grenadier : spawn en vague 8+', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(8));
+  await page.waitForTimeout(200);
+  const comp = await page.evaluate(() => __game.debug.waveComposition(8));
+  expect(comp).toContain('grenadier');
+});

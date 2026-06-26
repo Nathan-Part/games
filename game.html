@@ -2590,6 +2590,40 @@ G.debug.enemyIsDecoy = (i) => !!(enemies[i]?.isDecoy);
 G.debug.decoyCount = () => enemies.filter(e => e.isDecoy && e.alive).length;
 G.debug.forceSpawnDecoy = (i=0) => { const e=enemies[i]; if(e && !e.isDecoy) spawnDecoyNear(e); };
 G.debug.forceExpireDecoys = () => { for(const e of enemies) if(e.isDecoy && e.alive) e.decoyExpiresAt = 0; };
+// ====== #128 Grenadier ======
+const GRENADIER_THROW_CD = 5.0, GRENADIER_DMG = 60, GRENADIER_R = 3.5, GRENADIER_MIN_RANGE = 5;
+let enemyGrenadeProjs_ = [], enemyGrenadeCount_ = 0;
+function enemyThrowGrenade(e){
+  const pp = G.position ? G.position() : {x:0,y:0,z:0};
+  const ex=e.root.position.x, ez=e.root.position.z;
+  const dx=pp.x-ex, dz=pp.z-ez, dist=Math.hypot(dx,dz);
+  if(dist < GRENADIER_MIN_RANGE) return; // trop proche — évite l'auto-dégât
+  e.grenadeThrowAt = nowS() + GRENADIER_THROW_CD;
+  enemyGrenadeCount_++;
+  const speed = 8, vy = 6;
+  const nx=dx/dist, nz=dz/dist;
+  const geo = new THREE.SphereGeometry(0.12, 6, 6);
+  const mat = new THREE.MeshBasicMaterial({ color:0xaaff00 });
+  const mesh = new THREE.Mesh(geo, mat); mesh.position.set(ex, 1.2, ez); scene.add(mesh);
+  enemyGrenadeProjs_.push({ mesh, vel:new THREE.Vector3(nx*speed, vy, nz*speed), explodeAt:nowS()+2.5 });
+}
+function forceEnemyThrowGrenade(i){ const e=enemies[i]; if(e && e.alive && e.type==='grenadier') enemyThrowGrenade(e); }
+function updateEnemyGrenades(dt){
+  for(let i=enemyGrenadeProjs_.length-1;i>=0;i--){
+    const g=enemyGrenadeProjs_[i];
+    g.vel.y -= 14*dt; g.mesh.position.addScaledVector(g.vel, dt);
+    if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.35; g.vel.x *= 0.55; g.vel.z *= 0.55; }
+    if(nowS() >= g.explodeAt){
+      const px=g.mesh.position.x, py=g.mesh.position.y, pz=g.mesh.position.z;
+      const pp=G.position ? G.position() : {x:0,y:1,z:0};
+      if(Math.hypot(pp.x-px, pp.z-pz) < GRENADIER_R) damagePlayer(GRENADIER_DMG);
+      spawnShockwave(px,py,pz); playSound('shot'); scene.remove(g.mesh); enemyGrenadeProjs_.splice(i,1);
+    }
+  }
+}
+G.debug.enemyIsGrenadier = (i) => !!(enemies[i] && enemies[i].type==='grenadier');
+G.debug.enemyGrenadeCount = () => enemyGrenadeCount_;
+G.debug.forceEnemyThrowGrenade = (i) => forceEnemyThrowGrenade(i);
 // ====== #114 Armor system ======
 const ARMOR_TYPES = new Set(['tank','boss']);
 const ARMOR_TORSO_MULT = 0.7;
@@ -3935,7 +3969,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; // restart (#55-#125)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; // restart (#55-#128)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -3980,6 +4014,7 @@ const ENEMY_TYPES = {
   shielder:  { id:'shielder', hpMult:1.2, speedMult:0.7,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x00aacc },         // #119 bouclier frontal
   medic:     { id:'medic',    hpMult:0.7, speedMult:0.8,  scale:0.95, melee:false, damageMult:0.8, burst:1, glow:0x00cc55 },         // #120 guérisseur
   stunner:   { id:'stunner',  hpMult:0.9, speedMult:1.1,  scale:1.0,  melee:false, damageMult:0.7, burst:2, glow:0xffdd00 },         // #121 éclaire/ralentit le joueur
+  grenadier: { id:'grenadier',hpMult:1.2, speedMult:0.7,  scale:1.05, melee:false, damageMult:0.8, burst:1, glow:0xaaff00 },         // #128 lance des grenades
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -3998,6 +4033,7 @@ function waveComposition(w){
     if(w>=3 && i%4===3) out.push('tank');
     else if(w>=8 && i%6===5) out.push('ghost');                                 // fantôme dès la v8 (#107)
     else if(w>=7 && i%6===5) out.push('stunner');                               // stunner dès la v7 (slot ghost pré-v8) (#121)
+    else if(w>=8 && i%7===6) out.push('grenadier');                             // grenadier dès la v8 (slot sniper) (#128)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper dès la v5 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
     else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
@@ -4317,6 +4353,7 @@ function updateEnemies(dt){
     if(e.flashedUntil && nowS() < e.flashedUntil){ e.mixer.update(dt); setEnemyLoco(e,'idle'); continue; } // aveuglé (#57)
     if(!e.calledReinforcement && (e.type==='shooter'||e.type==='tank') && nowS()-e.spawnedAt >= REINFORCE_DELAY) callReinforcement(e); // renforts (#84)
     if(!e.isDecoy && !e.spawnedDecoy && e.type==='shooter' && wave>=DECOY_WAVE_MIN && nowS()-e.spawnedAt>=DECOY_SPAWN_INTERVAL){ e.spawnedDecoy=true; spawnDecoyNear(e); } // décoy (#124)
+    if(e.type==='grenadier' && e.state!=='dead' && (!e.grenadeThrowAt || nowS() >= e.grenadeThrowAt)){ enemyThrowGrenade(e); } // grenadier (#128)
     if(!e.pickedUpWeapon && e.type==='rusher') enemyTryPickup(e); // pickup arme (#85)
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
@@ -5155,7 +5192,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
