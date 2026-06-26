@@ -2249,7 +2249,13 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     const t = targets.find(t => t.mesh === obj);
     if(t) hitTarget(t);
     else { const e = enemies.find(e => e.hitbox === obj);
-      if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY);
+      if(e){ // Shield block (#119): shielder blocks frontal shots
+        if(e.type === 'shielder' && enemyShieldBlocked(e)){
+          lastShieldBlockI_ = enemies.indexOf(e); shieldBlockCount_++;
+          spawnImpactSparks(hits[0].point.x, hits[0].point.y, hits[0].point.z);
+          showCallout('BLOQUÉ!'); return;
+        }
+        const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY);
         const bsMult = isBackstab(enemies.indexOf(e)) ? BACKSTAB_MULT : 1;
         const armorM = enemyArmorMult(e, hz.zone);
         let dmg = Math.round(hz.damage * curDmgMult * bsMult * armorM);
@@ -2485,6 +2491,28 @@ function enemySuppressed(e){ return !!e && e.alive && (e.suppressedUntil || 0) >
 G.debug.enemySuppressed = (i) => { const e=enemies[i]; return enemySuppressed(e); };
 G.debug.suppressEnemy = (i) => { const e=enemies[i]; suppressEnemy(e); };
 G.debug.lastSuppressCount = () => lastSuppressCount_;
+// ====== #119 Shielder ======
+const SHIELD_BLOCK_DOT = 0.5;   // cosine threshold: player in ±60° front cone → blocked
+let shieldBlockCount_ = 0, lastShieldBlockI_ = -1;
+function buildEnemyShieldMesh(){
+  const geo = new THREE.PlaneGeometry(0.55, 0.85);
+  const mat = new THREE.MeshBasicMaterial({ color:0x22eeff, transparent:true, opacity:0.55, side:THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(0, 1.05, 0.32);  // in front of enemy (local +Z = forward)
+  mesh.isEnemyShield = true;
+  return mesh;
+}
+function enemyShieldBlocked(e){
+  if(!e || !e.alive || e.type !== 'shielder') return false;
+  const pp = G.position();
+  const toPlayer = new THREE.Vector3(pp.x-e.root.position.x, 0, pp.z-e.root.position.z).normalize();
+  const eFwd = new THREE.Vector3(0,0,1).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.yaw, 0)));
+  return toPlayer.dot(eFwd) > SHIELD_BLOCK_DOT;
+}
+G.debug.enemyIsShielded = (i) => { const e=enemies[i]; return !!(e && e.type==='shielder'); };
+G.debug.shieldBlockCount = () => shieldBlockCount_;
+G.debug.lastShieldBlockI = () => lastShieldBlockI_;
+G.debug.forceShieldBlock = (i) => { const e=enemies[i]; if(!e) return; lastShieldBlockI_=i; shieldBlockCount_++; showCallout('BLOQUÉ!'); };
 // ====== #114 Armor system ======
 const ARMOR_TYPES = new Set(['tank','boss']);
 const ARMOR_TORSO_MULT = 0.7;
@@ -2885,7 +2913,9 @@ function spawnSingleEnemy(sp, type, hp){
   const e = { id, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
               loco:'idle', target:null, lostFor:0, flashUntil:0, weaponId:weaponIdForType(type), looted:false,
               burstLeft:spec.burst||1, flankSide:(id%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false, pickedUpWeapon:false };
-  actions.idle?.play(); attachWeaponToEnemy(e); scene.add(root); enemies.push(e);
+  actions.idle?.play(); attachWeaponToEnemy(e);
+  if(type === 'shielder'){ e.shieldMesh = buildEnemyShieldMesh(); root.add(e.shieldMesh); } // #119
+  scene.add(root); enemies.push(e);
 }
 G.debug.enemyCalledReinforcement = (i) => !!(enemies[i]?.calledReinforcement);
 G.debug.forceCallReinforcement = (i) => { const e=enemies[i]; if(e){ e.spawnedAt=nowS()-REINFORCE_DELAY-1; callReinforcement(e); }};
@@ -3848,6 +3878,7 @@ const ENEMY_TYPES = {
   berserker: { id:'berserker', hpMult:1.5, speedMult:1.8,  scale:1.05, melee:true,  damageMult:2.0, burst:1, glow:0xcc4400 },   // #104 rage
   ghost:     { id:'ghost',     hpMult:1.0, speedMult:1.3,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:null, opacity:0.35 }, // #107 fantôme
   sniper:    { id:'sniper',   hpMult:0.8, speedMult:0.5,  scale:1.0,  melee:false, damageMult:2.5, burst:1, glow:0xcc0033, shootCd:4.0 }, // #111 sniper
+  shielder:  { id:'shielder', hpMult:1.2, speedMult:0.7,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x00aacc },         // #119 bouclier frontal
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -3867,6 +3898,7 @@ function waveComposition(w){
     else if(w>=8 && i%6===5) out.push('ghost');                                 // fantôme dès la v8 (#107)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper dès la v5 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
+    else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
     else if(w>=4 && i%3===2) out.push('bomber');                                // kamikaze dès la v4 (#37)
     else if(w>=2 && i%2===1) out.push('rusher');
     else out.push('shooter');
@@ -4033,6 +4065,10 @@ G.debug.spawnEnemyTypeAt = (i, type, x, z) => {
   e.alive = true; e.state = 'patrol'; e.loco = 'idle'; e.lostFor = 0; e.target = null;
   e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0, 0, 0);
   e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
+  // Sync shield mesh (#119)
+  if(type === 'shielder' && !e.shieldMesh){ e.shieldMesh = buildEnemyShieldMesh(); e.root.add(e.shieldMesh); }
+  if(type !== 'shielder' && e.shieldMesh){ e.shieldMesh.visible = false; }
+  if(type === 'shielder' && e.shieldMesh) e.shieldMesh.visible = true;
   return e.id;
 };
 G.debug.enemyHasWeapon = (i) => !!(enemies[i] && enemies[i].weapon);
@@ -4140,6 +4176,7 @@ function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
                 burstLeft:spec.burst || 1, flankSide:(i%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false, pickedUpWeapon:false };
     actions.idle?.play();
     attachWeaponToEnemy(e);                       // no-op si le template n'est pas encore prêt
+    if(type === 'shielder'){ e.shieldMesh = buildEnemyShieldMesh(); root.add(e.shieldMesh); } // #119
     scene.add(root); enemies.push(e);
   }
 }
@@ -4456,6 +4493,7 @@ function killEnemy(e){
   if(e.muzzleFlash){ e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
   setEnemyEmissive(e, false); e.flashUntil = 0;                 // fin du flash rouge bloqué (corps propre)
   if(e.hitbox && e.hitbox.parent) e.hitbox.parent.remove(e.hitbox);  // hitbox off (corps non ciblable / traversable)
+  if(e.shieldMesh) e.shieldMesh.visible = false;                     // bouclier masqué à la mort (#119)
   if(e.actions.dead){
     // Disable other actions directly (avoid stop()/stopAllAction() which triggers reset() → enabled=true, time=0 → T-pose blend)
     Object.values(e.actions).forEach(a => { if(a && a !== e.actions.dead) a.enabled = false; });

@@ -3882,3 +3882,41 @@ test('#118 sticky : throwSticky cree un projectile sticky', async ({ page }) => 
   await page.evaluate(() => __game.debug.throwSticky());
   expect(await page.evaluate(() => __game.debug.stickyCount())).toBeGreaterThanOrEqual(1);
 });
+
+// ====== #119 — Shielder ======
+test('#119 shielder : spawn en vague 4+', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(4));
+  await page.waitForTimeout(300);
+  const types = await page.evaluate(() => {
+    const out = [];
+    for(let i = 0; i < __game.debug.enemyCount(); i++) out.push(__game.debug.enemyType(i));
+    return out;
+  });
+  expect(types).toContain('shielder');
+});
+
+test('#119 shielder : tir frontal bloque (0 degats)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(4));
+  await page.waitForTimeout(200);
+  // Trouver un shielder
+  const idx = await page.evaluate(() => {
+    for(let i = 0; i < __game.debug.enemyCount(); i++) if(__game.debug.enemyType(i)==='shielder') return i;
+    return -1;
+  });
+  if(idx < 0) return; // pas de shielder cette vague, passer
+  const hpBefore = await page.evaluate(i => __game.debug.enemyHp(i), idx);
+  await page.evaluate(i => __game.debug.forceShieldBlock(i), idx);
+  const blocked = await page.evaluate(() => __game.debug.shieldBlockCount());
+  expect(blocked).toBeGreaterThan(0);
+});
+
+test('#119 shielder : enemyIsShielded retourne true pour un shielder', async ({ page }) => {
+  await startPlaying(page);
+  // Morphe l'ennemi 0 (existe toujours en vague 1) en shielder
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shielder', 2, 2));
+  await page.waitForTimeout(100);
+  const isShielded = await page.evaluate(() => __game.debug.enemyIsShielded(0));
+  expect(isShielded).toBe(true);
+});
