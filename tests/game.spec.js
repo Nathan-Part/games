@@ -3796,3 +3796,28 @@ test('#114 armor : shooter torse mult = 1.0 (pas blinde)', async ({ page }) => {
   const mult = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'torso'));
   expect(mult).toBeCloseTo(1.0, 2);
 });
+
+// ====== #115 — HUD enemy count ======
+test('#115 enemy count hud : hudEnemyCountVisible disponible', async ({ page }) => {
+  await startPlaying(page);
+  const v = await page.evaluate(() => __game.debug.hudEnemyCountVisible());
+  expect(typeof v).toBe('boolean');
+});
+
+test('#115 enemy count hud : visible avec ennemis en vie', async ({ page }) => {
+  await startPlaying(page);
+  // Attendre 1 frame pour que le HUD soit actualisé
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    // Spawner un ennemi devant pour garantir alive>0
+    __game.debug.spawnEnemyInFront(8);
+  });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.hudEnemyCountVisible())).toBe(true);
+});
+
+test('#115 enemy count hud : element enemy-count-hud present dans DOM', async ({ page }) => {
+  await startPlaying(page);
+  const exists = await page.evaluate(() => !!document.getElementById('enemy-count-hud'));
+  expect(exists).toBe(true);
+});
