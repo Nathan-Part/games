@@ -273,6 +273,9 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #longshot-hud{position:fixed;top:22%;left:50%;transform:translateX(-50%);color:#ffd700;font-weight:900;font-size:1.3rem;letter-spacing:.2em;text-shadow:0 0 14px #ffd700;pointer-events:none;opacity:0;transition:opacity .2s}
+  #longshot-hud.ls-show{opacity:1;animation:lsPop 2s forwards}
+  @keyframes lsPop{0%{opacity:1;transform:translateX(-50%) scale(1.2)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
   .flank-left,.flank-right{position:fixed;top:50%;transform:translateY(-50%);color:#f44;font-weight:900;font-size:1.4rem;text-shadow:0 0 12px #f44;pointer-events:none;letter-spacing:.1em}
   .flank-left{left:18px} .flank-right{right:18px}
   #hardcore-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#f44;font-weight:900;font-size:.85rem;letter-spacing:.15em;text-shadow:0 0 8px #f44;pointer-events:none}
@@ -645,6 +648,7 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="longshot-hud"></div>
 <div id="flank-hud" class="hidden"></div>
 <div id="overheat-hud" class="hidden" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none"></div>
 <div id="hardcore-hud" class="hidden">☠ HARDCORE</div>
@@ -2409,6 +2413,21 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #102 Long Shot bonus ======
+const LONG_SHOT_DIST = 30, LONG_SHOT_MONEY = 25, LONG_SHOT_XP = 10;
+let longShotCount_ = 0, lastKillDist_ = 0;
+function checkLongShot(e){
+  if(!model) return;
+  const dist = model.position.distanceTo(e.root.position);
+  lastKillDist_ = Math.round(dist);
+  if(dist < LONG_SHOT_DIST) return;
+  longShotCount_++; addMoney(LONG_SHOT_MONEY); addXp(LONG_SHOT_XP);
+  const el = document.getElementById('longshot-hud'); if(el){ el.textContent='LONG SHOT !'; el.classList.add('ls-show'); setTimeout(()=>el.classList.remove('ls-show'),2000); }
+}
+function forceLongShot(){ longShotCount_++; addMoney(LONG_SHOT_MONEY); addXp(LONG_SHOT_XP); }
+G.debug.longShotCount = () => longShotCount_;
+G.debug.lastKillDist = () => lastKillDist_;
+G.debug.forceLongShot = () => forceLongShot();
 // ====== #101 Ricochet balle ======
 const RICOCHET_CHANCE = 0.20, RICOCHET_DMG_MULT = 0.4;
 let ricochetsTotal_ = 0, lastRicochetHit_ = false;
@@ -4286,6 +4305,7 @@ function killEnemy(e){
   spawnMoneyOrb(e.root.position.x, e.root.position.z, MONEY_PER_KILL); // orbe argent (#79)
   addLifetimeStat('kills', 1); if(e.lastHitHead) addLifetimeStat('headshots', 1); // lifetime stats (#80)
   trackDailyKill('kills'); if(e.lastHitHead) trackDailyKill('headshots'); if(e.lastHitMelee) trackDailyKill('melee'); // contrats (#62)
+  checkLongShot(e);                                           // long shot bonus (#102)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){

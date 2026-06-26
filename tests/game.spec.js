@@ -3504,3 +3504,22 @@ test('#101 ricochet : lastRicochetHit() false avant tout ricochet', async ({ pag
   await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.lastRicochetHit())).toBe(false);
 });
+
+// ====== #102 — Long shot bonus ======
+test('#102 long shot : longShotCount() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.longShotCount())).toBe(0);
+});
+
+test('#102 long shot : forceLongShot() incremente le compteur et ajoute bonus', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.forceLongShot());
+  expect(await page.evaluate(() => __game.debug.longShotCount())).toBe(1);
+  expect(await page.evaluate(() => __game.money)).toBeGreaterThan(moneyBefore);
+});
+
+test('#102 long shot : lastKillDist() 0 sans kill', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastKillDist())).toBe(0);
+});
