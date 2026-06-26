@@ -2243,8 +2243,9 @@ function tryFire(){
   lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil;
   cameraKick(input.aim ? 1 : 0); // camera kick (#77)
   runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
-  if(curPellets <= 1) fireRay(0, 0);                        // arme classique : un seul rayon centré
-  else for(let i=0;i<curPellets;i++){ const a = Math.random()*Math.PI*2, r = Math.random()*SHOTGUN_SPREAD; fireRay(Math.cos(a)*r, Math.sin(a)*r); }   // gerbe (#36)
+  const sp = currentSpread(); const spR = (sp-1) * 0.022; // spread NDC (#92)
+  if(curPellets <= 1){ const a=Math.random()*Math.PI*2; fireRay(Math.cos(a)*spR, Math.sin(a)*spR); }   // arme classique : déviation spread
+  else for(let i=0;i<curPellets;i++){ const a = Math.random()*Math.PI*2, r = Math.random()*SHOTGUN_SPREAD + spR; fireRay(Math.cos(a)*r, Math.sin(a)*r); }   // gerbe (#36)
   if(_fireConnected) runHits++;                             // ce tir a touché ≥1 ennemi (#43)
   return true;
 }
@@ -2401,6 +2402,18 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #92 Spread au mouvement ======
+let spreadOverride = null;
+function currentSpread(){
+  if(spreadOverride !== null) return spreadOverride;
+  if(input.aim) return 1;
+  const moving = input.forward || input.back || input.left || input.right;
+  if(!moving) return 1;
+  if(input.sprint && !staminaDepleted) return 2.5;
+  return 1.5;
+}
+G.debug.currentSpread = () => currentSpread();
+G.debug.setSpreadOverride = (v) => { spreadOverride = v; };
 // ====== #91 Zone de danger ======
 const DZ_RADII = [20, 14, 9, 5], DZ_DMG = 5, DZ_WAVE_STEP = 3;
 let dzMesh = null, dzLastDmgT = 0;

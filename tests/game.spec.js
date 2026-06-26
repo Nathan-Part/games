@@ -3295,3 +3295,22 @@ test('#91 zone : dangerZoneDamage() retourne 5', async ({ page }) => {
   await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.dangerZoneDamage())).toBe(5);
 });
+
+// ====== #92 — Spread au mouvement ======
+test('#92 spread : currentSpread() = 1 en immobile/ADS', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ aim: true }));
+  expect(await page.evaluate(() => __game.debug.currentSpread())).toBeCloseTo(1, 2);
+});
+
+test('#92 spread : currentSpread() = 1.5 en marche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ forward: true, sprint: false }));
+  expect(await page.evaluate(() => __game.debug.currentSpread())).toBeCloseTo(1.5, 2);
+});
+
+test('#92 spread : currentSpread() = 2.5 en course', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ forward: true, sprint: true }));
+  expect(await page.evaluate(() => __game.debug.currentSpread())).toBeCloseTo(2.5, 2);
+});
