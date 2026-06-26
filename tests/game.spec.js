@@ -4121,3 +4121,32 @@ test('#125 rampage : 10 kills sans degats declenchent rampage', async ({ page })
   const active = await page.evaluate(() => __game.debug.rampageActive());
   expect(active).toBe(true);
 });
+
+// ====== #126 — Wave score multiplier ======
+test('#126 wave mult : waveScoreMult retourne 1 en vague 1', async ({ page }) => {
+  await startPlaying(page);
+  const m = await page.evaluate(() => __game.debug.waveScoreMult());
+  expect(m).toBe(1);
+});
+
+test('#126 wave mult : waveScoreMult retourne 1.5 en vague 5', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await page.waitForTimeout(200);
+  const m = await page.evaluate(() => __game.debug.waveScoreMult());
+  expect(m).toBe(1.5);
+});
+
+test('#126 wave mult : lastKillScore > 1 en vague 5 apres un kill', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await page.waitForTimeout(200);
+  await page.evaluate(() => {
+    __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0);
+    __game.debug.damageEnemy(0, 9999);
+  });
+  await page.waitForTimeout(100);
+  const ks = await page.evaluate(() => __game.debug.lastKillScore());
+  expect(ks).toBeGreaterThanOrEqual(2); // combo 1 × wave mult 1.5 = 1.5 → round = 2 (or 1 if floor)
+  expect(ks).toBeGreaterThan(1);
+});

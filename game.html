@@ -3553,7 +3553,7 @@ function updateCombatHud(){
     : `<div class="hud-ammo${isLowAmmo() ? ' low-ammo' : ''}">${ico('weapon')}<b>${reloading ? '—' : ammo}</b><span class="mag">/ ${curMag}</span></div>`;
   const statusLine = isMelee
     ? `<div class="hud-line${playerMeleeCd > 0 ? ' reload' : ''}">${playerMeleeCd > 0 ? 'Récup…' : 'Score ' + score}</div>`
-    : `<div class="hud-line${reloading ? ' reload' : ''}">${reloading ? 'Recharge…' : 'Score ' + score}</div>`;
+    : `<div class="hud-line${reloading ? ' reload' : ''}">${reloading ? 'Recharge…' : 'Score ' + score + (wave>=5 ? ` <span style="color:#f80;font-size:0.75em">×${waveScoreMult_().toFixed(1)}</span>` : '')}</div>`; // #126 wave mult badge
   document.getElementById('combat').innerHTML = ammoLine + statusLine;
 }
 function updateCombat(dt){
@@ -4018,6 +4018,11 @@ let enemyBase = null;    // groupe centré à cloner
 let enemyClips = null;   // { idle, walk, run, attack } (AnimationClip retargetés pour le rig ennemi)
 // ====== Vagues (mode survie) ======
 let wave = 0, waveState = 'active', nextWaveAt = 0, bestWave = save.bestWave;   // record persistant (localStorage, tranche 12)
+// #126 wave score multiplier
+let lastKillScore_ = 0;
+function waveScoreMult_(){ return 1 + Math.floor(wave / 5) * 0.5; }
+G.debug.waveScoreMult = () => waveScoreMult_();
+G.debug.lastKillScore = () => lastKillScore_;
 G.wave = 0; G.bestWave = bestWave;
 
 // décision d'état pure (seuils) — testée isolément
@@ -4610,7 +4615,9 @@ function killEnemy(e){
   }
   if(ARMOR_TYPES.has(e.type)) armoredKillCount_++;    // armor system (#114)
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
-  score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
+  const wm = waveScoreMult_();                        // multiplicateur de vague (#126)
+  const killScore = Math.round(mult * wm); lastKillScore_ = killScore;
+  score += killScore; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
   checkChallenges('kills', runKills); if(e.lastHitHead) checkChallenges('headshots', runHeadshots);
   if(e.lastHitMelee){ challengeMeleeKills++; checkChallenges('melee', challengeMeleeKills); }
   checkAchievements(mult);                             // succès (#44)
