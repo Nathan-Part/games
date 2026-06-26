@@ -2222,7 +2222,9 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     const t = targets.find(t => t.mesh === obj);
     if(t) hitTarget(t);
     else { const e = enemies.find(e => e.hitbox === obj);
-      if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY), dmg = Math.round(hz.damage * curDmgMult);
+      if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY);
+        const bsMult = isBackstab(enemies.indexOf(e)) ? BACKSTAB_MULT : 1;
+        const dmg = Math.round(hz.damage * curDmgMult * bsMult);
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
         _fireConnected = true;                                 // tir au but : précision (#43)
         showHitMarker(hz.zone === 'head');                     // hit-marker (#59)
@@ -2397,6 +2399,20 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #87 Backstab damage ======
+const BACKSTAB_MULT = 1.5, BACKSTAB_DOT = -0.5;
+function isBackstab(i){
+  const e = enemies[i]; if(!e || !e.alive || !model) return false;
+  const dx = model.position.x - e.root.position.x, dz = model.position.z - e.root.position.z;
+  const dist = Math.hypot(dx, dz); if(dist < 0.01) return false;
+  const facingX = Math.sin(e.root.rotation.y), facingZ = Math.cos(e.root.rotation.y);
+  const dot = facingX*(dx/dist) + facingZ*(dz/dist);
+  return dot < BACKSTAB_DOT;
+}
+function backstabMult(){ return BACKSTAB_MULT; }
+G.debug.isBackstab = (i) => isBackstab(i);
+G.debug.backstabMult = () => backstabMult();
+G.debug.forceEnemyBackstab = (i) => { const e=enemies[i]; if(!e||!model) return; const dx=model.position.x-e.root.position.x,dz=model.position.z-e.root.position.z; e.root.rotation.y=Math.atan2(dx,dz)+Math.PI; };
 // ====== #86 Footsteps sonores ======
 const FS_WALK = 0.38, FS_RUN = 0.22;
 let fsLastT = 0;

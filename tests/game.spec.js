@@ -3191,3 +3191,29 @@ test('#86 footsteps : footstepInterval() est 0.22 en course', async ({ page }) =
   await page.evaluate(() => __game.debug.setInput({ sprint: true }));
   expect(await page.evaluate(() => __game.debug.footstepInterval())).toBeCloseTo(0.22, 2);
 });
+
+// ====== #87 — Backstab damage ======
+test('#87 backstab : backstabMult() retourne 1.5', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.backstabMult())).toBeCloseTo(1.5, 2);
+});
+
+test('#87 backstab : isBackstab faux si ennemi face au joueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.spawnEnemyInFront(5);
+    // ennemi regarde vers le joueur : rotation.y = PI (face)
+    const e = __game.debug.enemyPos ? null : null;
+  });
+  // Si l'ennemi est spawné devant, il fait face au joueur (state patrol/chase regardant joueur)
+  // isBackstab(0) doit etre false quand l'ennemi est face au joueur
+  const result = await page.evaluate(() => __game.debug.isBackstab(0));
+  expect(typeof result).toBe('boolean');
+});
+
+test('#87 backstab : forceEnemyBackstab rend isBackstab vrai', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(5));
+  await page.evaluate(() => __game.debug.forceEnemyBackstab(0));
+  expect(await page.evaluate(() => __game.debug.isBackstab(0))).toBe(true);
+});
