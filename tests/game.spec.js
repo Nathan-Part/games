@@ -3624,3 +3624,28 @@ test('#107 ghost : ghost absent des blips radar', async ({ page }) => {
   const ghostBlip = blips.find(b => b.type === 'ghost');
   expect(ghostBlip).toBeUndefined();
 });
+
+// ====== #108 — Tactical reload bonus ======
+test('#108 tactical reload : tacticalReloadCount() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.tacticalReloadCount())).toBe(0);
+});
+
+test('#108 tactical reload : reload avec ammo>0 = tactical, +1 munition', async ({ page }) => {
+  await startPlaying(page);
+  const mag = await page.evaluate(() => __game.debug.curMag());
+  await page.evaluate(() => { __game.debug.setAmmo(5); __game.debug.reload(); });
+  // Attendre fin du reload
+  await page.waitForTimeout(1500);
+  const ammoAfter = await page.evaluate(() => __game.ammo);
+  expect(ammoAfter).toBe(mag + 1);
+  expect(await page.evaluate(() => __game.debug.lastReloadWasTactical())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.tacticalReloadCount())).toBe(1);
+});
+
+test('#108 tactical reload : reload a vide n est pas tactical', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setAmmo(0); __game.debug.reload(); });
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => __game.debug.lastReloadWasTactical())).toBe(false);
+});

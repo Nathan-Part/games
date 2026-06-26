@@ -2343,6 +2343,7 @@ function playerMeleeWeapon(){
 G.debug.playerMelee = () => playerMelee();
 function reload(){
   if(reloading || ammo === curMag || G.phase!=='playing') return;
+  pendingTactical_ = ammo > 0; lastReloadWasTactical_ = false;
   reloading = true; reloadAt = nowS() + curReload; playSound('reload');
 }
 // juice : trace de balle qui s'efface
@@ -2425,6 +2426,10 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #108 Tactical reload bonus ======
+let tacticalReloadCount_ = 0, lastReloadWasTactical_ = false, pendingTactical_ = false;
+G.debug.tacticalReloadCount = () => tacticalReloadCount_;
+G.debug.lastReloadWasTactical = () => lastReloadWasTactical_;
 // ====== #106 Empty mag click feedback ======
 let emptyFireCount_ = 0, lastEmptyFire_ = false;
 function triggerEmptyFire(){ emptyFireCount_++; lastEmptyFire_=true; if(actx && !muted) try{ tone(3000, 0.04, 'square', 0.03, 0); }catch(e){} const el=document.getElementById('hud-ammo-flash'); if(el){ el.classList.add('empty-flash'); setTimeout(()=>el.classList.remove('empty-flash'),300); } }
@@ -3349,7 +3354,7 @@ function updateCombatHud(){
 function updateCombat(dt){
   if(G.phase!=='playing') return;
   if(playerMeleeCd > 0) playerMeleeCd -= dt;                 // cooldown couteau (#45)
-  if(reloading && nowS() >= reloadAt){ ammo = curMag; reloading = false; G.ammo = ammo; }
+  if(reloading && nowS() >= reloadAt){ ammo = curMag + (pendingTactical_ ? 1 : 0); reloading = false; G.ammo = ammo; if(pendingTactical_){ lastReloadWasTactical_=true; tacticalReloadCount_++; pendingTactical_=false; } }
   updateReloadBar();
   const fireRising = input.fire && !firePrev; firePrev = input.fire;
   if(isSemiAuto() ? fireRising : input.fire) tryFire(); // semi-auto : rising edge seulement (#78)
