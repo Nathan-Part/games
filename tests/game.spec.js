@@ -3353,3 +3353,27 @@ test('#94 hardcore : en hardcore, soin healthpack n ameliore pas la sante', asyn
   const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
   expect(hpAfter).toBe(hpBefore);
 });
+
+// ====== #95 — Extended Mag power-up ======
+test('#95 extmag : extMagActive() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.extMagActive())).toBe(false);
+});
+
+test('#95 extmag : spawnExtMag() puis collecte double curMag', async ({ page }) => {
+  await startPlaying(page);
+  const baseMag = await page.evaluate(() => __game.debug.curMag());
+  await page.evaluate(() => __game.debug.spawnExtMag(0, 0));
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  await page.waitForTimeout(500);
+  const newMag = await page.evaluate(() => __game.debug.curMag());
+  expect(newMag).toBe(baseMag * 2);
+  expect(await page.evaluate(() => __game.debug.extMagActive())).toBe(true);
+});
+
+test('#95 extmag : extMagTimeLeft() > 0 apres collecte', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnExtMag(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => __game.debug.extMagTimeLeft())).toBeGreaterThan(0);
+});
