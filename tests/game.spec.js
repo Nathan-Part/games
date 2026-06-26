@@ -3950,3 +3950,31 @@ test('#120 medic : forceMedicHeal incremente medicHealCount', async ({ page }) =
   const count = await page.evaluate(() => __game.debug.medicHealCount());
   expect(count).toBeGreaterThan(0);
 });
+
+// ====== #121 — Stunner enemy ======
+test('#121 stunner : enemyType stunner existe et spawn vague 7+', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(7));
+  await page.waitForTimeout(300);
+  const types = await page.evaluate(() => {
+    const out = [];
+    for(let i = 0; i < __game.debug.enemyCount(); i++) out.push(__game.debug.enemyType(i));
+    return out;
+  });
+  expect(types).toContain('stunner');
+});
+
+test('#121 stunner : forceStun stun le joueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceStun());
+  await page.waitForTimeout(50);
+  const stunned = await page.evaluate(() => __game.debug.isStunned());
+  expect(stunned).toBe(true);
+});
+
+test('#121 stunner : stunCount incremente apres stun', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceStun());
+  const count = await page.evaluate(() => __game.debug.stunCount());
+  expect(count).toBeGreaterThan(0);
+});

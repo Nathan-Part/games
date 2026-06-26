@@ -1658,7 +1658,7 @@ function updateController(dt){
     if(canRun){ stamina = Math.max(0, stamina - STAMINA_DRAIN*dt); if(stamina===0) staminaDepleted=true; }
     else { stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt); if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; }
     updateStaminaHud();
-    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult;
+    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1); // stun (#121)
     model.position.x += vx*speed*dt;
     model.position.z += vz*speed*dt;
     const target = Math.atan2(vx, vz);
@@ -2534,6 +2534,15 @@ function updateMedics(dt){
 G.debug.enemyIsMedic = (i) => { const e=enemies[i]; return !!(e && e.type==='medic'); };
 G.debug.medicHealCount = () => medicHealCount_;
 G.debug.lastMedicHealTarget = () => lastMedicHealTarget_;
+// ====== #121 Stunner ======
+const STUN_DURATION = 0.5, STUN_SPEED_MULT = 0.3;
+let stunUntil_ = 0, stunCount_ = 0;
+function applyStun(){ stunUntil_ = nowS() + STUN_DURATION; stunCount_++; showCallout('STUNNÉ!'); }
+function isStunned(){ return nowS() < stunUntil_; }
+G.debug.isStunned = () => isStunned();
+G.debug.stunCount = () => stunCount_;
+G.debug.stunDuration = () => STUN_DURATION;
+G.debug.forceStun = () => applyStun();
 G.debug.forceMedicHeal = (i) => {
   const e = enemies[i]; if(!e || e.type !== 'medic') return;
   // Heal first injured ally or self-register a heal
@@ -3865,7 +3874,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; // restart (#55-#120)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; // restart (#55-#121)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -3909,6 +3918,7 @@ const ENEMY_TYPES = {
   sniper:    { id:'sniper',   hpMult:0.8, speedMult:0.5,  scale:1.0,  melee:false, damageMult:2.5, burst:1, glow:0xcc0033, shootCd:4.0 }, // #111 sniper
   shielder:  { id:'shielder', hpMult:1.2, speedMult:0.7,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x00aacc },         // #119 bouclier frontal
   medic:     { id:'medic',    hpMult:0.7, speedMult:0.8,  scale:0.95, melee:false, damageMult:0.8, burst:1, glow:0x00cc55 },         // #120 guérisseur
+  stunner:   { id:'stunner',  hpMult:0.9, speedMult:1.1,  scale:1.0,  melee:false, damageMult:0.7, burst:2, glow:0xffdd00 },         // #121 éclaire/ralentit le joueur
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -3926,6 +3936,7 @@ function waveComposition(w){
   for(let i=0;i<n;i++){
     if(w>=3 && i%4===3) out.push('tank');
     else if(w>=8 && i%6===5) out.push('ghost');                                 // fantôme dès la v8 (#107)
+    else if(w>=7 && i%6===5) out.push('stunner');                               // stunner dès la v7 (slot ghost pré-v8) (#121)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper dès la v5 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
     else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
@@ -4059,7 +4070,7 @@ function enemyTryShoot(e, dt){
   const smokeAcc = enemyInSmoke(enemies.indexOf(e)) ? SMOKE_ACC : 1;
   const acc = enemyAccOverride != null ? enemyAccOverride
             : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4)) * smokeAcc;
-  if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1))); damageDirFromEnemy(e); } // dir indicator (#63)
+  if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1))); damageDirFromEnemy(e); if(e.type==='stunner') applyStun(); } // dir indicator (#63) stun (#121)
   else { // tir manqué → étincelles sur le sol/mur entre ennemi et joueur (#73)
     const pp=G.position(), ex=e.root.position.x, ez=e.root.position.z;
     const t=0.5+Math.random()*0.4;
