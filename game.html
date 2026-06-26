@@ -1658,7 +1658,7 @@ function updateController(dt){
     if(canRun){ stamina = Math.max(0, stamina - STAMINA_DRAIN*dt); if(stamina===0) staminaDepleted=true; }
     else { stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt); if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; }
     updateStaminaHud();
-    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1) * (rampageActive() ? RAMPAGE_SPEED : 1); // stun (#121) rampage (#125)
+    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1) * (rampageActive() ? RAMPAGE_SPEED : 1) * (activePower==='speed_boost' ? 2 : 1); // stun (#121) rampage (#125) speed boost (#127)
     model.position.x += vx*speed*dt;
     model.position.z += vz*speed*dt;
     const target = Math.atan2(vx, vz);
@@ -3865,7 +3865,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 } }; // #122 #123
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 } }; // #122 #123 #127
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -3908,6 +3908,9 @@ G.debug.spawnXpBoost = (x,z) => spawnPowerUp('xp_boost', x, z);
 G.debug.explosiveAmmoActive = () => activePower === 'explosive_ammo';           // #123
 G.debug.explosiveAmmoTimeLeft = () => activePower === 'explosive_ammo' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnExplosiveAmmo = (x,z) => spawnPowerUp('explosive_ammo', x, z);
+G.debug.speedBoostActive = () => activePower === 'speed_boost';                 // #127
+G.debug.speedBoostTimeLeft = () => activePower === 'speed_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.spawnSpeedBoost = (x,z) => spawnPowerUp('speed_boost', x, z);
 
 function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');

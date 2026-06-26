@@ -4150,3 +4150,34 @@ test('#126 wave mult : lastKillScore > 1 en vague 5 apres un kill', async ({ pag
   expect(ks).toBeGreaterThanOrEqual(2); // combo 1 × wave mult 1.5 = 1.5 → round = 2 (or 1 if floor)
   expect(ks).toBeGreaterThan(1);
 });
+
+// ====== #127 — Speed boost power-up ======
+test('#127 speed_boost : spawnSpeedBoost puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnSpeedBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const active = await page.evaluate(() => __game.debug.speedBoostActive());
+  expect(active).toBe(true);
+});
+
+test('#127 speed_boost : speedBoostTimeLeft > 0 quand actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnSpeedBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const tl = await page.evaluate(() => __game.debug.speedBoostTimeLeft());
+  expect(tl).toBeGreaterThan(0);
+});
+
+test('#127 speed_boost : le joueur se deplace avec le boost actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnSpeedBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300); // pickup
+  const boosted = await page.evaluate(() => __game.debug.speedBoostActive());
+  expect(boosted).toBe(true);
+  await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.setInput({ forward: true }); });
+  await page.waitForTimeout(400);
+  const pos = await page.evaluate(() => __game.position());
+  await page.evaluate(() => __game.debug.setInput({}));
+  const dist = Math.hypot(pos.x, pos.z);
+  expect(dist).toBeGreaterThan(0.1);
+});
