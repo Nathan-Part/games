@@ -2366,7 +2366,7 @@ function throwGrenade(){
   const m = buildGrenadeMesh(); m.castShadow = true;
   m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
   const vel = dir.multiplyScalar(9); vel.y += 3;
-  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE, bounces:0 }); return true;
+  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE, bounces:0 }); showGrenadeArc(false); return true;
 }
 function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),
   new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
@@ -2406,6 +2406,34 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #97 Arc trajectoire grenade ======
+const ARC_STEPS = 10, ARC_DT = 0.12, GRENADE_G = 9.81;
+let arcLine = null, arcVisible_ = false;
+function buildArcLine(){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(ARC_STEPS * 3); geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.LineBasicMaterial({ color:0xffff00, transparent:true, opacity:0.7, depthTest:false });
+  arcLine = new THREE.Line(geo, mat); arcLine.visible = false; scene.add(arcLine);
+}
+function updateGrenadeArc(){
+  if(!arcLine) buildArcLine();
+  arcLine.visible = arcVisible_;
+  if(!arcVisible_ || !model) return;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  let px = camera.position.x + dir.x*0.5, py = camera.position.y + dir.y*0.5, pz = camera.position.z + dir.z*0.5;
+  let vx = dir.x*9, vy = dir.y*9+3, vz = dir.z*9;
+  const pos = arcLine.geometry.attributes.position;
+  for(let i=0;i<ARC_STEPS;i++){
+    pos.array[i*3]=px; pos.array[i*3+1]=py; pos.array[i*3+2]=pz;
+    px+=vx*ARC_DT; py+=vy*ARC_DT; pz+=vz*ARC_DT; vy-=GRENADE_G*ARC_DT;
+    if(py < 0){ py=0; break; }
+  }
+  pos.needsUpdate = true;
+}
+function showGrenadeArc(b){ arcVisible_ = !!b; if(arcLine) arcLine.visible = arcVisible_; }
+G.debug.grenadeArcVisible = () => arcVisible_;
+G.debug.grenadeArcPointCount = () => ARC_STEPS;
+G.debug.showGrenadeArc = (b) => showGrenadeArc(b);
 // ====== #96 LMG Overheat ======
 const OVERHEAT_MAX = 20, OVERHEAT_PAUSE = 2, OVERHEAT_COOLDOWN = 0.8;
 let overheat_ = 0, overheatPaused_ = false, overheatPauseUntil_ = 0;
@@ -4681,7 +4709,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

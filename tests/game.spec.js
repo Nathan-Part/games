@@ -3398,3 +3398,23 @@ test('#96 overheat : setOverheat(20) sur LMG declenche overheat', async ({ page 
   expect(await page.evaluate(() => __game.debug.overheatPaused())).toBe(true);
   expect(await page.evaluate(() => __game.debug.overheatLevel())).toBe(20);
 });
+
+// ====== #97 — Arc trajectoire grenade ======
+test('#97 arc grenade : grenadeArcVisible() false sans input grenade', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.grenadeArcVisible())).toBe(false);
+});
+
+test('#97 arc grenade : showGrenadeArc(true) rend l arc visible avec 10 points', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showGrenadeArc(true));
+  expect(await page.evaluate(() => __game.debug.grenadeArcVisible())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.grenadeArcPointCount())).toBe(10);
+});
+
+test('#97 arc grenade : throwGrenade() masque l arc', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showGrenadeArc(true));
+  await page.evaluate(() => __game.debug.throwGrenade());
+  expect(await page.evaluate(() => __game.debug.grenadeArcVisible())).toBe(false);
+});
