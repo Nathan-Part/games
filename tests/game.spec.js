@@ -3151,3 +3151,26 @@ test('#84 renforts : apres forceCallReinforcement, enemyCalledReinforcement vrai
   await page.evaluate(() => __game.debug.forceCallReinforcement(0));
   expect(await page.evaluate(() => __game.debug.enemyCalledReinforcement(0))).toBe(true);
 });
+
+// ====== #85 — Ennemi ramasse arme ======
+test('#85 pickup : enemyPickedUpWeapon(0) false au debut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  expect(await page.evaluate(() => __game.debug.enemyPickedUpWeapon(0))).toBe(false);
+});
+
+test('#85 pickup : forceEnemyPickup place une arme sur ennemi rusher sans arme', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyInFront(8); __game.debug.spawnEnemyTypeAt(0,'rusher',2,2); });
+  await page.evaluate(() => __game.debug.forceEnemyPickup(0));
+  expect(await page.evaluate(() => __game.debug.enemyPickedUpWeapon(0))).toBe(true);
+});
+
+test('#85 pickup : apres pickup, weaponId de l ennemi change', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyInFront(8); __game.debug.spawnEnemyTypeAt(0,'rusher',2,2); });
+  const before = await page.evaluate(() => __game.debug.enemyWeaponId(0));
+  await page.evaluate(() => __game.debug.forceEnemyPickup(0));
+  const after = await page.evaluate(() => __game.debug.enemyWeaponId(0));
+  expect(after).not.toBe(before);
+});

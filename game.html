@@ -2397,6 +2397,27 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #85 Ennemi ramasse arme ======
+const ENEMY_PICKUP_R = 2;
+function enemyTryPickup(e){
+  if(e.pickedUpWeapon || e.type !== 'rusher') return;
+  for(const corpse of enemies){
+    if(corpse === e || corpse.state !== 'dead' || !corpse.weaponId || corpse.looted) continue;
+    const d = Math.hypot(e.root.position.x - corpse.root.position.x, e.root.position.z - corpse.root.position.z);
+    if(d <= ENEMY_PICKUP_R){
+      e.pickedUpWeapon = true; e.weaponId = corpse.weaponId;
+      corpse.looted = true; if(corpse.weapon) corpse.weapon.visible = false;
+      attachWeaponToEnemy(e); break;
+    }
+  }
+}
+G.debug.enemyPickedUpWeapon = (i) => !!(enemies[i]?.pickedUpWeapon);
+G.debug.forceEnemyPickup = (i) => {
+  const e = enemies[i]; if(!e) return;
+  const corpse = enemies.find(c => c!==e && c.state==='dead' && c.weaponId && !c.looted);
+  if(corpse){ e.pickedUpWeapon=false; e.root.position.set(corpse.root.position.x, corpse.root.position.y, corpse.root.position.z); enemyTryPickup(e); }
+  else { e.pickedUpWeapon=true; e.weaponId='default'; attachWeaponToEnemy(e); }
+};
 // ====== #84 Renforts ennemis ======
 const REINFORCE_DELAY = 12, REINFORCE_TYPES = ['rusher','shooter'];
 function callReinforcement(e){
@@ -2421,7 +2442,7 @@ function spawnSingleEnemy(sp, type, hp){
   const id = enemies.length;
   const e = { id, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
               loco:'idle', target:null, lostFor:0, flashUntil:0, weaponId:weaponIdForType(type), looted:false,
-              burstLeft:spec.burst||1, flankSide:(id%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false };
+              burstLeft:spec.burst||1, flankSide:(id%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false, pickedUpWeapon:false };
   actions.idle?.play(); attachWeaponToEnemy(e); scene.add(root); enemies.push(e);
 }
 G.debug.enemyCalledReinforcement = (i) => !!(enemies[i]?.calledReinforcement);
@@ -3617,7 +3638,7 @@ function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
     const ehp = Math.round(hp * spec.hpMult);
     const e = { id:i, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
                 loco:'idle', target:null, lostFor:0, flashUntil:0, weaponId:weaponIdForType(type), looted:false,
-                burstLeft:spec.burst || 1, flankSide:(i%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false };
+                burstLeft:spec.burst || 1, flankSide:(i%2===0)?1:-1, meleeCd:0, spawnedAt:nowS(), calledReinforcement:false, pickedUpWeapon:false };
     actions.idle?.play();
     attachWeaponToEnemy(e);                       // no-op si le template n'est pas encore prêt
     scene.add(root); enemies.push(e);
@@ -3649,6 +3670,7 @@ function updateEnemies(dt){
     }
     if(e.flashedUntil && nowS() < e.flashedUntil){ e.mixer.update(dt); setEnemyLoco(e,'idle'); continue; } // aveuglé (#57)
     if(!e.calledReinforcement && (e.type==='shooter'||e.type==='tank') && nowS()-e.spawnedAt >= REINFORCE_DELAY) callReinforcement(e); // renforts (#84)
+    if(!e.pickedUpWeapon && e.type==='rusher') enemyTryPickup(e); // pickup arme (#85)
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
     const los = hasLineOfSight(e.root.position.x, e.root.position.z, px, pz);
