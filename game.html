@@ -3581,6 +3581,7 @@ function flashDamage(){
 function damagePlayer(amount){
   if(G.phase !== 'playing') return;
   onStreakReset();                                        // tout hit reset le streak (#72), avant guard clauses
+  headStreakCount_ = 0;                                  // reset headshot streak (#110)
   amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus
   if(ksShieldActive()) amount = Math.round(amount * 0.5); // bouclier killstreak #58
   // bouclier rechargeable (#67)
@@ -4234,12 +4235,23 @@ function showCallout(text){ lastCalloutText = text; const el = document.getEleme
 function killCallout(e){
   const t = nowS(); killTimes.push(t); while(killTimes.length && t - killTimes[0] > MULTIKILL_WINDOW) killTimes.shift();
   const n = killTimes.length;
+  registerKillForStreak(!!e.lastHitHead);
   if(e.type === 'boss') showCallout('BOSS DOWN');
   else if(n >= 2) showCallout(n===2 ? 'DOUBLE KILL' : n===3 ? 'TRIPLE KILL' : 'MULTI KILL !');
   else if(e.lastHitHead) showCallout('HEADSHOT');
 }
-function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); resetKillFeed(); resetChallenges(); }
+function resetCallouts(){ killTimes.length = 0; lastCalloutText = null; headStreakCount_ = 0; const el = document.getElementById('kill-callout'); if(el) el.classList.remove('show'); resetKillFeed(); resetChallenges(); }
 G.debug.lastCallout = () => lastCalloutText;
+// ====== #110 Headshot streak ======
+const HS_STREAK_BONUS = 10, HS_STREAK_MIN = 3;
+let headStreakCount_ = 0;
+function registerKillForStreak(isHead){
+  if(isHead){ headStreakCount_++; if(headStreakCount_ >= HS_STREAK_MIN){ addMoney(HS_STREAK_BONUS); showCallout('HEADSHOT STREAK ' + headStreakCount_ + '!'); } }
+  else headStreakCount_ = 0;
+}
+G.debug.headStreakCount = () => headStreakCount_;
+G.debug.headStreakBonus = () => HS_STREAK_BONUS;
+G.debug.resetHeadStreak = () => { headStreakCount_ = 0; };
 // ====== #54 Kill Feed ======
 const KF_COLORS = { rusher:'#ff6b35', shooter:'#4fc3f7', tank:'#81c784', bomber:'#ffb300', boss:'#ce93d8' };
 const KF_LABELS = { rusher:'Rusher', shooter:'Shooter', tank:'Tank', bomber:'Bomber', boss:'Boss' };

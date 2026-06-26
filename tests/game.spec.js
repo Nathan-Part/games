@@ -3672,3 +3672,35 @@ test('#109 shield orb : spawnShieldOrb incremente powerUpCount', async ({ page }
   await page.evaluate(() => __game.debug.spawnShieldOrb(50, 50));
   expect(await page.evaluate(() => __game.debug.powerUpCount())).toBe(before + 1);
 });
+
+// ====== #110 — Headshot streak counter ======
+test('#110 headshot streak : 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.headStreakCount())).toBe(0);
+});
+
+test('#110 headshot streak : 3 headshots consecutifs incremente le streak', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setEnemyLastHitHead(0, true);
+    __game.debug.damageEnemy(0, 1000);
+    const e2 = __game.debug.spawnEnemyInFront(5);
+    __game.debug.setEnemyLastHitHead(e2, true);
+    __game.debug.damageEnemy(e2, 1000);
+    const e3 = __game.debug.spawnEnemyInFront(5);
+    __game.debug.setEnemyLastHitHead(e3, true);
+    __game.debug.damageEnemy(e3, 1000);
+  });
+  const streak = await page.evaluate(() => __game.debug.headStreakCount());
+  expect(streak).toBeGreaterThanOrEqual(3);
+});
+
+test('#110 headshot streak : reset sur dommage recu', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setEnemyLastHitHead(0, true);
+    __game.debug.damageEnemy(0, 1000);
+    __game.debug.damagePlayer(20);
+  });
+  expect(await page.evaluate(() => __game.debug.headStreakCount())).toBe(0);
+});
