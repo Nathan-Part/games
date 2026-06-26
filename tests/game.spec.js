@@ -3733,3 +3733,29 @@ test('#111 sniper : type sniper dans waveComposition vague 7', async ({ page }) 
   const comp7 = await page.evaluate(() => __game.debug.waveComposition(7));
   expect(comp7.includes('sniper')).toBe(true);
 });
+
+// ====== #112 — Auto-reload ======
+test('#112 auto-reload : active par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.autoReloadEnabled())).toBe(true);
+});
+
+test('#112 auto-reload : setAutoReload(false) desactive', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setAutoReload(false));
+  expect(await page.evaluate(() => __game.debug.autoReloadEnabled())).toBe(false);
+});
+
+test('#112 auto-reload : mag vide declenche auto-reload apres 1.5s', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setAutoReload(true);
+    __game.debug.setAmmo(0);
+    __game.debug.tryFire(); // trigger autoReloadAt_
+  });
+  expect(await page.evaluate(() => __game.debug.autoReloadPending())).toBe(true);
+  // Après 4.5s (1.5s délai + ~2s reload) le chargeur doit être rechargé
+  await page.waitForTimeout(4500);
+  const ammo = await page.evaluate(() => __game.ammo);
+  expect(ammo).toBeGreaterThan(0);
+});

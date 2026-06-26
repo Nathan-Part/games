@@ -2258,7 +2258,7 @@ function tryFire(){
   if(G.phase!=='playing') return false;
   if(weaponById(effectiveWeaponId()).melee) return playerMeleeWeapon();   // couteau → corps-à-corps
   if(reloading) return false;
-  if(ammo <= 0){ lastEmptyFire_=false; triggerEmptyFire(); return false; }
+  if(ammo <= 0){ lastEmptyFire_=false; triggerEmptyFire(); if(autoReloadEnabled_ && autoReloadAt_ < 0 && !reloading) autoReloadAt_ = nowS() + AUTO_RELOAD_DELAY; return false; }
   if(overheatPaused_) return false;
   if(nowS() - lastShot < curCooldown) return false;
   if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; } // initier la rafale (#64)
@@ -2343,7 +2343,7 @@ function playerMeleeWeapon(){
 G.debug.playerMelee = () => playerMelee();
 function reload(){
   if(reloading || ammo === curMag || G.phase!=='playing') return;
-  pendingTactical_ = ammo > 0; lastReloadWasTactical_ = false;
+  pendingTactical_ = ammo > 0; lastReloadWasTactical_ = false; autoReloadAt_ = -1;
   reloading = true; reloadAt = nowS() + curReload; playSound('reload');
 }
 // juice : trace de balle qui s'efface
@@ -2426,6 +2426,12 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #112 Auto-reload ======
+const AUTO_RELOAD_DELAY = 1.5;
+let autoReloadEnabled_ = true, autoReloadAt_ = -1;
+G.debug.autoReloadEnabled = () => autoReloadEnabled_;
+G.debug.setAutoReload = (b) => { autoReloadEnabled_ = !!b; if(!b) autoReloadAt_ = -1; };
+G.debug.autoReloadPending = () => autoReloadEnabled_ && autoReloadAt_ > 0 && nowS() < autoReloadAt_;
 // ====== #108 Tactical reload bonus ======
 let tacticalReloadCount_ = 0, lastReloadWasTactical_ = false, pendingTactical_ = false;
 G.debug.tacticalReloadCount = () => tacticalReloadCount_;
@@ -3357,6 +3363,7 @@ function updateCombat(dt){
   if(G.phase!=='playing') return;
   if(playerMeleeCd > 0) playerMeleeCd -= dt;                 // cooldown couteau (#45)
   if(reloading && nowS() >= reloadAt){ ammo = curMag + (pendingTactical_ ? 1 : 0); reloading = false; G.ammo = ammo; if(pendingTactical_){ lastReloadWasTactical_=true; tacticalReloadCount_++; pendingTactical_=false; } }
+  if(autoReloadEnabled_ && autoReloadAt_ > 0 && nowS() >= autoReloadAt_ && !reloading && ammo === 0){ autoReloadAt_ = -1; reload(); }
   updateReloadBar();
   const fireRising = input.fire && !firePrev; firePrev = input.fire;
   if(isSemiAuto() ? fireRising : input.fire) tryFire(); // semi-auto : rising edge seulement (#78)
