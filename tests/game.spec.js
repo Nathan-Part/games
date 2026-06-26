@@ -3775,3 +3775,24 @@ test('#113 perfect burst : burstRoundsLeft disponible', async ({ page }) => {
   await startPlaying(page);
   expect(typeof await page.evaluate(() => __game.debug.burstRoundsLeft())).toBe('number');
 });
+
+// ====== #114 — Armor system ======
+test('#114 armor : armoredKillCount 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.armoredKillCount())).toBe(0);
+});
+
+test('#114 armor : tank torse mult = 0.7, tete mult = 1.0', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'tank', 5, 5));
+  const torsoMult = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'torso'));
+  const headMult = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'head'));
+  expect(torsoMult).toBeCloseTo(0.7, 2);
+  expect(headMult).toBeCloseTo(1.0, 2);
+});
+
+test('#114 armor : shooter torse mult = 1.0 (pas blinde)', async ({ page }) => {
+  await startPlaying(page);
+  const mult = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'torso'));
+  expect(mult).toBeCloseTo(1.0, 2);
+});

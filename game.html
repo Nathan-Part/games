@@ -2245,7 +2245,8 @@ function fireRay(sx, sy){                                    // un plomb / rayon
     else { const e = enemies.find(e => e.hitbox === obj);
       if(e){ const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY);
         const bsMult = isBackstab(enemies.indexOf(e)) ? BACKSTAB_MULT : 1;
-        let dmg = Math.round(hz.damage * curDmgMult * bsMult);
+        const armorM = enemyArmorMult(e, hz.zone);
+        let dmg = Math.round(hz.damage * curDmgMult * bsMult * armorM);
         if(isPrecisionShot()){ dmg = Math.round(dmg*PRECISION_MULT); registerPrecisionHit(); } else { lastWasPrecision_=false; }
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
         _fireConnected = true;                                 // tir au but : précision (#43)
@@ -2427,6 +2428,13 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #114 Armor system ======
+const ARMOR_TYPES = new Set(['tank','boss']);
+const ARMOR_TORSO_MULT = 0.7;
+let armoredKillCount_ = 0;
+function enemyArmorMult(e, zone){ return ARMOR_TYPES.has(e.type) && zone === 'torso' ? ARMOR_TORSO_MULT : 1.0; }
+G.debug.enemyArmorMult = (i, zone) => { const e=enemies[i]; return e ? enemyArmorMult(e, zone) : 1.0; };
+G.debug.armoredKillCount = () => armoredKillCount_;
 // ====== #112 Auto-reload ======
 const AUTO_RELOAD_DELAY = 1.5;
 let autoReloadEnabled_ = true, autoReloadAt_ = -1;
@@ -4371,6 +4379,7 @@ function killEnemy(e){
     e.actions.dead.clampWhenFinished = true;
     e.actions.dead.play();
   }
+  if(ARMOR_TYPES.has(e.type)) armoredKillCount_++;    // armor system (#114)
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   score += mult; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
   checkChallenges('kills', runKills); if(e.lastHitHead) checkChallenges('headshots', runHeadshots);
