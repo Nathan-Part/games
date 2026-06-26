@@ -706,7 +706,7 @@ Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushO
 
 // ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
 const SAVE_KEY = 'cod-save-v1';
-function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestCombo:0, xp:0, selectedCharacterId:null,
+function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestCombo:0, xp:0, daily:null, selectedCharacterId:null,
   ownedWeapons:['default','knife'], selectedWeapon:'default', weaponUpgrades:{}, playerUpgrades:{},   // knife gratuit possédé par défaut (#50)
   ownedCharacters:['perso:blue-soldier'],
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
@@ -2298,6 +2298,62 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #62 Contrats quotidiens ======
+const DAILY_POOL = [
+  { id:'kills50',   desc:'Eliminer 50 ennemis',      type:'kills',    target:50,  reward:800  },
+  { id:'kills100',  desc:'Eliminer 100 ennemis',     type:'kills',    target:100, reward:1500 },
+  { id:'heads20',   desc:'20 headshots',              type:'headshots',target:20,  reward:1000 },
+  { id:'heads10',   desc:'10 headshots',              type:'headshots',target:10,  reward:600  },
+  { id:'wave10',    desc:'Atteindre la vague 10',     type:'wave',     target:10,  reward:2000 },
+  { id:'wave5',     desc:'Atteindre la vague 5',      type:'wave',     target:5,   reward:900  },
+  { id:'melee15',   desc:'15 kills au couteau',       type:'melee',    target:15,  reward:1200 },
+  { id:'melee5',    desc:'5 kills au couteau',        type:'melee',    target:5,   reward:500  },
+];
+function dailySeed(){
+  const d = new Date(); return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+}
+function seededPick(pool, seed, n){
+  const arr = [...pool]; const out = [];
+  for(let i=0;i<n;i++){ seed=(seed*1664525+1013904223)&0xffffffff; const idx=Math.abs(seed)%arr.length; out.push(arr.splice(idx,1)[0]); }
+  return out;
+}
+function getDailyContracts(){
+  const seed = dailySeed(); const key = 'daily_seed';
+  if(!save.daily || save.daily[key] !== seed){
+    const picked = seededPick(DAILY_POOL, seed, 3);
+    save.daily = { [key]:seed, contracts: picked.map(c => ({ id:c.id, progress:0, done:false })) };
+    persist();
+  }
+  return save.daily.contracts.map((s, i) => {
+    const def = DAILY_POOL.find(p => p.id === s.id) || DAILY_POOL[i];
+    return { id:s.id, desc:def.desc, type:def.type, target:def.target, reward:def.reward, progress:s.progress, done:s.done };
+  });
+}
+function trackDailyKill(type){
+  if(!save.daily) return;
+  save.daily.contracts.forEach((c, i) => {
+    if(c.done) return;
+    const def = DAILY_POOL.find(p => p.id === c.id); if(!def || def.type !== type) return;
+    c.progress = Math.min(def.target, (c.progress||0) + 1);
+    if(c.progress >= def.target){ c.done = true; addMoney(def.reward); showKsBanner(`CONTRAT TERMINÉ +${def.reward}$`, '#ffd54f'); }
+  }); persist();
+}
+function trackDailyWave(w){
+  if(!save.daily) return;
+  save.daily.contracts.forEach((c, i) => {
+    if(c.done) return;
+    const def = DAILY_POOL.find(p => p.id === c.id); if(!def || def.type !== 'wave') return;
+    if(w >= def.target && !c.done){ c.done = true; c.progress = def.target; addMoney(def.reward); showKsBanner(`CONTRAT TERMINÉ +${def.reward}$`, '#ffd54f'); }
+  }); persist();
+}
+G.debug.dailyContracts = () => getDailyContracts();
+G.debug.forceDailyComplete = (i) => {
+  getDailyContracts(); // ensure init
+  const c = save.daily.contracts[i]; if(!c || c.done) return;
+  const def = DAILY_POOL.find(p => p.id === c.id); if(!def) return;
+  c.progress = def.target; c.done = true; persist(); addMoney(def.reward);
+};
+G.debug.dailyContractsDone = () => getDailyContracts().filter(c => c.done).length;
 // ====== #60 XP + niveaux ======
 const XP_KILL=25, XP_HEAD=25, XP_WAVE=100; // headshot = 25 bonus (total 50)
 const LEVEL_TITLES = ['Recrue','Soldat','Caporal','Sergent','Lieutenant','Capitaine','Major','Colonel','Général','Légende'];
@@ -3424,6 +3480,7 @@ function killEnemy(e){
   addKillFeedEntry(e);                                  // journal kill (#54)
   registerKsKill();                                     // récompenses killstreak (#58)
   addXp(XP_KILL + (e.lastHitHead ? XP_HEAD : 0));      // XP par kill (#60)
+  trackDailyKill('kills'); if(e.lastHitHead) trackDailyKill('headshots'); if(e.lastHitMelee) trackDailyKill('melee'); // contrats (#62)
 }
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
@@ -3440,6 +3497,7 @@ function checkWaveCleared(){
   if(dmgThisWave === 0) checkChallenges('nodmg', 1);
   addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   addXp(XP_WAVE * wave);                                                           // XP par vague (#60)
+  trackDailyWave(wave);                                                             // contrats vague (#62)
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 function updateWaves(dt){

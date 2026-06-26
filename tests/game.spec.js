@@ -2647,3 +2647,36 @@ test('#61 scope : pas de scope avec arme non-sniper', async ({ page }) => {
   const active = await page.evaluate(() => __game.debug.sniperScopeActive());
   expect(active).toBe(false);
 });
+
+// ====== #62 — Contrats quotidiens ======
+test('#62 daily : dailyContracts retourne 3 contrats', async ({ page }) => {
+  await startPlaying(page);
+  const contracts = await page.evaluate(() => __game.debug.dailyContracts());
+  expect(contracts).toHaveLength(3);
+});
+
+test('#62 daily : chaque contrat a id, desc, target, reward, progress, done', async ({ page }) => {
+  await startPlaying(page);
+  const c = await page.evaluate(() => __game.debug.dailyContracts()[0]);
+  expect(typeof c.id).toBe('string');
+  expect(typeof c.desc).toBe('string');
+  expect(c.target).toBeGreaterThan(0);
+  expect(c.reward).toBeGreaterThan(0);
+  expect(typeof c.progress).toBe('number');
+  expect(typeof c.done).toBe('boolean');
+});
+
+test('#62 daily : forceDailyComplete complete un contrat', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceDailyComplete(0));
+  const done = await page.evaluate(() => __game.debug.dailyContracts()[0].done);
+  expect(done).toBe(true);
+});
+
+test('#62 daily : forceDailyComplete donne de l argent', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.forceDailyComplete(0));
+  const after = await page.evaluate(() => __game.money);
+  expect(after).toBeGreaterThan(before);
+});
