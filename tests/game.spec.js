@@ -3821,3 +3821,22 @@ test('#115 enemy count hud : element enemy-count-hud present dans DOM', async ({
   const exists = await page.evaluate(() => !!document.getElementById('enemy-count-hud'));
   expect(exists).toBe(true);
 });
+
+// ====== #116 — Suppression fire ======
+test('#116 suppression : enemySuppressed false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.enemySuppressed(0))).toBe(false);
+});
+
+test('#116 suppression : suppressEnemy rend ennemi supprime', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.suppressEnemy(0));
+  expect(await page.evaluate(() => __game.debug.enemySuppressed(0))).toBe(true);
+});
+
+test('#116 suppression : lastSuppressCount incremente apres suppressEnemy', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.lastSuppressCount());
+  await page.evaluate(() => __game.debug.suppressEnemy(0));
+  expect(await page.evaluate(() => __game.debug.lastSuppressCount())).toBe(before + 1);
+});

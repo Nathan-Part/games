@@ -2259,7 +2259,12 @@ function fireRay(sx, sy){                                    // un plomb / rayon
         showHitMarker(hz.zone === 'head');                     // hit-marker (#59)
         damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
       else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
-  } else { lastRicochetHit_=false; tryRicochet(_ray.ray.origin, _ray.ray.direction); }    // miss → ricochet (#101)
+  } else { lastRicochetHit_=false; tryRicochet(_ray.ray.origin, _ray.ray.direction);
+    // suppression (#116) : miss proche d'un ennemi → suppressed
+    if(hits.length > 0){ const impactPt = hits[0].point;
+      for(const en of enemies){ if(!en.alive) continue;
+        if(en.root.position.distanceTo(impactPt) < SUPPRESS_RANGE) suppressEnemy(en); } }
+  }    // miss → ricochet (#101)
 }
 function tryFire(){
   if(G.phase!=='playing') return false;
@@ -2433,6 +2438,14 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #116 Suppression fire ======
+const SUPPRESS_RANGE = 2.0, SUPPRESS_DUR = 1.5;
+let lastSuppressCount_ = 0;
+function suppressEnemy(e){ if(!e || !e.alive) return; e.suppressedUntil = nowS() + SUPPRESS_DUR; lastSuppressCount_++; }
+function enemySuppressed(e){ return !!e && e.alive && (e.suppressedUntil || 0) > nowS(); }
+G.debug.enemySuppressed = (i) => { const e=enemies[i]; return enemySuppressed(e); };
+G.debug.suppressEnemy = (i) => { const e=enemies[i]; suppressEnemy(e); };
+G.debug.lastSuppressCount = () => lastSuppressCount_;
 // ====== #114 Armor system ======
 const ARMOR_TYPES = new Set(['tank','boss']);
 const ARMOR_TORSO_MULT = 0.7;
@@ -3908,6 +3921,7 @@ G.debug.radar = {
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
+  if(enemySuppressed(e)) return;  // suppressed (#116)
   let from;
   if(e.muzzle){ e.muzzle.updateMatrixWorld(true); from = e.muzzle.getWorldPosition(new THREE.Vector3()); }
   else from = new THREE.Vector3(e.root.position.x, e.root.position.y + 1.4, e.root.position.z);
