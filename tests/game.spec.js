@@ -3418,3 +3418,27 @@ test('#97 arc grenade : throwGrenade() masque l arc', async ({ page }) => {
   await page.evaluate(() => __game.debug.throwGrenade());
   expect(await page.evaluate(() => __game.debug.grenadeArcVisible())).toBe(false);
 });
+
+// ====== #98 — Munitions infinies ======
+test('#98 inf ammo : infiniteAmmoActive() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.infiniteAmmoActive())).toBe(false);
+});
+
+test('#98 inf ammo : setInfiniteAmmo(true) puis tir ne consomme pas ammo', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInfiniteAmmo(true));
+  const ammoBefore = await page.evaluate(() => __game.ammo);
+  await page.evaluate(() => __game.debug.tryFire());
+  const ammoAfter = await page.evaluate(() => __game.ammo);
+  expect(ammoAfter).toBe(ammoBefore);
+});
+
+test('#98 inf ammo : setInfiniteAmmo(false) retablit consommation normale', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setInfiniteAmmo(true); __game.debug.setInfiniteAmmo(false); });
+  const ammoBefore = await page.evaluate(() => __game.ammo);
+  await page.evaluate(() => __game.debug.tryFire());
+  const ammoAfter = await page.evaluate(() => __game.ammo);
+  expect(ammoAfter).toBe(ammoBefore - 1);
+});

@@ -2244,7 +2244,7 @@ function tryFire(){
   if(overheatPaused_) return false;
   if(nowS() - lastShot < curCooldown) return false;
   if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; } // initier la rafale (#64)
-  lastShot = nowS(); ammo--; G.ammo = ammo; shake = 1; playSound('shot'); weaponRecoil = curRecoil; registerOverheatShot();
+  lastShot = nowS(); if(!infiniteAmmo_){ ammo--; G.ammo = ammo; } shake = 1; playSound('shot'); weaponRecoil = curRecoil; registerOverheatShot();
   cameraKick(input.aim ? 1 : 0); // camera kick (#77)
   runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
   const sp = currentSpread(); const spR = (sp-1) * 0.022; // spread NDC (#92)
@@ -2406,6 +2406,10 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #98 Munitions infinies (mode debug) ======
+let infiniteAmmo_ = false;
+G.debug.infiniteAmmoActive = () => infiniteAmmo_;
+G.debug.setInfiniteAmmo = (b) => { infiniteAmmo_ = !!b; };
 // ====== #97 Arc trajectoire grenade ======
 const ARC_STEPS = 10, ARC_DT = 0.12, GRENADE_G = 9.81;
 let arcLine = null, arcVisible_ = false;
@@ -3547,7 +3551,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; // restart (#55-#96)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; // restart (#55-#98)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
