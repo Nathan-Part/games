@@ -2905,3 +2905,22 @@ test('#71 reload-bar : element #reload-bar existe dans le DOM', async ({ page })
   const exists = await page.evaluate(() => !!document.getElementById('reload-bar'));
   expect(exists).toBe(true);
 });
+
+// ====== #72 — Compteur streak kills ======
+test('#72 streak : streakKills initial = 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(0);
+});
+
+test('#72 streak : kill incremente le streak', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 9999); });
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(1);
+});
+
+test('#72 streak : degat joueur reset le streak', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 9999); });
+  await page.evaluate(() => __game.debug.damagePlayer(10));
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(0);
+});
