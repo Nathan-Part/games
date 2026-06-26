@@ -4049,3 +4049,44 @@ test('#123 explosive_ammo : explosiveAmmoTimeLeft > 0 quand actif', async ({ pag
   const tl = await page.evaluate(() => __game.debug.explosiveAmmoTimeLeft());
   expect(tl).toBeGreaterThan(0);
 });
+
+// ====== #124 — Decoy enemy ======
+test('#124 decoy : forceSpawnDecoy cree un decoy visible', async ({ page }) => {
+  await startPlaying(page);
+  // need at least one real enemy
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
+  await page.waitForTimeout(100);
+  const before = await page.evaluate(() => __game.debug.decoyCount());
+  await page.evaluate(() => __game.debug.forceSpawnDecoy(0));
+  await page.waitForTimeout(100);
+  const after = await page.evaluate(() => __game.debug.decoyCount());
+  expect(after).toBeGreaterThan(before);
+});
+
+test('#124 decoy : enemyIsDecoy retourne true pour le decoy spawné', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
+  await page.waitForTimeout(100);
+  const countBefore = await page.evaluate(() => __game.debug.enemyCount());
+  await page.evaluate(() => __game.debug.forceSpawnDecoy(0));
+  await page.waitForTimeout(100);
+  const countAfter = await page.evaluate(() => __game.debug.enemyCount());
+  // le decoy a été ajouté dans enemies[]
+  expect(countAfter).toBeGreaterThan(countBefore);
+  const isDecoy = await page.evaluate((i) => __game.debug.enemyIsDecoy(i), countBefore);
+  expect(isDecoy).toBe(true);
+});
+
+test('#124 decoy : decoy disparait apres expiration', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
+  await page.waitForTimeout(100);
+  await page.evaluate(() => __game.debug.forceSpawnDecoy(0));
+  await page.waitForTimeout(200);
+  const countLive = await page.evaluate(() => __game.debug.decoyCount());
+  expect(countLive).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.forceExpireDecoys());
+  await page.waitForTimeout(300);
+  const countExpired = await page.evaluate(() => __game.debug.decoyCount());
+  expect(countExpired).toBe(0);
+});

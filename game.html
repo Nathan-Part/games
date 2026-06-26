@@ -2556,6 +2556,40 @@ G.debug.forceMedicHeal = (i) => {
   else { lastMedicHealTarget_ = i; } // no ally to heal, count self
   medicHealCount_++;
 };
+// ====== #124 Decoy system ======
+const DECOY_DURATION = 4.0, DECOY_SPAWN_INTERVAL = 18, DECOY_WAVE_MIN = 9;
+function spawnDecoyNear(sourceEnemy){
+  if(!enemyBase || !enemyClips) return;
+  const src = sourceEnemy;
+  const root = enemyBase.clone(true);
+  root.traverse(o => { if(o.isMesh && o.material){
+    const m = o.material.clone(); o.material = m;
+    m.transparent = true; m.opacity = 0.22; m.color.setHex(0xff3333); // rouge fantôme
+  }});
+  const sp = { x: src.root.position.x + (Math.random()-0.5)*3, z: src.root.position.z + (Math.random()-0.5)*3 };
+  root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = {}; if(enemyClips.walk) actions.walk = mixer.clipAction(enemyClips.walk);
+  actions.walk?.play();
+  scene.add(root);
+  // inject as fake enemy entry
+  const fake = { id: enemies.length, type:'decoy', isDecoy:true, spec:ENEMY_TYPES.shooter, root, mixer, actions,
+                 hitbox:null, mats:[], hp:1, maxHp:1, hbY:0.9, state:'patrol', alive:true,
+                 loco:'walk', target:null, lostFor:0, flashUntil:0, weaponId:null, looted:false,
+                 burstLeft:0, flankSide:0, meleeCd:0, spawnedAt:nowS(), decoyExpiresAt: nowS() + DECOY_DURATION };
+  enemies.push(fake);
+}
+function updateDecoys(dt){
+  for(const e of enemies){
+    if(!e.isDecoy || !e.alive) continue;
+    e.mixer?.update(dt);
+    if(nowS() >= e.decoyExpiresAt){ e.alive = false; scene.remove(e.root); }
+  }
+}
+G.debug.enemyIsDecoy = (i) => !!(enemies[i]?.isDecoy);
+G.debug.decoyCount = () => enemies.filter(e => e.isDecoy && e.alive).length;
+G.debug.forceSpawnDecoy = (i=0) => { const e=enemies[i]; if(e && !e.isDecoy) spawnDecoyNear(e); };
+G.debug.forceExpireDecoys = () => { for(const e of enemies) if(e.isDecoy && e.alive) e.decoyExpiresAt = 0; };
 // ====== #114 Armor system ======
 const ARMOR_TYPES = new Set(['tank','boss']);
 const ARMOR_TORSO_MULT = 0.7;
@@ -4238,6 +4272,7 @@ function updateEnemies(dt){
   if(G.phase!=='playing' || !model) return;
   const px = model.position.x, pz = model.position.z;
   for(const e of enemies){
+    if(e.isDecoy) continue; // géré par updateDecoys (#124)
     if(e.state === 'dead'){
       if(!e.frozenPose){
         e.mixer.update(dt);
@@ -4261,6 +4296,7 @@ function updateEnemies(dt){
     }
     if(e.flashedUntil && nowS() < e.flashedUntil){ e.mixer.update(dt); setEnemyLoco(e,'idle'); continue; } // aveuglé (#57)
     if(!e.calledReinforcement && (e.type==='shooter'||e.type==='tank') && nowS()-e.spawnedAt >= REINFORCE_DELAY) callReinforcement(e); // renforts (#84)
+    if(!e.isDecoy && !e.spawnedDecoy && e.type==='shooter' && wave>=DECOY_WAVE_MIN && nowS()-e.spawnedAt>=DECOY_SPAWN_INTERVAL){ e.spawnedDecoy=true; spawnDecoyNear(e); } // décoy (#124)
     if(!e.pickedUpWeapon && e.type==='rusher') enemyTryPickup(e); // pickup arme (#85)
     const dx = px - e.root.position.x, dz = pz - e.root.position.z;
     const dist = Math.hypot(dx, dz);
@@ -4594,7 +4630,7 @@ function startWave(w){
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
 }
 function checkWaveCleared(){
-  if(waveState !== 'active' || enemies.some(e => e.alive)) return;
+  if(waveState !== 'active' || enemies.some(e => e.alive && !e.isDecoy)) return; // decoys excluded (#124)
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
   if(dmgThisWave === 0) checkChallenges('nodmg', 1);
   grantWaveBonus(wave);                                                            // bonus survie parfaite (#100)
@@ -5097,7 +5133,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
