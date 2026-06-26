@@ -3463,3 +3463,26 @@ test('#99 flank : flankWarning() false apres expiration', async ({ page }) => {
   await page.evaluate(() => __game.debug.expireFlank());
   expect(await page.evaluate(() => __game.debug.flankWarning())).toBe(false);
 });
+
+// ====== #100 — Bonus argent fin de vague (survie sans mort) ======
+test('#100 wave bonus : lastWaveBonus() = 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastWaveBonus())).toBe(0);
+});
+
+test('#100 wave bonus : forceWaveBonus(1) ajoute wave*50 argent', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.forceWaveBonus(1));
+  const moneyAfter = await page.evaluate(() => __game.money);
+  expect(moneyAfter - moneyBefore).toBe(50);
+  expect(await page.evaluate(() => __game.debug.lastWaveBonus())).toBe(50);
+});
+
+test('#100 wave bonus : forceWaveBonus(3) ajoute 150', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.forceWaveBonus(3));
+  const moneyAfter = await page.evaluate(() => __game.money);
+  expect(moneyAfter - moneyBefore).toBe(150);
+});

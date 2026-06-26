@@ -2409,6 +2409,19 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #100 Bonus argent fin de vague (survie parfaite) ======
+const WAVE_BONUS_PER_WAVE = 50;
+let lastWaveBonus_ = 0;
+function grantWaveBonus(waveNum){
+  if(dmgThisWave > 0) return; // mort ou blessé = pas de bonus
+  const bonus = waveNum * WAVE_BONUS_PER_WAVE;
+  lastWaveBonus_ = bonus; addMoney(bonus);
+  const tel=document.getElementById('achievement-toast'); if(tel){ tel.textContent=`🎯 BONUS VAGUE +${bonus}$`; tel.style.color='#ff9900'; tel.classList.add('show'); setTimeout(()=>tel.classList.remove('show'),2200); }
+}
+function forceWaveBonus(waveNum){ const prev=dmgThisWave; dmgThisWave=0; const bonus=waveNum*WAVE_BONUS_PER_WAVE; lastWaveBonus_=bonus; addMoney(bonus); dmgThisWave=prev; }
+G.debug.lastWaveBonus = () => lastWaveBonus_;
+G.debug.waveBonus = () => dmgThisWave===0 ? wave*WAVE_BONUS_PER_WAVE : 0;
+G.debug.forceWaveBonus = (waveNum) => forceWaveBonus(waveNum);
 // ====== #99 Flank Warning ======
 const FLANK_ANGLE = Math.cos(100 * Math.PI / 180); // cos(100°) ≈ -0.174 : ennemi dans le dos/flanc
 const FLANK_DUR = 1.0;
@@ -3582,7 +3595,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; // restart (#55-#98)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; // restart (#55-#100)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -4253,6 +4266,7 @@ function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive)) return;
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
   if(dmgThisWave === 0) checkChallenges('nodmg', 1);
+  grantWaveBonus(wave);                                                            // bonus survie parfaite (#100)
   addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   addXp(XP_WAVE * wave);                                                           // XP par vague (#60)
   trackDailyWave(wave);                                                             // contrats vague (#62)
