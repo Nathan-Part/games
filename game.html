@@ -2249,6 +2249,7 @@ function fireRay(sx, sy){                                    // un plomb / rayon
         if(isPrecisionShot()){ dmg = Math.round(dmg*PRECISION_MULT); registerPrecisionHit(); } else { lastWasPrecision_=false; }
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
         _fireConnected = true;                                 // tir au but : précision (#43)
+        if(fireModeState === 'burst') burstHitIds_.push(e.id); // perfect burst tracking (#113)
         showHitMarker(hz.zone === 'head');                     // hit-marker (#59)
         damageEnemy(e, dmg); spawnDamageNumber(hits[0].point, dmg, hz.zone === 'head'); }
       else { const b = barrels.find(b => b.hitbox === obj); if(b) explodeBarrel(b); } }   // baril touché (#41)
@@ -2261,7 +2262,7 @@ function tryFire(){
   if(ammo <= 0){ lastEmptyFire_=false; triggerEmptyFire(); if(autoReloadEnabled_ && autoReloadAt_ < 0 && !reloading) autoReloadAt_ = nowS() + AUTO_RELOAD_DELAY; return false; }
   if(overheatPaused_) return false;
   if(nowS() - lastShot < curCooldown) return false;
-  if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; } // initier la rafale (#64)
+  if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; burstHitIds_ = []; lastBurstPerfect_ = false; } // initier la rafale (#64)
   lastShot = nowS(); if(!infiniteAmmo_){ ammo--; G.ammo = ammo; } shake = 1; playSound('shot'); weaponRecoil = curRecoil; registerOverheatShot();
   cameraKick(input.aim ? 1 : 0); // camera kick (#77)
   runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
@@ -3102,6 +3103,8 @@ G.debug.explodeMineAt = (i, x, z) => explodeMineAt(x, 0, z);
 const BURST_WEAPONS = new Set(['default','raptor','cyclone']); // armes assaut
 const BURST_SIZE = 3, BURST_DELAY = 0.08;
 let fireModeState = 'auto', playerBurstLeft = 0, playerBurstAt = 0;
+// #113 perfect burst
+let burstHitIds_ = [], perfectBurstCount_ = 0, lastBurstPerfect_ = false;
 function canBurst(){ return BURST_WEAPONS.has(save.selectedWeapon||'default'); }
 function fireModeToggle(){
   if(!canBurst()) return;
@@ -3115,10 +3118,20 @@ function updateFiremodeHud(){
 }
 function resetFireMode(){ fireModeState = 'auto'; playerBurstLeft = 0; updateFiremodeHud(); }
 function updateBurstFire(){
-  if(playerBurstLeft > 0 && nowS() >= playerBurstAt){ tryFire(); playerBurstLeft--; playerBurstAt = nowS() + BURST_DELAY; }
+  if(playerBurstLeft > 0 && nowS() >= playerBurstAt){
+    tryFire(); playerBurstLeft--; playerBurstAt = nowS() + BURST_DELAY;
+    if(playerBurstLeft === 0){ // burst terminé — vérifier perfect burst
+      lastBurstPerfect_ = burstHitIds_.length === BURST_SIZE && burstHitIds_.every(id => id === burstHitIds_[0]);
+      if(lastBurstPerfect_){ perfectBurstCount_++; addMoney(20); showCallout('PERFECT BURST'); }
+      burstHitIds_ = [];
+    }
+  }
 }
 G.debug.fireMode = () => fireModeState;
 G.debug.fireModeToggle = () => fireModeToggle();
+G.debug.perfectBurstCount = () => perfectBurstCount_;
+G.debug.lastBurstPerfect = () => lastBurstPerfect_;
+G.debug.burstRoundsLeft = () => playerBurstLeft;
 // ====== #63 Indicateur direction dégâts ======
 const DD_IDS = { top:'dmgdir-top', bot:'dmgdir-bot', lft:'dmgdir-lft', rgt:'dmgdir-rgt' };
 const DD_TIMERS = {};

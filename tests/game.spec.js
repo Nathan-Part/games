@@ -3759,3 +3759,19 @@ test('#112 auto-reload : mag vide declenche auto-reload apres 1.5s', async ({ pa
   const ammo = await page.evaluate(() => __game.ammo);
   expect(ammo).toBeGreaterThan(0);
 });
+
+// ====== #113 — Perfect burst bonus ======
+test('#113 perfect burst : perfectBurstCount 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.perfectBurstCount())).toBe(0);
+});
+
+test('#113 perfect burst : lastBurstPerfect false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastBurstPerfect())).toBe(false);
+});
+
+test('#113 perfect burst : burstRoundsLeft disponible', async ({ page }) => {
+  await startPlaying(page);
+  expect(typeof await page.evaluate(() => __game.debug.burstRoundsLeft())).toBe('number');
+});
