@@ -3840,3 +3840,27 @@ test('#116 suppression : lastSuppressCount incremente apres suppressEnemy', asyn
   await page.evaluate(() => __game.debug.suppressEnemy(0));
   expect(await page.evaluate(() => __game.debug.lastSuppressCount())).toBe(before + 1);
 });
+
+// ====== #117 — Ammo pack drop ======
+test('#117 ammo pack : ammoPackCount 0 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.ammoPackCount())).toBe(0);
+});
+
+test('#117 ammo pack : spawnAmmoPack incremente ammoPackCount', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnAmmoPack(10, 10));
+  expect(await page.evaluate(() => __game.debug.ammoPackCount())).toBe(1);
+});
+
+test('#117 ammo pack : ramassage recharge les munitions', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setAmmo(0);
+    __game.debug.spawnAmmoPack(0, 0);
+    __game.debug.setPos(0, 0);
+  });
+  await page.waitForTimeout(400);
+  const ammo = await page.evaluate(() => __game.ammo);
+  expect(ammo).toBeGreaterThan(0);
+});

@@ -3651,6 +3651,31 @@ G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
 // ====== Packs de soin (#32) : drop d'ennemis, ramassage par proximité ======
 const HEALTH_DROP_CHANCE = 0.25, HEALTH_PICKUP_R = 1.6, HEALTH_PACK_AMOUNT = 30;
+// ====== #117 Ammo packs ======
+const AMMO_DROP_CHANCE = 0.20, AMMO_PICKUP_R = 1.5;
+const ammoPacks = []; let forceAmmoDrop_ = false;
+function buildAmmoPack(){
+  const g = new THREE.Group();
+  const yel = new THREE.MeshStandardMaterial({ color:0xffcc00, emissive:0xffaa00, emissiveIntensity:0.7, roughness:0.4 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.18,0.05,12), new THREE.MeshStandardMaterial({ color:0x2a2000, roughness:0.7 })); base.position.y = 0.025;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.14,0.14), yel); box.position.y = 0.22;
+  g.add(base, box); g.traverse(o => { if(o.isMesh) o.castShadow = true; }); return g;
+}
+function spawnAmmoPack(x, z){ const m = buildAmmoPack(); m.position.set(x, 0, z); scene.add(m);
+  ammoPacks.push({ mesh:m, x, z }); return ammoPacks.length - 1; }
+function clearAmmoPacks(){ for(const p of ammoPacks) scene.remove(p.mesh); ammoPacks.length = 0; }
+function maybeDropAmmo(e){ if(forceAmmoDrop_ || Math.random() < AMMO_DROP_CHANCE) spawnAmmoPack(e.root.position.x, e.root.position.z); }
+function updateAmmoPacks(dt){
+  if(!model) return; const t = nowS();
+  for(let i=ammoPacks.length-1;i>=0;i--){ const p = ammoPacks[i];
+    p.mesh.rotation.y += dt * 2.0; p.mesh.position.y = 0.05 * Math.sin(t*2.5 + i + 1);
+    const d = Math.hypot(model.position.x - p.x, model.position.z - p.z);
+    if(d <= AMMO_PICKUP_R){ ammo = Math.min(curMag, ammo + Math.round(curMag * 0.5)); G.ammo = ammo; flashHeal(); playSound('reload');
+      scene.remove(p.mesh); ammoPacks.splice(i, 1); } }
+}
+G.debug.ammoPackCount = () => ammoPacks.length;
+G.debug.spawnAmmoPack = (x,z) => spawnAmmoPack(x,z);
+G.debug.forceAmmoDrop = (b) => { forceAmmoDrop_ = !!b; };
 const healthPacks = []; let forceHealthDrop = false;
 function buildHealthPack(){
   const g = new THREE.Group();
@@ -4044,7 +4069,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -4408,6 +4433,7 @@ function killEnemy(e){
   addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money));   // argent par kill × combo × difficulté (#46)
   if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)
+  maybeDropAmmo(e);                                    // chance de pack de munitions (#117)
   maybeDropPower(e);                                   // chance de power-up (#34 ; boss garanti)
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
@@ -4934,7 +4960,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
