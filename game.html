@@ -2399,6 +2399,24 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #88 Cover dynamique ======
+const COVER_DUR = 2, COVER_SEEK_R = 6;
+function findCoverPoint(ex, ez){
+  let best = null, bd = COVER_SEEK_R;
+  for(const b of obstacles){
+    const cx=(b.minX+b.maxX)/2, cz=(b.minZ+b.maxZ)/2;
+    const d = Math.hypot(cx-ex, cz-ez);
+    if(d < bd){ bd=d; best={x:cx,z:cz}; }
+  }
+  return best;
+}
+function enterCover(e){
+  const cp = findCoverPoint(e.root.position.x, e.root.position.z);
+  if(!cp) return;
+  e.state = 'cover'; e.coverTarget = cp; e.coverUntil = nowS() + COVER_DUR;
+}
+G.debug.enemyInCover = (i) => enemies[i]?.state === 'cover';
+G.debug.forceEnemyCover = (i) => { const e=enemies[i]; if(e) enterCover(e); };
 // ====== #87 Backstab damage ======
 const BACKSTAB_MULT = 1.5, BACKSTAB_DOT = -0.5;
 function isBackstab(i){
@@ -3727,7 +3745,10 @@ function updateEnemies(dt){
         moveToward(e, e.target.x, e.target.z, ENEMY_WALK*spec.speedMult, dt); desired = 'walk'; }
     } else {
       // RANGED (shooter/tank) : transitions à hystérésis + mise à couvert si vue coupée + tir en rafale
-      if(e.state === 'shoot'){
+      if(e.state === 'cover'){
+        if(nowS() >= e.coverUntil){ e.state = 'chase'; }
+        else if(e.coverTarget){ moveToward(e, e.coverTarget.x, e.coverTarget.z, ENEMY_RUN*spec.speedMult, dt); desired='run'; }
+      } else if(e.state === 'shoot'){
         if(dist > SHOOT_RANGE*1.25 || !los) e.state = 'chase';
       } else if(e.state === 'chase'){
         if(dist <= SHOOT_RANGE && los) e.state = 'shoot';
@@ -3824,6 +3845,7 @@ function damageEnemy(e, amount = DMG_TORSO){
   if(e.hp <= 0){ killEnemy(e); return; }
   if(e.state === 'patrol') e.state = 'chase';   // touché => s'aggrave et se retourne/fonce vers le joueur
   e.lostFor = 0;
+  if(e.hp < e.maxHp * 0.5 && e.state !== 'cover') enterCover(e); // cover dynamique (#88)
 }
 // ====== Combo / killstreak (#29) : enchaîner des kills monte un multiplicateur argent/score ======
 const COMBO_WINDOW = 3.5;

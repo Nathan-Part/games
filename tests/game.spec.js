@@ -3217,3 +3217,24 @@ test('#87 backstab : forceEnemyBackstab rend isBackstab vrai', async ({ page }) 
   await page.evaluate(() => __game.debug.forceEnemyBackstab(0));
   expect(await page.evaluate(() => __game.debug.isBackstab(0))).toBe(true);
 });
+
+// ====== #88 — Cover dynamique ennemi ======
+test('#88 cover : enemyInCover(0) false au debut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  expect(await page.evaluate(() => __game.debug.enemyInCover(0))).toBe(false);
+});
+
+test('#88 cover : forceEnemyCover met ennemi en etat cover', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.forceEnemyCover(0));
+  expect(await page.evaluate(() => __game.debug.enemyInCover(0))).toBe(true);
+});
+
+test('#88 cover : ennemi blesse < 50% HP entre en cover', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, Math.floor(hp * 0.6)); });
+  expect(await page.evaluate(() => __game.debug.enemyInCover(0))).toBe(true);
+});
