@@ -3090,3 +3090,21 @@ test('#81 lowammo : hud-ammo a classe low-ammo quand critique', async ({ page })
   const hasClass = await page.evaluate(() => !!document.querySelector('.hud-ammo.low-ammo'));
   expect(hasClass).toBe(true);
 });
+
+// ====== #82 — Shockwave ring ======
+test('#82 shockwave : shockwaveCount initial = 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.shockwaveCount())).toBe(0);
+});
+
+test('#82 shockwave : spawnShockwave cree un anneau', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnShockwave(0, 0, 0));
+  expect(await page.evaluate(() => __game.debug.shockwaveCount())).toBe(1);
+});
+
+test('#82 shockwave : explosion grenade declenche shockwave', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.explodeGrenadeAt(0, 0.1, 0));
+  expect(await page.evaluate(() => __game.debug.shockwaveCount())).toBeGreaterThan(0);
+});

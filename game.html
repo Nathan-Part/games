@@ -2361,7 +2361,9 @@ function throwGrenade(){
 }
 function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),
   new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
-  m.position.copy(pos); scene.add(m); grenadeFx.push({ mesh:m, t0:nowS() }); }
+  m.position.copy(pos); scene.add(m); grenadeFx.push({ mesh:m, t0:nowS() });
+  spawnShockwave(pos.x, pos.y, pos.z); // shockwave ring (#82)
+}
 function explodeGrenadeAt(x, y, z){
   for(const e of enemies){ if(!e.alive) continue;
     const d = Math.hypot(e.root.position.x - x, e.root.position.z - z);
@@ -2381,6 +2383,25 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #82 Shockwave ring ======
+const SW_DUR = 0.3, SW_MAX_R = 5;
+let shockwaves = [];
+function spawnShockwave(x, y, z){
+  const geo = new THREE.RingGeometry(0.1, 0.35, 32);
+  const mat = new THREE.MeshBasicMaterial({color:0xff8c00,transparent:true,opacity:0.9,side:THREE.DoubleSide,depthWrite:false});
+  const m = new THREE.Mesh(geo, mat); m.rotation.x = -Math.PI/2; m.position.set(x, y+0.05, z);
+  scene.add(m); shockwaves.push({mesh:m, t:0});
+}
+function updateShockwaves(dt){
+  for(let i=shockwaves.length-1;i>=0;i--){ const sw=shockwaves[i];
+    sw.t+=dt; const frac=sw.t/SW_DUR;
+    sw.mesh.scale.setScalar(1+frac*SW_MAX_R); sw.mesh.material.opacity=0.9*(1-frac);
+    if(sw.t>=SW_DUR){ scene.remove(sw.mesh); sw.mesh.material.dispose(); sw.mesh.geometry.dispose(); shockwaves.splice(i,1); }
+  }
+}
+function clearShockwaves(){ for(const sw of shockwaves){ scene.remove(sw.mesh); sw.mesh.material.dispose(); sw.mesh.geometry.dispose(); } shockwaves.length=0; }
+G.debug.shockwaveCount = () => shockwaves.length;
+G.debug.spawnShockwave = (x,y,z) => spawnShockwave(x,y,z);
 // ====== #81 Low ammo warning ======
 function isLowAmmo(){ return !reloading && curMag > 0 && ammo <= Math.ceil(curMag * 0.25); }
 G.debug.isLowAmmo = () => isLowAmmo();
@@ -3525,7 +3546,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearPowerUps(); clearBarrels(); clearMines(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -4386,7 +4407,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
