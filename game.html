@@ -2358,6 +2358,36 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #73 Étincelles d'impact ======
+const SPARK_COUNT = 5, SPARK_DUR = 0.4, SPARK_SPEED = 4;
+let impactSystems = [];
+function spawnImpactSparks(x, y, z){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(SPARK_COUNT * 3);
+  const vel = [];
+  for(let i=0;i<SPARK_COUNT;i++){
+    pos[i*3]=x; pos[i*3+1]=y; pos[i*3+2]=z;
+    vel.push(new THREE.Vector3((Math.random()-.5)*SPARK_SPEED,(Math.random()*.5+.2)*SPARK_SPEED,(Math.random()-.5)*SPARK_SPEED));
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({color:0xffcc00,size:0.08,transparent:true,opacity:1,depthWrite:false});
+  const pts = new THREE.Points(geo,mat); scene.add(pts);
+  impactSystems.push({pts,geo,vel,t:0,pos:pos});
+}
+function updateImpactSparks(dt){
+  for(let s=impactSystems.length-1;s>=0;s--){ const sys=impactSystems[s];
+    sys.t+=dt; const frac=sys.t/SPARK_DUR; sys.pts.material.opacity=1-frac;
+    for(let i=0;i<SPARK_COUNT;i++){
+      sys.vel[i].y-=9.8*dt;
+      sys.pos[i*3]+=sys.vel[i].x*dt; sys.pos[i*3+1]+=sys.vel[i].y*dt; sys.pos[i*3+2]+=sys.vel[i].z*dt;
+    }
+    sys.geo.attributes.position.needsUpdate=true;
+    if(sys.t>=SPARK_DUR){ scene.remove(sys.pts); sys.pts.material.dispose(); sys.geo.dispose(); impactSystems.splice(s,1); }
+  }
+}
+function clearImpactSparks(){ for(const s of impactSystems){ scene.remove(s.pts); s.pts.material.dispose(); s.geo.dispose(); } impactSystems.length=0; }
+G.debug.impactSparkCount = () => impactSystems.length;
+G.debug.spawnImpactSparks = (x,y,z) => spawnImpactSparks(x,y,z);
 // ====== #72 Streak counter ======
 let streakKillsVal = 0;
 function onStreakKill(){ streakKillsVal++; updateStreakHud(); }
@@ -3284,6 +3314,11 @@ function enemyTryShoot(e, dt){
   const acc = enemyAccOverride != null ? enemyAccOverride
             : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4)) * smokeAcc;
   if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1))); damageDirFromEnemy(e); } // dir indicator (#63)
+  else { // tir manqué → étincelles sur le sol/mur entre ennemi et joueur (#73)
+    const pp=G.position(), ex=e.root.position.x, ez=e.root.position.z;
+    const t=0.5+Math.random()*0.4;
+    spawnImpactSparks(ex+(pp.x-ex)*t, 0.05, ez+(pp.z-ez)*t);
+  }
   // rafale (#11) : enchaîne spec.burst cartouches espacées, puis longue pause
   e.burstLeft = (e.burstLeft || 1) - 1;
   if(e.burstLeft > 0) e.shootCd = ENEMY_BURST_GAP;
@@ -3390,7 +3425,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearPowerUps(); clearBarrels(); clearMines(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearPowerUps(); clearBarrels(); clearMines(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -4240,7 +4275,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

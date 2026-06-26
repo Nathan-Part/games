@@ -2924,3 +2924,15 @@ test('#72 streak : degat joueur reset le streak', async ({ page }) => {
   await page.evaluate(() => __game.debug.damagePlayer(10));
   expect(await page.evaluate(() => __game.debug.streakKills())).toBe(0);
 });
+
+// ====== #73 — Étincelles d'impact ======
+test('#73 sparks : impactSparkCount initial = 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.impactSparkCount())).toBe(0);
+});
+
+test('#73 sparks : spawnImpactSparks cree des particules', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnImpactSparks(0, 1, 0));
+  expect(await page.evaluate(() => __game.debug.impactSparkCount())).toBeGreaterThan(0);
+});
