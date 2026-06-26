@@ -1572,7 +1572,7 @@ function updateCamera(dt){
     ty + look.y*camDist,
     p.z - look.z*camDist + right.z*sh);
   camera.position.lerp(desired, Math.min(1, dt*8));
-  if(shake > 0){ const k = shake*0.12; camera.position.x += (Math.random()-0.5)*k; camera.position.y += (Math.random()-0.5)*k; shake = Math.max(0, shake - dt*6); }
+  if(shake > 0){ const k = shake*0.12; camera.position.x += (Math.random()-0.5)*k; camera.position.y += (Math.random()-0.5)*k; shake = Math.max(0, shake - dt*6); } explosionShake_ = Math.max(0, explosionShake_ - dt*3.33);
   camera.lookAt(p.x + right.x*sh, ty, p.z + right.z*sh);
 }
 
@@ -2379,6 +2379,7 @@ function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometr
   new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
   m.position.copy(pos); scene.add(m); grenadeFx.push({ mesh:m, t0:nowS() });
   spawnShockwave(pos.x, pos.y, pos.z); // shockwave ring (#82)
+  triggerScreenShake(1); // screen shake (#103)
 }
 function explodeGrenadeAt(x, y, z){
   for(const e of enemies){ if(!e.alive) continue;
@@ -2413,6 +2414,11 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #103 Screen shake explosion ======
+let explosionShake_ = 0;
+function triggerScreenShake(intensity){ explosionShake_ = Math.max(explosionShake_, intensity); shake = Math.max(shake, intensity * 3); }
+G.debug.screenShakeActive = () => explosionShake_ > 0.01;
+G.debug.triggerScreenShake = (i) => triggerScreenShake(i);
 // ====== #102 Long Shot bonus ======
 const LONG_SHOT_DIST = 30, LONG_SHOT_MONEY = 25, LONG_SHOT_XP = 10;
 let longShotCount_ = 0, lastKillDist_ = 0;

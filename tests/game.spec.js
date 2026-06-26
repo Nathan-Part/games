@@ -3523,3 +3523,21 @@ test('#102 long shot : lastKillDist() 0 sans kill', async ({ page }) => {
   await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.lastKillDist())).toBe(0);
 });
+
+// ====== #103 — Screen shake explosion ======
+test('#103 screen shake : screenShakeActive() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.screenShakeActive())).toBe(false);
+});
+
+test('#103 screen shake : triggerScreenShake(1) active le shake', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerScreenShake(1));
+  expect(await page.evaluate(() => __game.debug.screenShakeActive())).toBe(true);
+});
+
+test('#103 screen shake : explodeGrenadeAt active le shake', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.explodeGrenadeAt(0, 0, 0));
+  expect(await page.evaluate(() => __game.debug.screenShakeActive())).toBe(true);
+});
