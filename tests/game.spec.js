@@ -3238,3 +3238,21 @@ test('#88 cover : ennemi blesse < 50% HP entre en cover', async ({ page }) => {
   await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, Math.floor(hp * 0.6)); });
   expect(await page.evaluate(() => __game.debug.enemyInCover(0))).toBe(true);
 });
+
+// ====== #89 — Laser sniper ADS ======
+test('#89 laser : sniperLaserVisible() false au debut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.sniperLaserVisible())).toBe(false);
+});
+
+test('#89 laser : laser visible quand sniper equipe + ADS', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forceEquipWeapon('sniper'); __game.debug.setInput({ aim: true }); });
+  expect(await page.evaluate(() => __game.debug.sniperLaserVisible())).toBe(true);
+});
+
+test('#89 laser : sniperLaserLength() > 0 en ADS sniper', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.forceEquipWeapon('sniper'); __game.debug.setInput({ aim: true }); });
+  expect(await page.evaluate(() => __game.debug.sniperLaserLength())).toBeGreaterThan(0);
+});

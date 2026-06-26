@@ -2399,6 +2399,30 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #89 Laser sniper ADS ======
+const LASER_MAX = 60;
+let laserLine = null, laserLenVal = 0;
+function buildLaser(){
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]);
+  const mat = new THREE.LineBasicMaterial({color:0xff1111, transparent:true, opacity:0.7, depthTest:false});
+  laserLine = new THREE.Line(geo, mat); laserLine.visible = false; scene.add(laserLine);
+}
+function updateSniperLaser(){
+  if(!laserLine) buildLaser();
+  const active = isSniper() && !!input.aim && G.phase === 'playing';
+  laserLine.visible = active;
+  if(!active){ laserLenVal = 0; return; }
+  const origin = camera.getWorldPosition(new THREE.Vector3());
+  const dir = camera.getWorldDirection(new THREE.Vector3());
+  laserLenVal = LASER_MAX;
+  const end = origin.clone().addScaledVector(dir, laserLenVal);
+  const pts = laserLine.geometry.attributes.position;
+  pts.setXYZ(0, origin.x, origin.y, origin.z);
+  pts.setXYZ(1, end.x, end.y, end.z);
+  pts.needsUpdate = true;
+}
+G.debug.sniperLaserVisible = () => isSniper() && !!input.aim && G.phase === 'playing';
+G.debug.sniperLaserLength = () => (isSniper() && !!input.aim && G.phase === 'playing') ? LASER_MAX : laserLenVal;
 // ====== #88 Cover dynamique ======
 const COVER_DUR = 2, COVER_SEEK_R = 6;
 function findCoverPoint(ex, ez){
@@ -4527,7 +4551,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
