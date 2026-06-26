@@ -3174,3 +3174,20 @@ test('#85 pickup : apres pickup, weaponId de l ennemi change', async ({ page }) 
   const after = await page.evaluate(() => __game.debug.enemyWeaponId(0));
   expect(after).not.toBe(before);
 });
+
+// ====== #86 — Footsteps sonores ======
+test('#86 footsteps : lastFootstepT() est 0 au debut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastFootstepT())).toBe(0);
+});
+
+test('#86 footsteps : footstepInterval() est 0.38 en marche', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.footstepInterval())).toBeCloseTo(0.38, 2);
+});
+
+test('#86 footsteps : footstepInterval() est 0.22 en course', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({ sprint: true }));
+  expect(await page.evaluate(() => __game.debug.footstepInterval())).toBeCloseTo(0.22, 2);
+});
