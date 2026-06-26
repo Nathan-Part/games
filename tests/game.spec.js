@@ -2680,3 +2680,24 @@ test('#62 daily : forceDailyComplete donne de l argent', async ({ page }) => {
   const after = await page.evaluate(() => __game.money);
   expect(after).toBeGreaterThan(before);
 });
+
+// ====== #63 — Indicateur direction dégâts ======
+test('#63 dmgdir : showDamageDir debug disponible', async ({ page }) => {
+  await startPlaying(page);
+  const ok = await page.evaluate(() => typeof __game.debug.showDamageDir === 'function');
+  expect(ok).toBe(true);
+});
+
+test('#63 dmgdir : showDamageDir(0) active la fleche avant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showDamageDir(0));
+  const vis = await page.evaluate(() => document.getElementById('dmgdir-top').classList.contains('dmgdir-show'));
+  expect(vis).toBe(true);
+});
+
+test('#63 dmgdir : showDamageDir(180) active la fleche arriere', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showDamageDir(180));
+  const vis = await page.evaluate(() => document.getElementById('dmgdir-bot').classList.contains('dmgdir-show'));
+  expect(vis).toBe(true);
+});

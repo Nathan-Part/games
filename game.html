@@ -278,6 +278,14 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  .dmgdir{position:fixed;z-index:22;pointer-events:none;opacity:0;transition:opacity .05s;
+    width:0;height:0;border:28px solid transparent}
+  .dmgdir.dmgdir-show{opacity:1;animation:ddFade .8s forwards}
+  @keyframes ddFade{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
+  #dmgdir-top{top:8px;left:50%;transform:translateX(-50%);border-bottom-color:#e53935}
+  #dmgdir-bot{bottom:8px;left:50%;transform:translateX(-50%);border-top-color:#e53935}
+  #dmgdir-lft{left:8px;top:50%;transform:translateY(-50%);border-right-color:#e53935}
+  #dmgdir-rgt{right:8px;top:50%;transform:translateY(-50%);border-left-color:#e53935}
   #scope-overlay{position:fixed;inset:0;z-index:18;pointer-events:none;opacity:0;transition:opacity .08s;
     background:radial-gradient(circle 38vh at 50% 50%, transparent 37.5vh, rgba(0,0,0,.97) 38vh)}
   #scope-overlay.show{opacity:1}
@@ -587,6 +595,10 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="dmgdir-top" class="dmgdir"></div>
+<div id="dmgdir-bot" class="dmgdir"></div>
+<div id="dmgdir-lft" class="dmgdir"></div>
+<div id="dmgdir-rgt" class="dmgdir"></div>
 <div id="scope-overlay"></div>
 <div id="xp-hud" class="hidden"><div id="xp-label">Niv. 1  Recrue</div><div id="xp-track"><div id="xp-fill"></div></div></div>
 <div id="hit-marker" class="hidden"></div>
@@ -2298,6 +2310,25 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #63 Indicateur direction dégâts ======
+const DD_IDS = { top:'dmgdir-top', bot:'dmgdir-bot', lft:'dmgdir-lft', rgt:'dmgdir-rgt' };
+const DD_TIMERS = {};
+function showDamageDir(angleDeg){
+  // angleDeg = angle relatif entre yaw joueur et direction vers l'attaquant (0=devant, 90=droite, 180=derrière, -90=gauche)
+  const a = ((angleDeg % 360) + 360) % 360;
+  const key = (a >= 315 || a < 45) ? 'top' : (a >= 45 && a < 135) ? 'rgt' : (a >= 135 && a < 225) ? 'bot' : 'lft';
+  const el = document.getElementById(DD_IDS[key]); if(!el) return;
+  el.classList.remove('dmgdir-show'); void el.offsetWidth; el.classList.add('dmgdir-show');
+  clearTimeout(DD_TIMERS[key]); DD_TIMERS[key] = setTimeout(() => el.classList.remove('dmgdir-show'), 800);
+}
+function damageDirFromEnemy(e){
+  if(!model || !e) return;
+  const dx = e.root.position.x - model.position.x, dz = e.root.position.z - model.position.z;
+  const angleWorld = Math.atan2(dx, dz) * 180 / Math.PI;  // angle vers ennemi (monde)
+  const playerYaw = camera ? (camera.rotation.y * 180 / Math.PI) : 0;
+  showDamageDir(angleWorld - playerYaw);
+}
+G.debug.showDamageDir = (deg) => showDamageDir(deg);
 // ====== #62 Contrats quotidiens ======
 const DAILY_POOL = [
   { id:'kills50',   desc:'Eliminer 50 ennemis',      type:'kills',    target:50,  reward:800  },
@@ -3022,7 +3053,7 @@ function enemyTryShoot(e, dt){
   const dist = Math.hypot(to.x - from.x, to.z - from.z);
   const acc = enemyAccOverride != null ? enemyAccOverride
             : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4));
-  if(Math.random() < acc) damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1)));
+  if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1))); damageDirFromEnemy(e); } // dir indicator (#63)
   // rafale (#11) : enchaîne spec.burst cartouches espacées, puis longue pause
   e.burstLeft = (e.burstLeft || 1) - 1;
   if(e.burstLeft > 0) e.shootCd = ENEMY_BURST_GAP;
