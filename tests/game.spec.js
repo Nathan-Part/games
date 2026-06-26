@@ -2731,3 +2731,29 @@ test('#64 burst : pas de toggle pour arme non-assaut', async ({ page }) => {
   const mode = await page.evaluate(() => __game.debug.fireMode());
   expect(mode).toBe('auto'); // toujours auto (sniper non éligible)
 });
+
+// ====== #65 — Claymore / mines ======
+test('#65 mine : stock initial = 2', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.mineStock())).toBe(2);
+});
+
+test('#65 mine : placeMine reduit le stock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.placeMine());
+  expect(await page.evaluate(() => __game.debug.mineStock())).toBe(1);
+});
+
+test('#65 mine : mineCount augmente apres pose', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.placeMine());
+  expect(await page.evaluate(() => __game.debug.mineCount())).toBe(1);
+});
+
+test('#65 mine : explosion tue ennemi proche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyAt(0, 2));
+  await page.evaluate(() => __game.debug.explodeMineAt(0, 1, 2));
+  const dead = await page.evaluate(() => __game.debug.enemyState(0) === 'dead');
+  expect(dead).toBe(true);
+});
