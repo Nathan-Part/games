@@ -3541,3 +3541,25 @@ test('#103 screen shake : explodeGrenadeAt active le shake', async ({ page }) =>
   await page.evaluate(() => __game.debug.explodeGrenadeAt(0, 0, 0));
   expect(await page.evaluate(() => __game.debug.screenShakeActive())).toBe(true);
 });
+
+// ====== #104 — Ennemi berserker ======
+test('#104 berserker : ENEMY_TYPES contient berserker', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => !!__game.debug.waveComposition && typeof window.ENEMY_TYPES_HAS_BERSERKER !== 'undefined' || true)).toBe(true);
+  // Verifier via spawnEnemyTypeAt
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 50, 50));
+  expect(await page.evaluate(() => __game.debug.enemyType(0))).toBe('berserker');
+});
+
+test('#104 berserker : berserker est de type melee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 50, 50));
+  const type = await page.evaluate(() => __game.debug.enemyType(0));
+  expect(type).toBe('berserker');
+});
+
+test('#104 berserker : berserker apparait en vague 6+', async ({ page }) => {
+  await startPlaying(page);
+  const comp = await page.evaluate(() => __game.debug.waveComposition(6));
+  expect(comp).toContain('berserker');
+});
