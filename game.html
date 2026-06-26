@@ -2402,6 +2402,45 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #93 Pluie ======
+const RAIN_COUNT = 200, RAIN_SPEED = 18, RAIN_AREA = 30, RAIN_H = 15;
+let rainSystem = null, rainActive_ = false;
+const rainVels = new Float32Array(RAIN_COUNT);
+function buildRain(){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(RAIN_COUNT * 3);
+  for(let i=0;i<RAIN_COUNT;i++){
+    pos[i*3]   = (Math.random()-0.5)*RAIN_AREA*2;
+    pos[i*3+1] = Math.random()*RAIN_H;
+    pos[i*3+2] = (Math.random()-0.5)*RAIN_AREA*2;
+    rainVels[i] = RAIN_SPEED + Math.random()*6;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({color:0xaaccff,size:0.08,transparent:true,opacity:0.55,depthWrite:false});
+  rainSystem = new THREE.Points(geo, mat); rainSystem.visible=false; scene.add(rainSystem);
+}
+function setRain(b){
+  rainActive_ = !!b;
+  if(!rainSystem) buildRain();
+  rainSystem.visible = rainActive_;
+  if(scene.fog) scene.fog.density = rainActive_ ? 0.028 : 0.012;
+}
+function updateRain(dt){
+  if(!rainActive_ || !rainSystem) return;
+  const pos = rainSystem.geometry.attributes.position;
+  for(let i=0;i<RAIN_COUNT;i++){
+    pos.array[i*3+1] -= rainVels[i]*dt;
+    if(pos.array[i*3+1] < 0){
+      pos.array[i*3]   = (Math.random()-0.5)*RAIN_AREA*2;
+      pos.array[i*3+1] = RAIN_H;
+      pos.array[i*3+2] = (Math.random()-0.5)*RAIN_AREA*2;
+    }
+  }
+  pos.needsUpdate = true;
+}
+G.debug.rainActive = () => rainActive_;
+G.debug.setRain = (b) => setRain(b);
+G.debug.rainParticleCount = () => rainActive_ ? RAIN_COUNT : 0;
 // ====== #92 Spread au mouvement ======
 let spreadOverride = null;
 function currentSpread(){
@@ -4610,7 +4649,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

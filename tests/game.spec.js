@@ -3314,3 +3314,21 @@ test('#92 spread : currentSpread() = 2.5 en course', async ({ page }) => {
   await page.evaluate(() => __game.debug.setInput({ forward: true, sprint: true }));
   expect(await page.evaluate(() => __game.debug.currentSpread())).toBeCloseTo(2.5, 2);
 });
+
+// ====== #93 — Pluie ======
+test('#93 pluie : rainActive() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.rainActive())).toBe(false);
+});
+
+test('#93 pluie : setRain(true) active la pluie', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setRain(true));
+  expect(await page.evaluate(() => __game.debug.rainActive())).toBe(true);
+});
+
+test('#93 pluie : rainParticleCount() = 200 quand active', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setRain(true));
+  expect(await page.evaluate(() => __game.debug.rainParticleCount())).toBe(200);
+});
