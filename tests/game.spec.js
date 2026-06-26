@@ -3279,3 +3279,19 @@ test('#90 rang : rang S avec 20 kills, precision 90%, vague 5', async ({ page })
   const rank = await page.evaluate(() => __game.debug.runRank());
   expect(rank).toBe('S');
 });
+
+// ====== #91 — Zone de danger ======
+test('#91 zone : dangerZoneRadius() > 0 en jeu', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.dangerZoneRadius())).toBeGreaterThan(0);
+});
+
+test('#91 zone : playerInZone() true au spawn (centre map)', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.playerInZone())).toBe(true);
+});
+
+test('#91 zone : dangerZoneDamage() retourne 5', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.dangerZoneDamage())).toBe(5);
+});
