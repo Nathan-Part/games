@@ -3864,3 +3864,21 @@ test('#117 ammo pack : ramassage recharge les munitions', async ({ page }) => {
   const ammo = await page.evaluate(() => __game.ammo);
   expect(ammo).toBeGreaterThan(0);
 });
+
+// ====== #118 — Sticky grenade ======
+test('#118 sticky : stickyStock 1 par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(1);
+});
+
+test('#118 sticky : throwSticky decrement stickyStock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwSticky());
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(0);
+});
+
+test('#118 sticky : throwSticky cree un projectile sticky', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwSticky());
+  expect(await page.evaluate(() => __game.debug.stickyCount())).toBeGreaterThanOrEqual(1);
+});

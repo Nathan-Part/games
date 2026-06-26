@@ -1507,6 +1507,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyT' && G.phase==='playing') fireModeToggle();                        // T = basculer auto/burst (#64)
   if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
+  if(e.code==='KeyJ' && G.phase==='playing') throwSticky();                           // J = grenade collante (#118)
   if(e.code==='KeyP' && G.phase==='playing'){ semiAuto = !semiAuto; updateSemiAutoHud(); } // P = toggle semi-auto (#78)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
   if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
@@ -2438,6 +2439,44 @@ function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); 
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
 G.debug.grenadeFirstBounces = () => grenadeProjs.length > 0 ? grenadeProjs[0].bounces : 0;
+// ====== #118 Sticky grenade ======
+const STICKY_STOCK_MAX = 1, STICKY_FUSE = 2.0, STICKY_DAMAGE = 180, STICKY_R = 3.0;
+let stickyStockCount = STICKY_STOCK_MAX;
+const stickyProjs = [];
+function buildStickyMesh(){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.12,10,8), new THREE.MeshStandardMaterial({ color:0xff3300, emissive:0xff2200, emissiveIntensity:0.9, roughness:0.4 })); return m; }
+function throwSticky(){
+  if(G.phase !== 'playing' || stickyStockCount <= 0) return false;
+  stickyStockCount--;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const pos = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
+  // Raycast : colle sur ennemi direct ?
+  _ray.ray.origin.copy(pos); _ray.ray.direction.copy(dir);
+  const hitboxes = enemies.filter(e=>e.alive).map(e=>e.hitbox);
+  let attachedEnemy = null;
+  if(hitboxes.length){ const hits = _ray.intersectObjects(hitboxes, false);
+    if(hits.length && hits[0].distance < 20){ attachedEnemy = enemies.find(e=>e.hitbox===hits[0].object)||null; } }
+  const m = buildStickyMesh(); scene.add(m); m.position.copy(pos);
+  stickyProjs.push({ mesh:m, vel:dir.clone().multiplyScalar(10).add(new THREE.Vector3(0,3,0)), explodeAt: nowS()+STICKY_FUSE, attachedEnemy, offset: new THREE.Vector3() });
+  if(attachedEnemy){ m.position.copy(attachedEnemy.root.position).y+=1.2; stickyProjs[stickyProjs.length-1].vel.set(0,0,0); }
+  return true;
+}
+function updateStickyGrenades(dt){ const t = nowS();
+  for(let i=stickyProjs.length-1;i>=0;i--){ const s = stickyProjs[i];
+    if(s.attachedEnemy && s.attachedEnemy.alive){ s.mesh.position.copy(s.attachedEnemy.root.position); s.mesh.position.y += 1.2; }
+    else if(!s.attachedEnemy){ s.vel.y -= 9.81*dt; s.mesh.position.addScaledVector(s.vel, dt);
+      if(s.mesh.position.y <= 0.12){ s.mesh.position.y = 0.12; s.vel.set(0,0,0); } }
+    if(t >= s.explodeAt){ const p = s.mesh.position;
+      explodeGrenadeAt(p.x, p.y, p.z); // reuse grenade explosion with sticky params
+      // override: apply sticky damage
+      for(const e of enemies){ if(!e.alive) continue;
+        const d = e.root.position.distanceTo(p); if(d < STICKY_R) damageEnemy(e, Math.max(1, Math.round(STICKY_DAMAGE*(1-d/STICKY_R)))); }
+      scene.remove(s.mesh); stickyProjs.splice(i, 1); } }
+}
+function resetSticky(){ stickyStockCount = STICKY_STOCK_MAX; stickyProjs.length = 0; }
+G.debug.stickyStock = () => stickyStockCount;
+G.debug.stickyCount = () => stickyProjs.length;
+G.debug.throwSticky = () => throwSticky();
+G.debug.stickyAttachedEnemy = (i) => { const s = stickyProjs[i]; return s ? (s.attachedEnemy ? s.attachedEnemy.id : null) : null; };
 // ====== #116 Suppression fire ======
 const SUPPRESS_RANGE = 2.0, SUPPRESS_DUR = 1.5;
 let lastSuppressCount_ = 0;
@@ -3767,7 +3806,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; // restart (#55-#100)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); // restart (#55-#118)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -4960,7 +4999,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
