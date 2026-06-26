@@ -2994,3 +2994,20 @@ test('#76 countdown : waveCountdown > 0 apres fin de vague', async ({ page }) =>
   const cd = await page.evaluate(() => __game.debug.waveCountdown());
   expect(cd).toBeGreaterThan(0);
 });
+
+// ====== #77 — Camera kick ======
+test('#77 camkick : cameraKick debug disponible', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => typeof __game.debug.cameraKick)).toBe('function');
+});
+
+test('#77 camkick : lastCameraKickT = 0 au depart', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.lastCameraKickT())).toBe(0);
+});
+
+test('#77 camkick : lastCameraKickT > 0 apres cameraKick', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.cameraKick());
+  expect(await page.evaluate(() => __game.debug.lastCameraKickT())).toBeGreaterThan(0);
+});
