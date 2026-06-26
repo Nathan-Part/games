@@ -278,6 +278,9 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #blood-screen{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse at center, transparent 40%, rgba(180,0,0,.85) 100%);
+    transition:opacity .08s}
   #streak-hud{position:fixed;left:16px;top:180px;z-index:10;background:rgba(0,0,0,.55);
     padding:5px 12px;font-family:var(--font-display);font-size:var(--t-sm);font-weight:800;
     text-transform:uppercase;letter-spacing:.06em;color:#ff9800;text-shadow:0 0 10px #ff9800}
@@ -627,6 +630,7 @@
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
+<div id="blood-screen"></div>
 <div id="streak-hud" class="hidden"></div>
 <div id="reload-bar" class="hidden"><svg viewBox="0 0 36 36" width="48" height="48"><circle cx="18" cy="18" r="16"/></svg></div>
 <div id="levelup-toast"></div>
@@ -2358,6 +2362,17 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #74 Blood screen ======
+const BLOOD_THRESHOLD = 20, BLOOD_DUR = 1500;
+let bloodTimer = null;
+function showBloodScreen(intensity){
+  const el = document.getElementById('blood-screen'); if(!el) return;
+  el.style.opacity = Math.min(1, intensity).toFixed(2);
+  clearTimeout(bloodTimer);
+  bloodTimer = setTimeout(() => { el.style.transition='opacity 1s'; el.style.opacity='0';
+    setTimeout(()=>{ el.style.transition='opacity .08s'; }, 1000); }, 80);
+}
+G.debug.showBloodScreen = (i) => showBloodScreen(i);
 // ====== #73 Étincelles d'impact ======
 const SPARK_COUNT = 5, SPARK_DUR = 0.4, SPARK_SPEED = 4;
 let impactSystems = [];
@@ -3037,6 +3052,7 @@ function damagePlayer(amount){
   if(amount <= 0) return;
   health = Math.max(0, health - amount); G.health = health; lastDamageAt = nowS();
   dmgThisWave += amount;
+  if(amount >= BLOOD_THRESHOLD) showBloodScreen(Math.min(1, amount / 50)); // blood screen (#74)
   flashDamage(); updateHealthHud(); playSound('playerHit');
   if(health <= 0) playerDie();
 }

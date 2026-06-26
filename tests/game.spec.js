@@ -2936,3 +2936,23 @@ test('#73 sparks : spawnImpactSparks cree des particules', async ({ page }) => {
   await page.evaluate(() => __game.debug.spawnImpactSparks(0, 1, 0));
   expect(await page.evaluate(() => __game.debug.impactSparkCount())).toBeGreaterThan(0);
 });
+
+// ====== #74 — Blood screen ======
+test('#74 blood : element #blood-screen existe', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => !!document.getElementById('blood-screen'))).toBe(true);
+});
+
+test('#74 blood : showBloodScreen rend visible', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.showBloodScreen(1));
+  const opacity = await page.evaluate(() => parseFloat(document.getElementById('blood-screen').style.opacity || '0'));
+  expect(opacity).toBeGreaterThan(0);
+});
+
+test('#74 blood : gros degat (>=20) declenche blood screen', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(25); });
+  const opacity = await page.evaluate(() => parseFloat(document.getElementById('blood-screen').style.opacity || '0'));
+  expect(opacity).toBeGreaterThan(0);
+});
