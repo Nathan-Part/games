@@ -3601,3 +3601,26 @@ test('#106 empty fire : tir avec ammo=0 declenche emptyFire', async ({ page }) =
   await page.evaluate(() => __game.debug.tryFire());
   expect(await page.evaluate(() => __game.debug.emptyFireCount())).toBe(1);
 });
+
+// ====== #107 — Ennemi fantôme (ghost) ======
+test('#107 ghost : spawnEnemyTypeAt ghost cree un ennemi de type ghost', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 10, 10));
+  expect(await page.evaluate(() => __game.debug.enemyType(0))).toBe('ghost');
+});
+
+test('#107 ghost : enemyIsGhost() true pour un ghost', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 10, 10));
+  expect(await page.evaluate(() => __game.debug.enemyIsGhost(0))).toBe(true);
+});
+
+test('#107 ghost : ghost absent des blips radar', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { for(let i=0;i<__game.debug.enemyCount();i++) __game.debug.moveEnemy(i,100,100); });
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 5, 5));
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  const blips = await page.evaluate(() => __game.debug.radar.blips());
+  const ghostBlip = blips.find(b => b.type === 'ghost');
+  expect(ghostBlip).toBeUndefined();
+});
