@@ -3920,3 +3920,33 @@ test('#119 shielder : enemyIsShielded retourne true pour un shielder', async ({ 
   const isShielded = await page.evaluate(() => __game.debug.enemyIsShielded(0));
   expect(isShielded).toBe(true);
 });
+
+// ====== #120 — Medic enemy ======
+test('#120 medic : enemyIsMedic retourne true pour un medic', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'medic', 2, 2));
+  await page.waitForTimeout(100);
+  const isMedic = await page.evaluate(() => __game.debug.enemyIsMedic(0));
+  expect(isMedic).toBe(true);
+});
+
+test('#120 medic : spawn en vague 6+', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(6));
+  await page.waitForTimeout(300);
+  const types = await page.evaluate(() => {
+    const out = [];
+    for(let i = 0; i < __game.debug.enemyCount(); i++) out.push(__game.debug.enemyType(i));
+    return out;
+  });
+  expect(types).toContain('medic');
+});
+
+test('#120 medic : forceMedicHeal incremente medicHealCount', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'medic', 2, 2));
+  await page.waitForTimeout(100);
+  await page.evaluate(() => __game.debug.forceMedicHeal(0));
+  const count = await page.evaluate(() => __game.debug.medicHealCount());
+  expect(count).toBeGreaterThan(0);
+});

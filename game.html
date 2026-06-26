@@ -2513,6 +2513,35 @@ G.debug.enemyIsShielded = (i) => { const e=enemies[i]; return !!(e && e.type==='
 G.debug.shieldBlockCount = () => shieldBlockCount_;
 G.debug.lastShieldBlockI = () => lastShieldBlockI_;
 G.debug.forceShieldBlock = (i) => { const e=enemies[i]; if(!e) return; lastShieldBlockI_=i; shieldBlockCount_++; showCallout('BLOQUÉ!'); };
+// ====== #120 Medic enemy ======
+const MEDIC_RANGE = 5.0, MEDIC_HEAL_RATE = 8, MEDIC_TICK = 0.5;
+let medicHealCount_ = 0, lastMedicHealTarget_ = -1;
+function updateMedics(dt){
+  for(const e of enemies){
+    if(!e.alive || e.type !== 'medic') continue;
+    e.medicTimer = (e.medicTimer || 0) + dt;
+    if(e.medicTimer < MEDIC_TICK) continue;
+    e.medicTimer = 0;
+    for(const ally of enemies){
+      if(!ally.alive || ally === e || ally.hp >= ally.maxHp) continue;
+      if(e.root.position.distanceTo(ally.root.position) > MEDIC_RANGE) continue;
+      ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(MEDIC_HEAL_RATE * MEDIC_TICK));
+      medicHealCount_++; lastMedicHealTarget_ = enemies.indexOf(ally);
+      break; // 1 ally healed per tick
+    }
+  }
+}
+G.debug.enemyIsMedic = (i) => { const e=enemies[i]; return !!(e && e.type==='medic'); };
+G.debug.medicHealCount = () => medicHealCount_;
+G.debug.lastMedicHealTarget = () => lastMedicHealTarget_;
+G.debug.forceMedicHeal = (i) => {
+  const e = enemies[i]; if(!e || e.type !== 'medic') return;
+  // Heal first injured ally or self-register a heal
+  const ally = enemies.find(a => a.alive && a !== e && a.hp < a.maxHp);
+  if(ally){ ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(MEDIC_HEAL_RATE * MEDIC_TICK)); lastMedicHealTarget_ = enemies.indexOf(ally); }
+  else { lastMedicHealTarget_ = i; } // no ally to heal, count self
+  medicHealCount_++;
+};
 // ====== #114 Armor system ======
 const ARMOR_TYPES = new Set(['tank','boss']);
 const ARMOR_TORSO_MULT = 0.7;
@@ -3836,7 +3865,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); // restart (#55-#118)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(false); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; // restart (#55-#120)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
@@ -3879,6 +3908,7 @@ const ENEMY_TYPES = {
   ghost:     { id:'ghost',     hpMult:1.0, speedMult:1.3,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:null, opacity:0.35 }, // #107 fantôme
   sniper:    { id:'sniper',   hpMult:0.8, speedMult:0.5,  scale:1.0,  melee:false, damageMult:2.5, burst:1, glow:0xcc0033, shootCd:4.0 }, // #111 sniper
   shielder:  { id:'shielder', hpMult:1.2, speedMult:0.7,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x00aacc },         // #119 bouclier frontal
+  medic:     { id:'medic',    hpMult:0.7, speedMult:0.8,  scale:0.95, melee:false, damageMult:0.8, burst:1, glow:0x00cc55 },         // #120 guérisseur
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -3900,6 +3930,7 @@ function waveComposition(w){
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
     else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
     else if(w>=4 && i%3===2) out.push('bomber');                                // kamikaze dès la v4 (#37)
+    else if(w>=6 && i%6===1) out.push('medic');                                 // medic dès la v6, i=1 (#120)
     else if(w>=2 && i%2===1) out.push('rusher');
     else out.push('shooter');
   }
@@ -5043,7 +5074,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
