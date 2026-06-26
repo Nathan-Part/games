@@ -4211,3 +4211,35 @@ test('#128 grenadier : spawn en vague 8+', async ({ page }) => {
   const comp = await page.evaluate(() => __game.debug.waveComposition(8));
   expect(comp).toContain('grenadier');
 });
+
+// ====== #129 — Berserker frenzy ======
+test('#129 frenzy : forceEnemyFrenzy declenche le frenzy', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 5, 0));
+  await page.waitForTimeout(100);
+  await page.evaluate(() => __game.debug.forceEnemyFrenzy(0));
+  await page.waitForTimeout(100);
+  const inFrenzy = await page.evaluate(() => __game.debug.enemyInFrenzy(0));
+  expect(inFrenzy).toBe(true);
+});
+
+test('#129 frenzy : berserker invincible pendant frenzy', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 5, 0));
+  await page.waitForTimeout(100);
+  await page.evaluate(() => __game.debug.forceEnemyFrenzy(0));
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hpAfter).toBe(hpBefore); // dégâts bloqués
+});
+
+test('#129 frenzy : frenzyCount incremente au declenchement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 5, 0));
+  await page.waitForTimeout(100);
+  const before = await page.evaluate(() => __game.debug.frenzyCount());
+  await page.evaluate(() => __game.debug.forceEnemyFrenzy(0));
+  const after = await page.evaluate(() => __game.debug.frenzyCount());
+  expect(after).toBeGreaterThan(before);
+});

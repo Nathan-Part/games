@@ -2624,6 +2624,19 @@ function updateEnemyGrenades(dt){
 G.debug.enemyIsGrenadier = (i) => !!(enemies[i] && enemies[i].type==='grenadier');
 G.debug.enemyGrenadeCount = () => enemyGrenadeCount_;
 G.debug.forceEnemyThrowGrenade = (i) => forceEnemyThrowGrenade(i);
+// ====== #129 Berserker frenzy ======
+const FRENZY_HP_THRESH = 0.25, FRENZY_DURATION = 2.0, FRENZY_SPEED = 2.5;
+let frenzyCount_ = 0;
+function tryTriggerFrenzy(e){
+  if(e.type !== 'berserker' || e.frenzyUsed || e.frenzyUntil > nowS()) return;
+  if(e.hp / e.maxHp > FRENZY_HP_THRESH) return;
+  e.frenzyUsed = true; e.frenzyUntil = nowS() + FRENZY_DURATION; frenzyCount_++;
+  setEnemyEmissive(e, true); showCallout('FRENZY!');
+  e.root.traverse(o => { if(o.isMesh && o.material) o.material.color.setHex(0xff1100); });
+}
+G.debug.enemyInFrenzy = (i) => { const e=enemies[i]; return !!(e && e.frenzyUntil > nowS()); };
+G.debug.frenzyCount = () => frenzyCount_;
+G.debug.forceEnemyFrenzy = (i) => { const e=enemies[i]; if(e){ e.frenzyUsed=false; e.hp=Math.floor(e.maxHp*0.2); tryTriggerFrenzy(e); }};
 // ====== #114 Armor system ======
 const ARMOR_TYPES = new Set(['tank','boss']);
 const ARMOR_TORSO_MULT = 0.7;
@@ -4373,7 +4386,8 @@ function updateEnemies(dt){
       if(e.state === 'chase'){
         let tx = px, tz = pz;
         if(dist > MELEE_RANGE*1.5){ const f = flankTarget(px, pz, ex, ez, e.flankSide); tx = f.x; tz = f.z; }   // contournement
-        moveToward(e, tx, tz, ENEMY_RUN*spec.speedMult, dt); desired = 'run';
+        const fsm = (e.frenzyUntil && nowS()<e.frenzyUntil) ? FRENZY_SPEED : 1; // frenzy (#129)
+        moveToward(e, tx, tz, ENEMY_RUN*spec.speedMult*fsm, dt); desired = 'run';
       } else if(e.state === 'melee'){ faceToward(e, px, pz, dt); enemyMeleeAttack(e, dt); desired = 'attack'; }
       else { if(!e.target || Math.hypot(e.target.x - ex, e.target.z - ez) < 0.6) pickPatrol(e);
         moveToward(e, e.target.x, e.target.z, ENEMY_WALK*spec.speedMult, dt); desired = 'walk'; }
@@ -4475,7 +4489,9 @@ function setEnemyEmissive(e, on){
 }
 function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
+  if(e.frenzyUntil && nowS() < e.frenzyUntil) return; // invincible en frenzy (#129)
   e.hp -= amount; playSound('hit');
+  tryTriggerFrenzy(e);                                 // #129 : vérifie si frenzy se déclenche
   if(e.hp <= 0){ killEnemy(e); return; }
   if(e.state === 'patrol') e.state = 'chase';   // touché => s'aggrave et se retourne/fonce vers le joueur
   e.lostFor = 0;
