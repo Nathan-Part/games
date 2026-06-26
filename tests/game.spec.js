@@ -3332,3 +3332,24 @@ test('#93 pluie : rainParticleCount() = 200 quand active', async ({ page }) => {
   await page.evaluate(() => __game.debug.setRain(true));
   expect(await page.evaluate(() => __game.debug.rainParticleCount())).toBe(200);
 });
+
+// ====== #94 — Mode hardcore ======
+test('#94 hardcore : hardcoreMode() false par defaut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.hardcoreMode())).toBe(false);
+});
+
+test('#94 hardcore : setHardcore(true) active le mode', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setHardcore(true));
+  expect(await page.evaluate(() => __game.debug.hardcoreMode())).toBe(true);
+});
+
+test('#94 hardcore : en hardcore, soin healthpack n ameliore pas la sante', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setHardcore(true); __game.debug.damagePlayer(30); });
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.spawnHealthPack(0, 0));
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+});
