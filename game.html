@@ -273,6 +273,9 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  #wave-countdown{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);z-index:10;
+    font-family:var(--font-display);font-size:var(--t-sm);font-weight:700;text-transform:uppercase;
+    letter-spacing:.08em;color:#90caf9;text-shadow:0 0 12px #1565c0;pointer-events:none}
   #wave-banner{position:fixed;top:22%;left:50%;transform:translateX(-50%);z-index:25;pointer-events:none;
     text-align:center;opacity:0;white-space:nowrap}
   #wave-banner.wb-show{animation:wbAnim 2.5s forwards}
@@ -633,6 +636,7 @@
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
+<div id="wave-countdown" class="hidden"></div>
 <div id="wave-banner"><div class="wb-title"></div><div class="wb-sub"></div></div>
 <div id="blood-screen"></div>
 <div id="streak-hud" class="hidden"></div>
@@ -2366,6 +2370,15 @@ function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); gre
 function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
+// ====== #76 Countdown inter-vague ======
+function waveCountdown(){ return waveState==='cleared' ? Math.max(0, Math.ceil(nextWaveAt - nowS())) : 0; }
+function updateWaveCountdown(){
+  const el = document.getElementById('wave-countdown'); if(!el) return;
+  const cd = waveCountdown();
+  if(cd > 0){ el.classList.remove('hidden'); el.textContent = `Prochaine vague dans ${cd}s`; }
+  else el.classList.add('hidden');
+}
+G.debug.waveCountdown = () => waveCountdown();
 // ====== #74 Blood screen ======
 const BLOOD_THRESHOLD = 20, BLOOD_DUR = 1500;
 let bloodTimer = null;
@@ -3821,6 +3834,7 @@ function checkWaveCleared(){
 function updateWaves(dt){
   if(G.phase !== 'playing') return;
   if(waveState === 'cleared' && nowS() >= nextWaveAt) startWave(wave + 1);
+  updateWaveCountdown(); // countdown inter-vague (#76)
 }
 function updateWaveHud(){
   const el = document.getElementById('wave-hud'); if(!el) return;

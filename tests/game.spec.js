@@ -2976,3 +2976,21 @@ test('#75 wavebanner : showWaveBanner boss affiche BOSS', async ({ page }) => {
   const txt = await page.evaluate(() => document.getElementById('wave-banner').textContent.toUpperCase());
   expect(txt).toContain('BOSS');
 });
+
+// ====== #76 — Countdown inter-vague ======
+test('#76 countdown : waveCountdown = 0 pendant une vague active', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.waveCountdown())).toBe(0);
+});
+
+test('#76 countdown : element #wave-countdown existe', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => !!document.getElementById('wave-countdown'))).toBe(true);
+});
+
+test('#76 countdown : waveCountdown > 0 apres fin de vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  const cd = await page.evaluate(() => __game.debug.waveCountdown());
+  expect(cd).toBeGreaterThan(0);
+});
