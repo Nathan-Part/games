@@ -1420,6 +1420,7 @@ async function startGame(){
   G.locomotion = 'idle';
   showHud();
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
+  resetSemiAuto(); rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;   // purge état run résiduel (rampage/stun/overheat) entre 2 parties lancées depuis le menu
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
   setRain(save.settings.rain);                                 // applique le réglage pluie (#93)
@@ -2467,7 +2468,7 @@ function updateGrenades(dt){ const t = nowS();
     f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
 function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
   for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
-function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); }
+function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); refillSticky(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
@@ -2505,7 +2506,9 @@ function updateStickyGrenades(dt){ const t = nowS();
         const d = e.root.position.distanceTo(p); if(d < STICKY_R) damageEnemy(e, Math.max(1, Math.round(STICKY_DAMAGE*(1-d/STICKY_R)))); }
       scene.remove(s.mesh); stickyProjs.splice(i, 1); } }
 }
-function resetSticky(){ stickyStockCount = STICKY_STOCK_MAX; for(const s of stickyProjs) scene.remove(s.mesh); stickyProjs.length = 0; }
+function clearSticky(){ for(const s of stickyProjs) scene.remove(s.mesh); stickyProjs.length = 0; }   // nettoyage scène seul (sans toucher au stock)
+function refillSticky(){ stickyStockCount = STICKY_STOCK_MAX; }                                       // #118 : 1/vague (appelé par refillGrenades à chaque vague)
+function resetSticky(){ clearSticky(); refillSticky(); }
 G.debug.stickyStock = () => stickyStockCount;
 G.debug.stickyCount = () => stickyProjs.length;
 G.debug.throwSticky = () => throwSticky();
@@ -2630,6 +2633,7 @@ function enemyThrowGrenade(e){
   enemyGrenadeProjs_.push({ mesh, vel:new THREE.Vector3(nx*speed, vy, nz*speed), explodeAt:nowS()+2.5 });
 }
 function forceEnemyThrowGrenade(i){ const e=enemies[i]; if(e && e.alive && e.type==='grenadier') enemyThrowGrenade(e); }
+function clearEnemyGrenades(){ for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_.length = 0; }   // #128 : nettoyage scène (tous chemins)
 function updateEnemyGrenades(dt){
   for(let i=enemyGrenadeProjs_.length-1;i>=0;i--){
     const g=enemyGrenadeProjs_[i];
@@ -2919,7 +2923,8 @@ function updateDangerZone(dt){
     const t = nowS(); if(t - dzLastDmgT >= 1){ damagePlayer(DZ_DMG); dzLastDmgT = t; }
   }
 }
-function clearDangerZone(){ dzLastDmgT = 0; }
+function clearDangerZone(){ if(dzMesh){ scene.remove(dzMesh); dzMesh.geometry.dispose(); dzMesh.material.dispose(); dzMesh = null; } dzLastDmgT = 0; }   // #91 : retire l'anneau (sinon visible dans le lobby)
+G.debug.dzMeshActive = () => !!dzMesh && dzMesh.parent === scene;
 G.debug.dangerZoneRadius = () => dangerZoneRadius();
 G.debug.playerInZone = () => playerInZone();
 G.debug.dangerZoneDamage = () => dangerZoneDamage();
@@ -3121,7 +3126,7 @@ function clearMoneyOrbs(){ for(const o of moneyOrbs){ scene.remove(o.mesh); o.me
 G.debug.moneyOrbCount = () => moneyOrbs.length;
 G.debug.spawnMoneyOrb = (x,z,amount) => spawnMoneyOrb(x,z,amount||50);
 // ====== #78 Mode semi-auto ======
-const SEMI_AUTO_WEAPONS = new Set(['sniper','phantom_sr','pistol','specter_p','jackal_45']);
+const SEMI_AUTO_WEAPONS = new Set(['sniper','phantom_sr','pistol','jackal']);   // ids réels catalogue (Specter-P=pistol, Jackal-45=jackal) — #78
 let semiAuto = false, firePrev = false;
 function isSemiAuto(){ return semiAuto || SEMI_AUTO_WEAPONS.has(effectiveWeaponId()); }
 function resetSemiAuto(){ semiAuto = false; firePrev = false; updateSemiAutoHud(); }
@@ -4032,7 +4037,8 @@ G.debug.restart = () => restartGame();
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
   resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud'])
+  resetCallouts();                                             // vide kill-feed + callouts résiduels (sinon persistent dans le lobby)
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -4337,7 +4343,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){

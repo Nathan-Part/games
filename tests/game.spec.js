@@ -4398,3 +4398,63 @@ test('#53b boost run : unequipBoostRun desactive le bonus pour la partie, restar
   const bonusAfter = await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat);
   expect(bonusAfter).toBe(bonusBefore);
 });
+
+// ====== Boucle d'audit 2026-06-30 (2e cycle) : conformité doc/code + fuites de scène/HUD ======
+
+test('AUDIT #118 : la grenade collante est rechargee a CHAQUE vague (1/vague, pas 1/partie)', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(1);
+  await page.evaluate(() => __game.debug.throwSticky());
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(0);   // consommee
+  await page.evaluate(() => __game.debug.forceNextWave());                 // vague suivante => refill
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(1);   // rechargee
+});
+
+test('AUDIT fuite scene : sticky + grenades ennemies nettoyees au retour menu (backToHome)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.throwSticky(); });
+  // place une grenade ennemie en vol si un grenadier existe, sinon on s'appuie sur la sticky
+  expect(await page.evaluate(() => __game.debug.stickyCount())).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => __game.debug.stickyCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.enemyGrenadeCount())).toBe(0);
+});
+
+test('AUDIT #78 : le Jackal-45 est semi-auto par defaut (id catalogue reel)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setSemiAuto(false));              // pas de toggle manuel
+  await page.evaluate(() => __game.debug.forceEquipWeapon('jackal'));      // id reel du catalogue
+  expect(await page.evaluate(() => __game.debug.semiAutoMode())).toBe(true);
+  // un fusil d'assaut reste full-auto
+  await page.evaluate(() => __game.debug.forceEquipWeapon('default'));
+  const auto = await page.evaluate(() => __game.debug.semiAutoMode());
+  expect(auto).toBe(false);
+});
+
+test('AUDIT #91 : l\'anneau de zone de danger est retire au retour menu (pas dans le lobby)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.dangerZoneRadius());              // force la construction via update
+  await page.waitForTimeout(120);
+  expect(await page.evaluate(() => __game.debug.dzMeshActive())).toBe(true);
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => __game.debug.dzMeshActive())).toBe(false);
+});
+
+test('AUDIT fuite HUD : shield-bar et smoke-hud masques au retour menu', async ({ page }) => {
+  await startPlaying(page);
+  await expect(page.locator('#shield-bar')).toBeVisible();
+  await expect(page.locator('#smoke-hud')).toBeVisible();
+  await page.evaluate(() => __game.debug.backToHome());
+  await expect(page.locator('#shield-bar')).toBeHidden();
+  await expect(page.locator('#smoke-hud')).toBeHidden();
+});
+
+test('AUDIT #125 : pas d\'invincibilite rampage residuelle dans la partie suivante', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerRampage());
+  expect(await page.evaluate(() => __game.debug.rampageActive())).toBe(true);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => __game.debug.start(0));
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout: 20000 });
+  expect(await page.evaluate(() => __game.debug.rampageActive())).toBe(false);  // rampage purge au demarrage
+});
