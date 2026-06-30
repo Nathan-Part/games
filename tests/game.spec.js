@@ -4499,3 +4499,14 @@ test('AUDIT2 #61/#89 : isSniper tient compte de l\'arme lootee (lunette/laser co
   await page.evaluate(() => { __game.debug.forceEquipWeapon('sniper'); __game.debug.setMatchWeapon('default'); });
   expect(await page.evaluate(() => __game.debug.sniperScopeActive())).toBe(false);
 });
+
+test('AUDIT3 #67/#94 : le bouclier ne regenere pas en mode hardcore', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.killAllEnemies(); __game.debug.setHardcore(true); __game.debug.setShield(0); });
+  await page.waitForTimeout(1200);                                          // > assez pour regen (15/s) si le bug existait
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(0);       // hardcore = aucune régén bouclier
+  // contrôle : hors hardcore, le bouclier remonte bien (prouve que le test n'est pas tautologique)
+  await page.evaluate(() => { __game.debug.killAllEnemies(); __game.debug.setHardcore(false); __game.debug.setShield(0); });
+  await page.waitForTimeout(1200);
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBeGreaterThan(0);
+});

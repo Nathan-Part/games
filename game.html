@@ -3295,7 +3295,7 @@ const SHIELD_MAX = 50, SHIELD_REGEN = 15, SHIELD_DELAY = 4;
 let shieldHpVal = SHIELD_MAX, shieldLastDmg = -999;
 function updateShieldHud(){ const el=document.getElementById('shield-fill'); if(el) el.style.width=(shieldHpVal/SHIELD_MAX*100)+'%'; }
 function updateShield(dt){
-  if(shieldHpVal < SHIELD_MAX && nowS() - shieldLastDmg >= SHIELD_DELAY){
+  if(!hardcore_ && shieldHpVal < SHIELD_MAX && nowS() - shieldLastDmg >= SHIELD_DELAY){   // #94 hardcore : pas de régén bouclier (comme updateHealth)
     shieldHpVal = Math.min(SHIELD_MAX, shieldHpVal + SHIELD_REGEN*dt); updateShieldHud(); }
 }
 function resetShield(){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); }
