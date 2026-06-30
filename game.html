@@ -2998,6 +2998,7 @@ function backstabMult(){ return BACKSTAB_MULT; }
 G.debug.isBackstab = (i) => isBackstab(i);
 G.debug.backstabMult = () => backstabMult();
 G.debug.forceEnemyBackstab = (i) => { const e=enemies[i]; if(!e||!model) return; const dx=model.position.x-e.root.position.x,dz=model.position.z-e.root.position.z; e.root.rotation.y=Math.atan2(dx,dz)+Math.PI; };
+G.debug.forceEnemyFacePlayer = (i) => { const e=enemies[i]; if(!e||!model) return; const dx=model.position.x-e.root.position.x,dz=model.position.z-e.root.position.z; e.root.rotation.y=Math.atan2(dx,dz); };   // #87 : ennemi face au joueur (isBackstab=false)
 // ====== #86 Footsteps sonores ======
 const FS_WALK = 0.38, FS_RUN = 0.22;
 let fsLastT = 0;
@@ -4461,7 +4462,7 @@ G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
 G.debug.enemyState = (i) => enemies[i]?.state;
 G.debug.enemyLoco  = (i) => enemies[i]?.loco;
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
-G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, z:e.root.position.z } : null; };
+G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, y:e.root.position.y, z:e.root.position.z } : null; };
 G.debug.enemyLabel  = () => enemyLabel;
 G.debug.enemyHasClip = (role) => !!(enemyClips && enemyClips[role]);
 G.debug.enemyHeight = () => enemies[0] ? rigHeightOf(enemies[0].root).h : 0;

@@ -2205,13 +2205,11 @@ test('#47 corpse : cadavre reste au sol apres la mort (position.y <= 0.5)', asyn
   await page.evaluate(() => { for(let i=0;i<__game.debug.enemyCount();i++) __game.debug.damageEnemy(i,9999); });
   await page.waitForFunction(() => window.__game.debug.enemyState(0) === 'dead', null, {timeout:3000});
   await page.waitForTimeout(600);
-  const posY = await page.evaluate(() => {
-    const state = window.__game_internal?.enemies?.[0]?.root?.position?.y;
-    // Fallback : utiliser corpseCount et vérifier via debug que la position est raisonnable
-    return __game.debug.corpseCount() > 0 ? 0 : -1; // 0 = corpse existe (proxy)
-  });
-  // Le vrai test : tuer ennemi face au joueur et vérifier que l'état est dead
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+  // le coeur du test (#47) : le cadavre ne flotte pas → position.y clampée près du sol
+  const posY = await page.evaluate(() => __game.debug.enemyPos(0).y);
+  expect(posY).toBeLessThanOrEqual(0.5);
+  expect(posY).toBeGreaterThanOrEqual(-0.5); // ni flottant, ni enfoncé (clamp bidirectionnel #47)
 });
 
 // ====== #48 — Bug : spawn hors obstacles ======
@@ -3200,15 +3198,15 @@ test('#87 backstab : backstabMult() retourne 1.5', async ({ page }) => {
 
 test('#87 backstab : isBackstab faux si ennemi face au joueur', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => {
-    __game.debug.spawnEnemyInFront(5);
-    // ennemi regarde vers le joueur : rotation.y = PI (face)
-    const e = __game.debug.enemyPos ? null : null;
-  });
-  // Si l'ennemi est spawné devant, il fait face au joueur (state patrol/chase regardant joueur)
-  // isBackstab(0) doit etre false quand l'ennemi est face au joueur
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(5));
+  await page.waitForTimeout(100);
+  // oriente l'ennemi pour qu'il regarde le joueur → ce n'est PAS un backstab
+  await page.evaluate(() => __game.debug.forceEnemyFacePlayer(0));
   const result = await page.evaluate(() => __game.debug.isBackstab(0));
-  expect(typeof result).toBe('boolean');
+  expect(result).toBe(false);
+  // contrôle inverse : dos tourné → backstab vrai (garantit que le test discrimine)
+  await page.evaluate(() => __game.debug.forceEnemyBackstab(0));
+  expect(await page.evaluate(() => __game.debug.isBackstab(0))).toBe(true);
 });
 
 test('#87 backstab : forceEnemyBackstab rend isBackstab vrai', async ({ page }) => {
@@ -3549,8 +3547,7 @@ test('#103 screen shake : explodeGrenadeAt active le shake', async ({ page }) =>
 // ====== #104 — Ennemi berserker ======
 test('#104 berserker : ENEMY_TYPES contient berserker', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => !!__game.debug.waveComposition && typeof window.ENEMY_TYPES_HAS_BERSERKER !== 'undefined' || true)).toBe(true);
-  // Verifier via spawnEnemyTypeAt
+  // morphe l'ennemi 0 en berserker → prouve que le type existe dans ENEMY_TYPES
   await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 50, 50));
   expect(await page.evaluate(() => __game.debug.enemyType(0))).toBe('berserker');
 });
@@ -4043,8 +4040,10 @@ test('#123 explosive_ammo : tir sur ennemi cause degats AoE a un ennemi proche',
   await page.waitForTimeout(200);
   const hp1After = await page.evaluate(() => __game.debug.enemyHp(0));
   const hp2After = await page.evaluate(() => __game.debug.enemyHp(1));
-  // Au moins un des deux ennemis doit avoir pris des dégâts
-  expect(hp1After < hp1Before || hp2After < hp2Before).toBe(true);
+  // l'ennemi 0 est touché directement (le tir a bien atteint sa cible)
+  expect(hp1After).toBeLessThan(hp1Before);
+  // PREUVE de l'AoE : l'ennemi 1, JAMAIS visé directement (0.7m < R=2m), prend aussi des dégâts
+  expect(hp2After).toBeLessThan(hp2Before);
 });
 
 test('#123 explosive_ammo : explosiveAmmoTimeLeft > 0 quand actif', async ({ page }) => {
