@@ -4356,3 +4356,38 @@ test('audit : le dash est pret (cooldown remis a zero) au restart', async ({ pag
   const ready = await page.evaluate(() => __game.debug.dashReady());
   expect(ready).toBe(true);
 });
+
+// ====== #53b — boosts déséquipables PAR PARTIE (run-based) ======
+test('#53b boost run : unequipBoostRun desactive le bonus pour la partie, restart le restaure', async ({ page }) => {
+  await startPlaying(page);
+  // acheter + équiper le 1er boost du catalogue
+  const bo = await page.evaluate(() => {
+    const cat = __game.debug.shop.boostCatalog();
+    const b = cat[0];
+    __game.debug.save.addMoney(b.price + 1000);
+    __game.debug.shop.buyBoost(b.id);
+    __game.debug.shop.equipBoost(b.id);
+    return b;
+  });
+  // équipé persistant + bonus présent
+  const eq1 = await page.evaluate((slot) => __game.debug.equippedBoosts()[slot], bo.slot);
+  expect(eq1).toBe(bo.id);
+  const bonusBefore = await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat);
+  expect(bonusBefore).toBeGreaterThan(0);
+  // désactiver pour la partie
+  await page.evaluate((slot) => __game.debug.unequipBoostRun(slot), bo.slot);
+  const disabled = await page.evaluate((slot) => __game.debug.isBoostRunDisabled(slot), bo.slot);
+  expect(disabled).toBe(true);
+  const bonusRun = await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat);
+  expect(bonusRun).toBeLessThan(bonusBefore);   // bonus retiré pour la partie
+  // mais l'équipement persistant est INTACT
+  const eq2 = await page.evaluate((slot) => __game.debug.equippedBoosts()[slot], bo.slot);
+  expect(eq2).toBe(bo.id);
+  // restart → override remis à zéro, bonus restauré
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  const disabledAfter = await page.evaluate((slot) => __game.debug.isBoostRunDisabled(slot), bo.slot);
+  expect(disabledAfter).toBe(false);
+  const bonusAfter = await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat);
+  expect(bonusAfter).toBe(bonusBefore);
+});

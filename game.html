@@ -2126,8 +2126,13 @@ function renderShop(){
       const eq = save.equippedBoosts[bo.slot] === bo.id;
       const statTxt = bo.stat === 'health' ? `+${bo.bonus} Vie` : bo.stat === 'speed' ? `+${Math.round(bo.bonus*100)}% Vit.` : `+${bo.bonus} Régén`;
       let foot;
-      if(eq)   // équipé → cliquer dé-équipe (toggle)
-        foot = `<button class="icbtn on" data-equipboost="${bo.id}">${ico('check')} Équipé</button>`;
+      if(eq){  // équipé → cliquer dé-équipe (toggle) ; + bouton run-based (#53) désactiver pour la partie
+        const runOff = isBoostRunDisabled(bo.slot);
+        const runBtn = runOff
+          ? `<button class="icbtn" data-requiprun="${bo.slot}" title="Réactiver pour cette partie">↻ Run</button>`
+          : `<button class="icbtn" data-unequiprun="${bo.slot}" title="Désactiver pour cette partie seulement">✕ Run</button>`;
+        foot = `<button class="icbtn ${runOff?'':'on'}" data-equipboost="${bo.id}">${ico('check')} ${runOff?'Off (run)':'Équipé'}</button>${runBtn}`;
+      }
       else if(owned)
         foot = `<button class="icbtn" data-equipboost="${bo.id}">Équiper</button>`;
       else
@@ -2185,6 +2190,8 @@ function renderShop(){
   info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(selectAccessory(shopAccSlot, b.dataset.selacc)){ shopAccPreview[shopAccSlot] = null; renderShop(); } });
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
+  info.querySelectorAll('[data-unequiprun]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(unequipBoostRun(b.dataset.unequiprun)) renderShop(); });   // #53 désactiver pour la partie
+  info.querySelectorAll('[data-requiprun]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(requipBoostRun(b.dataset.requiprun)) renderShop(); });        // #53 réactiver pour la partie
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
   info.querySelectorAll('[data-previewdance]').forEach(b => b.onclick = () => { previewDance(b.dataset.previewdance); });   // aperçu live (même non possédée)
   info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { if(toggleDance(b.dataset.seldance)) renderShop(); });
@@ -3708,15 +3715,21 @@ function applyBoosts(root){
   if(!root) return;
   clearBoneTag(root, 'boost');
   for(const slot of BOOST_SLOTS){
-    const id = save.equippedBoosts[slot]; if(!id) continue;
+    const id = save.equippedBoosts[slot]; if(!id || runBoostOverrides[slot]) continue;   // #53 : pas de visuel si désactivé pour la partie
     const vis = BOOST_VISUAL[slot]; if(!vis) continue;
     for(const at of vis.attach){ const bone = findBoneNamed(root, at.name, at.re); if(bone) attachToBoneWorld(bone, vis.build(), 'boost', at.off); }
   }
 }
 G.debug.boostAttachedCount = () => { if(!model) return 0; let n=0; model.traverse(o=>{ if(o.userData && o.userData.accSlot==='boost') n++; }); return n; };
 function boostById(id){ return BOOSTS.find(b => b.id === id) || null; }
+// #53 run-based : désactiver un boost équipé pour la PARTIE EN COURS seulement (reset au restart, non persisté)
+let runBoostOverrides = {};
+function isBoostRunDisabled(slot){ return !!runBoostOverrides[slot]; }
+function unequipBoostRun(slot){ if(!save.equippedBoosts[slot]) return false; runBoostOverrides[slot] = true; applyPlayerStats(); applyBoosts(model); return true; }
+function requipBoostRun(slot){ if(!runBoostOverrides[slot]) return false; delete runBoostOverrides[slot]; applyPlayerStats(); applyBoosts(model); return true; }
+function resetRunBoosts(){ runBoostOverrides = {}; }
 function boostBonuses(){ const acc = { health:0, regen:0, speed:0 };
-  for(const slot of BOOST_SLOTS){ const b = boostById(save.equippedBoosts[slot]); if(b) acc[b.stat] += b.bonus; }
+  for(const slot of BOOST_SLOTS){ if(runBoostOverrides[slot]) continue; const b = boostById(save.equippedBoosts[slot]); if(b) acc[b.stat] += b.bonus; }   // #53 saute les slots désactivés pour la partie
   return acc; }
 function buyBoost(id){ const b = boostById(id); if(!b) return false;
   if(save.ownedBoosts.includes(id) || save.money < b.price) return false;
@@ -3761,6 +3774,10 @@ G.debug.shop.equipBoost = (id) => equipBoost(id);
 G.debug.equippedBoosts = () => Object.assign({}, save.equippedBoosts);
 G.debug.boostBonuses = () => boostBonuses();
 G.debug.unequipBoost = (slot) => { save.equippedBoosts[slot] = null; persist(); applyPlayerStats(); applyBoosts(model); };
+G.debug.unequipBoostRun = (slot) => unequipBoostRun(slot);          // #53 déséquipe pour la partie en cours
+G.debug.requipBoostRun = (slot) => requipBoostRun(slot);            // #53 réactive pour la partie en cours
+G.debug.runBoostOverrides = () => Object.assign({}, runBoostOverrides);
+G.debug.isBoostRunDisabled = (slot) => isBoostRunDisabled(slot);
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = (id) => selectCharacter(id);
@@ -3993,6 +4010,7 @@ function playerDie(){
 function restartGame(){
   document.getElementById('gameover').classList.add('hidden');
   endDance();                                                  // pas de danse résiduelle au restart (#27)
+  resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
@@ -4008,7 +4026,7 @@ G.debug.restart = () => restartGame();
 // Retour à l'accueil (depuis le Game Over) : masque les HUD, vide la scène de jeu, réaffiche le menu
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
-  resetCombo(); resetPower();
+  resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
   for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
