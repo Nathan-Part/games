@@ -4320,3 +4320,19 @@ test('#111b/#121b : ghost et grenadier en vague paire 8+', async ({ page }) => {
   expect(w12).toContain('ghost');
   expect(w12).toContain('grenadier');
 });
+
+// ====== Audit fix — mineStock reinitialise au restart ======
+test('audit : le stock de mines est recharge au restart', async ({ page }) => {
+  await startPlaying(page);
+  const full = await page.evaluate(() => __game.debug.mineStock());
+  expect(full).toBeGreaterThan(0);
+  // épuise le stock
+  await page.evaluate(() => { while(__game.debug.mineStock() > 0) __game.debug.placeMine(); });
+  const empty = await page.evaluate(() => __game.debug.mineStock());
+  expect(empty).toBe(0);
+  // restart → stock rechargé à plein
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  const refilled = await page.evaluate(() => __game.debug.mineStock());
+  expect(refilled).toBe(full);
+});
