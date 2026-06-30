@@ -4299,3 +4299,24 @@ test('#97b arc grenade : maintenir B affiche l arc, relacher lance la grenade', 
   const projAfter = await page.evaluate(() => __game.debug.grenadeProjCount());
   expect(projAfter).toBeGreaterThan(projBefore);
 });
+
+// ====== #111b/#121b — sniper & stunner persistent vague 8+ (rotation parité) ======
+test('#111b/#121b : sniper et stunner reapparaissent en vague impaire 9+', async ({ page }) => {
+  await startPlaying(page);
+  const w9 = await page.evaluate(() => __game.debug.waveComposition(9));
+  expect(w9).toContain('sniper');
+  expect(w9).toContain('stunner');
+  const w11 = await page.evaluate(() => __game.debug.waveComposition(11));
+  expect(w11).toContain('sniper');
+  expect(w11).toContain('stunner');
+});
+
+test('#111b/#121b : ghost et grenadier en vague paire 8+', async ({ page }) => {
+  await startPlaying(page);
+  const w8 = await page.evaluate(() => __game.debug.waveComposition(8));
+  expect(w8).toContain('ghost');
+  expect(w8).toContain('grenadier');
+  const w12 = await page.evaluate(() => __game.debug.waveComposition(12));
+  expect(w12).toContain('ghost');
+  expect(w12).toContain('grenadier');
+});

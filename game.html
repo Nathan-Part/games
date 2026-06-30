@@ -4057,10 +4057,10 @@ function waveComposition(w){
   const n = enemiesForWave(w), out = [];
   for(let i=0;i<n;i++){
     if(w>=3 && i%4===3) out.push('tank');
-    else if(w>=8 && i%6===5) out.push('ghost');                                 // fantôme dès la v8 (#107)
-    else if(w>=7 && i%6===5) out.push('stunner');                               // stunner dès la v7 (slot ghost pré-v8) (#121)
-    else if(w>=8 && i%7===6) out.push('grenadier');                             // grenadier dès la v8 (slot sniper) (#128)
-    else if(w>=5 && i%7===6) out.push('sniper');                                // sniper dès la v5 (#111)
+    else if(w>=8 && i%6===5) out.push(w%2===0 ? 'ghost' : 'stunner');           // v8+ : alternance ghost (pair) / stunner (impair) par parité (#107/#121)
+    else if(w>=7 && i%6===5) out.push('stunner');                               // stunner v7 (slot ghost pré-v8) (#121)
+    else if(w>=8 && i%7===6) out.push(w%2===0 ? 'grenadier' : 'sniper');        // v8+ : alternance grenadier (pair) / sniper (impair) par parité (#128/#111)
+    else if(w>=5 && i%7===6) out.push('sniper');                                // sniper v5-7 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
     else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
     else if(w>=4 && i%3===2) out.push('bomber');                                // kamikaze dès la v4 (#37)
