@@ -3371,11 +3371,14 @@ test('#95 extmag : spawnExtMag() puis collecte double curMag', async ({ page }) 
   expect(await page.evaluate(() => __game.debug.extMagActive())).toBe(true);
 });
 
-test('#95 extmag : extMagTimeLeft() > 0 apres collecte', async ({ page }) => {
+test('#95 extmag : extMagTimeLeft() proche de 15s apres collecte', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.spawnExtMag(0, 0); __game.debug.setPos(0, 0); });
   await page.waitForTimeout(500);
-  expect(await page.evaluate(() => __game.debug.extMagTimeLeft())).toBeGreaterThan(0);
+  const tl = await page.evaluate(() => __game.debug.extMagTimeLeft());
+  expect(tl).toBeGreaterThan(0);
+  // durée annoncée = 15s ; après ~0.5s de collecte il doit rester nettement plus que 8s
+  expect(tl).toBeGreaterThan(12);
 });
 
 // ====== #96 — LMG Overheat ======
