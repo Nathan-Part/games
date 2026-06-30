@@ -4339,3 +4339,20 @@ test('audit : le stock de mines est recharge au restart', async ({ page }) => {
   const refilled = await page.evaluate(() => __game.debug.mineStock());
   expect(refilled).toBe(full);
 });
+
+// ====== Audit fix — dash reset au restart (#35) ======
+test('audit : le dash est pret (cooldown remis a zero) au restart', async ({ page }) => {
+  await startPlaying(page);
+  // déclenche un dash → met le cooldown
+  await page.evaluate(() => { __game.debug.setInput({ forward:true }); __game.debug.dash(); });
+  await page.waitForTimeout(50);
+  const cdMid = await page.evaluate(() => __game.debug.dashCooldownLeft());
+  expect(cdMid).toBeGreaterThan(0);
+  // restart → cooldown remis à zéro, dash prêt
+  await page.evaluate(() => { __game.debug.setInput({}); __game.debug.restart(); });
+  await page.waitForTimeout(100);
+  const cdAfter = await page.evaluate(() => __game.debug.dashCooldownLeft());
+  expect(cdAfter).toBe(0);
+  const ready = await page.evaluate(() => __game.debug.dashReady());
+  expect(ready).toBe(true);
+});
