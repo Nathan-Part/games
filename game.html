@@ -141,9 +141,11 @@
   .deploy-btn .ico{width:22px;height:22px}
   .deploy-lbl{display:flex;flex-direction:column;align-items:flex-start;line-height:1}
   .deploy-lbl small{font-family:var(--font-ui);font-weight:600;text-transform:none;letter-spacing:0;font-size:10px;opacity:.75;margin-top:3px}
-  #hud{position:fixed;left:16px;bottom:16px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
-    padding:9px 13px;font-size:var(--t-xs);line-height:1.55;color:var(--text-2);--ch:8px;
-    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  #hud{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
+    padding:9px 14px;font-size:var(--t-xs);line-height:1.55;color:var(--text-2);text-align:center;max-width:min(94vw,920px);pointer-events:none;--ch:8px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch));
+    animation:hudHelpFade .8s ease 9s forwards}
+  @keyframes hudHelpFade{to{opacity:0;visibility:hidden}}
   #pause,#overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
     background:rgba(8,9,11,.9);text-align:center;padding:24px}
   #overlay-msg{max-width:520px;line-height:1.6;color:var(--text-2)}
@@ -1316,7 +1318,7 @@ async function spawnModel(char){
   if(mixer){ mixer.stopAllAction(); mixer = null; }   // lobby : l'idle est (re)posé par playLobbyIdle
   lobbyIdle = false;
   if(model){ scene.remove(model); heldWeapon = null; }   // nouveau modèle => l'arme se ré-attache à la partie suivante
-  model = m; scene.add(model);
+  model = m; model.userData.charId = char.id; scene.add(model);   // tag : quel perso ce modèle représente (vérif sélection)
   groundY = m.position.y; velY = 0; grounded = true;
   applyShopVisibility();   // si la boutique (vitrine d'arme) est ouverte, masque ce nouveau perso
 }
@@ -1429,7 +1431,7 @@ async function startGame(){
   setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
   setRain(save.settings.rain);                                 // applique le réglage pluie (#93)
   spawnDefaultTargets();
-  document.getElementById('crosshair').classList.remove('hidden');
+  { const ch = document.getElementById('crosshair'); ch.classList.remove('hidden'); ch.style.visibility = 'visible'; } // reset visibilité (sinon réticule bloqué masqué si on a quitté en visant)
   document.getElementById('combat').classList.remove('hidden');
   document.getElementById('wave-hud').classList.remove('hidden');
   document.getElementById('money-hud').classList.remove('hidden'); updateMoneyHud();
@@ -1710,7 +1712,11 @@ function updateController(dt){
 // ====== UI : HUD, pause, overlay ======
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
-  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · B (maintenir) : viser grenade · C : dash · G : ramasser · 1/2/3 : danses<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
+  h.innerHTML = `<b>${G.character?.label||''}</b>`
+    + `<br>ZQSD / flèches : bouger · R/Shift : courir · Espace : sauter · C : dash`
+    + `<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · X : couteau · T : auto/rafale · P : semi-auto`
+    + `<br>B (maintenir) : grenade · N : flashbang · H : fumigène · J : collante · Y : claymore · G : ramasser arme`
+    + `<br>1/2/3 : danses · Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
 }
 function showOverlay(msg){
   document.getElementById('overlay').classList.remove('hidden');
@@ -2190,7 +2196,7 @@ function renderShop(){
   info.querySelectorAll('[data-upg]').forEach(b => b.onclick = () => { const fw=filteredWeapons(); if(buyUpgrade((fw[shopWeaponIndex]||fw[0]).id, b.dataset.upg)) renderShop(); });   // #49
   info.querySelectorAll('[data-pupg]').forEach(b => b.onclick = () => { if(buyPlayerUpgrade(b.dataset.pupg)) renderShop(); });
   info.querySelectorAll('[data-buychar]').forEach(b => b.onclick = () => { if(buyCharacter(b.dataset.buychar)) renderShop(); });
-  info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = () => { if(selectCharacter(b.dataset.selchar)) renderShop(); });   // maj visuelle du lobby à la fermeture (carrousel #25)
+  info.querySelectorAll('[data-selchar]').forEach(b => b.onclick = async () => { if(selectCharacter(b.dataset.selchar)){ await showSelectedCharacter(); renderShop(); } });   // reconstruit le modèle 3D du perso choisi (sinon onglets accessoire/boost ET jeu gardent l'ancien perso)
   info.querySelectorAll('[data-accslot]').forEach(b => b.onclick = () => { shopAccSlot = b.dataset.accslot; renderShop(); });
   info.querySelectorAll('[data-prevacc]').forEach(b => b.onclick = () => { previewAccessory(shopAccSlot, b.dataset.prevacc); renderShop(); });   // essayer avant d'acheter
   info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(buyAccessory(b.dataset.buyacc)) renderShop(); });
@@ -2756,7 +2762,6 @@ function tryRicochet(missOrigin, missDir){
 G.debug.ricochetsTotal = () => ricochetsTotal_;
 G.debug.lastRicochetHit = () => lastRicochetHit_;
 G.debug.forceRicochetHit = () => { ricochetsTotal_++; lastRicochetHit_=true; };
-G.debug.enemyIsGhost = (i) => { const e=enemies[i]; return !!e && e.type==='ghost'; };
 G.debug.enemyBodyOpacity = (i) => { const e=enemies[i]; if(!e||!e.mats||!e.mats[0]) return null; return e.mats[0].mat.opacity; };
 G.debug.enemyShootRange = (i) => { const e=enemies[i]; if(!e) return null; return (e.spec && e.spec.shootRange) || SHOOT_RANGE; };
 G.debug.enemyIsSniper = (i) => { const e=enemies[i]; return !!e && e.type==='sniper'; };
@@ -3062,8 +3067,18 @@ function callReinforcement(e){
 function spawnSingleEnemy(sp, type, hp){
   if(!enemyBase || !enemyClips) return;
   const spec = ENEMY_TYPES[type] || ENEMY_TYPES.shooter;
-  const root = enemyBase.clone(true);
-  const mats = []; root.traverse(o=>{ if(o.isMesh && o.material){ const m=o.material.clone(); o.material=m; if(spec.opacity!=null){ m.transparent=true; m.opacity=spec.opacity; } mats.push(m); }});
+  // IMPORTANT : cloneSkeleton (SkeletonUtils) et PAS .clone(true) — sinon le squelette n'est pas relié → T-pose figée
+  const root = cloneSkeleton(enemyBase);
+  if(spec.scale !== 1) root.scale.multiplyScalar(spec.scale);
+  const mats = [];
+  root.traverse(o => { if(o.isMesh){
+    o.castShadow=true; o.receiveShadow=true;
+    const cloneMat = m => { const c = m.clone();
+      if(spec.opacity != null){ c.transparent=true; c.opacity=spec.opacity; }
+      if(c.emissive){ if(spec.glow != null) c.emissive.setHex(spec.glow); mats.push({ mat:c, base:c.emissive.clone() }); }
+      return c; };
+    o.material = Array.isArray(o.material) ? o.material.map(cloneMat) : cloneMat(o.material);
+  } });
   const mixer = new THREE.AnimationMixer(root);
   const actions = {}; for(const k of ['idle','walk','run','attack','dead']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
   const hbY = 0.9 * spec.scale; const hitbox = makeHitbox(spec.scale);
@@ -3798,7 +3813,8 @@ G.debug.runBoostOverrides = () => Object.assign({}, runBoostOverrides);
 G.debug.isBoostRunDisabled = (slot) => isBoostRunDisabled(slot);
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
-G.debug.shop.selectCharacter = (id) => selectCharacter(id);
+G.debug.shop.selectCharacter = async (id) => { const ok = selectCharacter(id); if(ok) await showSelectedCharacter(); return ok; };   // reflète le bouton Équiper : sélection + reconstruction du modèle
+G.debug.currentModelCharId = () => model ? model.userData.charId : null;   // quel perso le modèle 3D affiche réellement
 G.debug.shop.accessoryCatalog = (slot) => (ACCESSORY_SLOTS[slot]||[]).map(a => ({ id:a.id, name:a.name, price:a.price, rarity:a.rarity }));
 G.debug.shop.buyAccessory = (id) => buyAccessory(id);
 G.debug.shop.selectAccessory = (slot, id) => selectAccessory(slot, id);
@@ -4012,6 +4028,7 @@ function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');
   flushLifetimeTime(); // lifetime playtime (#80)
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
+  document.getElementById('scope-overlay')?.classList.remove('show'); // lunette sniper masquée à la mort (sinon viseur résiduel sur Game Over/accueil #61)
   if(document.pointerLockElement) document.exitPointerLock?.();
   document.getElementById('go-score').innerHTML =          // G-4 tuiles + stats de partie (#43 : kills/headshots/précision)
     `<div class="go-tiles">`
@@ -4052,6 +4069,9 @@ function backToHome(){
   for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
+  setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
+  if(viewModel) viewModel.visible = false;                     // garantie : pas de mains/arme FPS sur la page d'accueil
+  document.getElementById('scope-overlay')?.classList.remove('show'); // pas de viseur sniper résiduel sur l'accueil (#61)
   if(document.pointerLockElement) document.exitPointerLock?.();
   G.phase = 'lobby';
   document.getElementById('lobby').classList.remove('hidden');
@@ -4075,7 +4095,6 @@ const ENEMY_TYPES = {
   boss:      { id:'boss',      hpMult:8.0, speedMult:0.7,  scale:1.9,  melee:false, damageMult:2.2, burst:3, glow:0xff5a1e },   // #31
   bomber:    { id:'bomber',    hpMult:0.5, speedMult:1.9,  scale:0.95, melee:true,  damageMult:1.0, burst:1, glow:0xff1e1e },   // #37 kamikaze
   berserker: { id:'berserker', hpMult:1.5, speedMult:1.8,  scale:1.05, melee:true,  damageMult:2.0, burst:1, glow:0xcc4400 },   // #104 rage
-  ghost:     { id:'ghost',     hpMult:1.0, speedMult:1.3,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x55ddff, opacity:0.5 }, // #107 fantôme (glow cyan + opacité relevée : visible/ciblable, plus juste l'arme qui flotte)
   sniper:    { id:'sniper',   hpMult:0.8, speedMult:0.5,  scale:1.0,  melee:false, damageMult:2.5, burst:1, glow:0xcc0033, shootCd:4.0, shootRange:28 }, // #111 sniper (engage de loin, pas à 9m comme les autres)
   shielder:  { id:'shielder', hpMult:1.2, speedMult:0.7,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x00aacc },         // #119 bouclier frontal
   medic:     { id:'medic',    hpMult:0.7, speedMult:0.8,  scale:0.95, melee:false, damageMult:0.8, burst:1, glow:0x00cc55 },         // #120 guérisseur
@@ -4097,8 +4116,7 @@ function waveComposition(w){
   const n = enemiesForWave(w), out = [];
   for(let i=0;i<n;i++){
     if(w>=3 && i%4===3) out.push('tank');
-    else if(w>=8 && i%6===5) out.push(w%2===0 ? 'ghost' : 'stunner');           // v8+ : alternance ghost (pair) / stunner (impair) par parité (#107/#121)
-    else if(w>=7 && i%6===5) out.push('stunner');                               // stunner v7 (slot ghost pré-v8) (#121)
+    else if(w>=7 && i%6===5) out.push('stunner');                               // stunner dès v7 (slot libéré : ghost supprimé) (#121)
     else if(w>=8 && i%7===6) out.push(w%2===0 ? 'grenadier' : 'sniper');        // v8+ : alternance grenadier (pair) / sniper (impair) par parité (#128/#111)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper v5-7 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
@@ -4207,7 +4225,7 @@ function updateRadar(){
     ctx.beginPath(); ctx.moveTo(c1[0],c1[1]); ctx.lineTo(c2[0],c2[1]); ctx.lineTo(c3[0],c3[1]); ctx.lineTo(c4[0],c4[1]); ctx.closePath(); ctx.fill();
   }
   // ennemis (couleur par type, clamp au bord si hors portée)
-  for(const e of enemies){ if(!e.alive || e.type==='ghost') continue; // ghost invisible radar (#107)
+  for(const e of enemies){ if(!e.alive) continue;
     const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, cy, RADAR_RANGE, RADAR_R);
     ctx.globalAlpha = b.inRange ? 1 : 0.5; ctx.fillStyle = RADAR_COLORS[e.type] || '#ff5b5b';
     ctx.beginPath(); ctx.arc(C + b.x, C - b.y, b.inRange ? 4 : 3, 0, Math.PI*2); ctx.fill();
@@ -4219,7 +4237,7 @@ function updateRadar(){
 G.debug.radarBlip = radarBlip;
 G.debug.radar = {
   blips(){ if(!model) return []; const px=model.position.x, pz=model.position.z, out=[];
-    for(const e of enemies){ if(!e.alive || e.type==='ghost') continue; const b=radarBlip(e.root.position.x,e.root.position.z,px,pz,camYaw,RADAR_RANGE,RADAR_R);
+    for(const e of enemies){ if(!e.alive) continue; const b=radarBlip(e.root.position.x,e.root.position.z,px,pz,camYaw,RADAR_RANGE,RADAR_R);
       out.push({ id:e.id, x:b.x, y:b.y, inRange:b.inRange, type:e.type }); } return out; },
   range(){ return RADAR_RANGE; },
   visible(){ const cv=document.getElementById('radar'); return !!cv && !cv.classList.contains('hidden'); },
@@ -4270,7 +4288,7 @@ G.debug.forceEnemyBurst = (i) => { const e = enemies[i]; if(!e || !e.spec) retur
 G.debug.spawnEnemyTypeAt = (i, type, x, z) => {
   const e = enemies[i]; if(!e) return null;
   const spec = ENEMY_TYPES[type] || ENEMY_TYPES.shooter;
-  e.type = type; e.spec = spec; e.burstLeft = spec.burst || 1; e.meleeCd = 0; e.weaponId = weaponIdForType(type);
+  e.type = spec.id; e.spec = spec; e.burstLeft = spec.burst || 1; e.meleeCd = 0; e.weaponId = weaponIdForType(spec.id);  // type invalide (ex. 'ghost' supprimé) → vrai type du spec (shooter)
   e.hp = Math.round(enemyHpForWave(wave || 1) * spec.hpMult); e.maxHp = e.hp;
   e.alive = true; e.state = 'patrol'; e.loco = 'idle'; e.lostFor = 0; e.target = null;
   e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0, 0, 0);
@@ -4488,6 +4506,7 @@ G.debug.enemyCount = () => enemies.length;
 G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
 G.debug.enemyState = (i) => enemies[i]?.state;
 G.debug.enemyLoco  = (i) => enemies[i]?.loco;
+G.debug.enemyBoneSig = (i) => { const e=enemies[i]; if(!e) return null; let s=0,n=0; e.root.traverse(o=>{ if(o.isBone){ s+=o.quaternion.x+o.quaternion.y+o.quaternion.z+o.quaternion.w+o.position.x+o.position.y+o.position.z; n++; } }); return n?+(s.toFixed(4)):null; }; // signature pose : change si l'anim joue
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
 G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, y:e.root.position.y, z:e.root.position.z } : null; };
 G.debug.enemyLabel  = () => enemyLabel;

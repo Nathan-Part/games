@@ -3622,27 +3622,15 @@ test('#106 empty fire : tir avec ammo=0 declenche emptyFire', async ({ page }) =
   expect(await page.evaluate(() => __game.debug.emptyFireCount())).toBe(1);
 });
 
-// ====== #107 — Ennemi fantôme (ghost) ======
-test('#107 ghost : spawnEnemyTypeAt ghost cree un ennemi de type ghost', async ({ page }) => {
+// ====== #107 — Ennemi fantôme (ghost) : TYPE SUPPRIMÉ (retiré du jeu à la demande) ======
+test('#107 ghost : le type ghost n existe plus (retombe sur shooter)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 10, 10));
-  expect(await page.evaluate(() => __game.debug.enemyType(0))).toBe('ghost');
-});
-
-test('#107 ghost : enemyIsGhost() true pour un ghost', async ({ page }) => {
-  await startPlaying(page);
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 10, 10));
-  expect(await page.evaluate(() => __game.debug.enemyIsGhost(0))).toBe(true);
-});
-
-test('#107 ghost : ghost absent des blips radar', async ({ page }) => {
-  await startPlaying(page);
-  await page.evaluate(() => { for(let i=0;i<__game.debug.enemyCount();i++) __game.debug.moveEnemy(i,100,100); });
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 5, 5));
-  await page.evaluate(() => __game.debug.setPos(0, 0));
-  const blips = await page.evaluate(() => __game.debug.radar.blips());
-  const ghostBlip = blips.find(b => b.type === 'ghost');
-  expect(ghostBlip).toBeUndefined();
+  // ENEMY_TYPES n'a plus 'ghost' → fallback shooter
+  expect(await page.evaluate(() => __game.debug.enemyType(0))).toBe('shooter');
+  // et aucune vague ne contient plus de ghost
+  const waves = await page.evaluate(() => [8,9,10,11,12,13].map(w => __game.debug.waveComposition(w)));
+  expect(waves.flat().includes('ghost')).toBe(false);
 });
 
 // ====== #108 — Tactical reload bonus ======
@@ -4340,14 +4328,15 @@ test('#111b/#121b : sniper et stunner reapparaissent en vague impaire 9+', async
   expect(w11).toContain('stunner');
 });
 
-test('#111b/#121b : ghost et grenadier en vague paire 8+', async ({ page }) => {
+test('#111b/#121b : grenadier et stunner en vague paire 8+ (ghost supprimé)', async ({ page }) => {
   await startPlaying(page);
   const w8 = await page.evaluate(() => __game.debug.waveComposition(8));
-  expect(w8).toContain('ghost');
-  expect(w8).toContain('grenadier');
+  expect(w8).toContain('grenadier');   // i%7===6 pair
+  expect(w8).toContain('stunner');     // i%6===5 dès v7 (slot ghost libéré)
+  expect(w8).not.toContain('ghost');   // type supprimé
   const w12 = await page.evaluate(() => __game.debug.waveComposition(12));
-  expect(w12).toContain('ghost');
   expect(w12).toContain('grenadier');
+  expect(w12).not.toContain('ghost');
 });
 
 // ====== Audit fix — mineStock reinitialise au restart ======
@@ -4602,10 +4591,57 @@ test('AUDIT5 #111 : le sniper a une portee d engagement longue (pas 9m comme les
   expect(await page.evaluate(() => __game.debug.enemyShootRange(0))).toBeLessThanOrEqual(9);  // shooter normal
 });
 
-test('AUDIT5 #107 : le ghost est visible (opacite relevee, glow) et tuable', async ({ page }) => {
+
+// ====== Bugs gameplay (signalés en jouant) ======
+test('bug renfort #84 : le renfort est cree avec un vrai squelette (clonable, touchable, tuable)', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 0, 6));
-  expect(await page.evaluate(() => __game.debug.enemyBodyOpacity(0))).toBeGreaterThanOrEqual(0.5);  // plus 0.35 quasi invisible
-  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
-  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');                       // bien tuable
+  const before = await page.evaluate(() => __game.debug.enemyCount());
+  await page.evaluate(() => __game.debug.forceCallReinforcement(0));
+  await page.waitForTimeout(100);
+  const after = await page.evaluate(() => __game.debug.enemyCount());
+  expect(after).toBeGreaterThan(before);                 // renfort ajouté
+  // le dernier ennemi = renfort : prend des dégâts et meurt → exerce setEnemyEmissive (mats {mat,base})
+  // (avant le fix, mats etait des materiaux simples → crash au flash/kill)
+  const idx = after - 1;
+  await page.evaluate(i => __game.debug.damageEnemy(i, 99999), idx);
+  expect(await page.evaluate(i => __game.debug.enemyState(i), idx)).toBe('dead');
+});
+
+test('bug vue : retour menu remet la vue en 3e personne (pas de viewmodel FPS sur l accueil)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setView('first'));
+  expect(await page.evaluate(() => __game.view)).toBe('first');
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => __game.view)).toBe('third');           // vue réinitialisée
+  expect(await page.evaluate(() => __game.debug.weapon.viewmodelVisible())).toBe(false);  // viewmodel masqué
+});
+
+test('bug viseur : la lunette sniper ne reste pas sur l accueil (retour menu)', async ({ page }) => {
+  await startPlaying(page);
+  // add('show') + backToHome dans le MÊME evaluate : sinon la boucle de jeu (non scopé) retire 'show' avant le retour menu
+  await page.evaluate(() => { document.getElementById('scope-overlay').classList.add('show'); __game.debug.backToHome(); });
+  expect(await page.evaluate(() => document.getElementById('scope-overlay').classList.contains('show'))).toBe(false);
+});
+
+test('bug viseur : la lunette sniper est masquee a la mort (Game Over propre)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); document.getElementById('scope-overlay').classList.add('show'); __game.debug.damagePlayer(99999); }); // mort, même evaluate
+  expect(await page.evaluate(() => __game.phase)).toBe('dead');
+  expect(await page.evaluate(() => document.getElementById('scope-overlay').classList.contains('show'))).toBe(false);
+});
+
+test('bug perso : equiper le Cyborg reconstruit le modele 3D (shop + jeu)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, { timeout:20000 });
+  // acheter + équiper le Cyborg (perso:robot)
+  await page.evaluate(() => __game.debug.save.addMoney(999999));
+  const ok = await page.evaluate(async () => {
+    __game.debug.shop.buyCharacter('perso:robot');
+    return await __game.debug.shop.selectCharacter('perso:robot');
+  });
+  expect(ok).toBe(true);
+  await page.waitForFunction(() => __game.debug.currentModelCharId() === 'perso:robot', null, { timeout:15000 });
+  // le modèle 3D affiché EST bien le Cyborg (et pas blue-soldier)
+  expect(await page.evaluate(() => __game.debug.currentModelCharId())).toBe('perso:robot');
+  expect(await page.evaluate(() => __game.debug.save.get().selectedCharacterId)).toBe('perso:robot');
 });
