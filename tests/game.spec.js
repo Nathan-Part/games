@@ -4260,3 +4260,20 @@ test('#94b hardcore : le reglage settings s applique au restart', async ({ page 
   const hcOff = await page.evaluate(() => __game.debug.hardcoreMode());
   expect(hcOff).toBe(false);
 });
+
+// ====== #93b — Pluie activable depuis les Reglages ======
+test('#93b pluie : le reglage settings s applique au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.settings.set('rain', true));
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  const on = await page.evaluate(() => __game.debug.rainActive());
+  expect(on).toBe(true);
+  const particles = await page.evaluate(() => __game.debug.rainParticleCount());
+  expect(particles).toBeGreaterThan(0);
+  await page.evaluate(() => __game.debug.settings.set('rain', false));
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  const off = await page.evaluate(() => __game.debug.rainActive());
+  expect(off).toBe(false);
+});

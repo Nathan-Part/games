@@ -738,6 +738,8 @@
     </div></div>
   <div class="set-row"><label for="set-hardcore"><svg class="ico"><use href="#i-gauge"></use></svg> Mode hardcore <span style="opacity:.6;font-size:.78em">(pas de régén/soins)</span></label>
     <button id="set-hardcore" class="set-toggle"></button></div>
+  <div class="set-row"><label for="set-rain"><svg class="ico"><use href="#i-gauge"></use></svg> Pluie <span style="opacity:.6;font-size:.78em">(ambiance orageuse)</span></label>
+    <button id="set-rain" class="set-toggle"></button></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
 </div></div>
 
@@ -809,7 +811,7 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
   ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
-  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false },
+  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false, rain:false },
   lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 } }; }
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
@@ -1420,6 +1422,7 @@ async function startGame(){
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
+  setRain(save.settings.rain);                                 // applique le réglage pluie (#93)
   spawnDefaultTargets();
   document.getElementById('crosshair').classList.remove('hidden');
   document.getElementById('combat').classList.remove('hidden');
@@ -1475,6 +1478,8 @@ function renderSettings(){
   document.querySelectorAll('#set-diff .set-diff-btn').forEach(b => b.classList.toggle('on', b.dataset.diff === cur));
   const hc = document.getElementById('set-hardcore');           // toggle hardcore (#94)
   if(hc){ hc.textContent = s.hardcore ? '☠ Activé' : 'Désactivé'; hc.classList.toggle('on', !!s.hardcore); }
+  const rn = document.getElementById('set-rain');               // toggle pluie (#93)
+  if(rn){ rn.textContent = s.rain ? '🌧 Activé' : 'Désactivé'; rn.classList.toggle('on', !!s.rain); }
 }
 function openSettings(){ renderSettings(); openPanel('settings-panel'); }
 document.getElementById('set-sensitivity').oninput = e => { setSetting('sensitivity', parseFloat(e.target.value)); renderSettings(); };
@@ -1482,6 +1487,7 @@ document.getElementById('set-volume').oninput = e => { setSetting('volume', pars
 document.getElementById('set-view').onclick = () => { setSetting('defaultView', save.settings.defaultView === 'first' ? 'third' : 'first'); renderSettings(); };
 document.getElementById('set-diff').addEventListener('click', e => { const b = e.target.closest('.set-diff-btn'); if(b) G.debug.setDifficulty(b.dataset.diff); });   // #46
 document.getElementById('set-hardcore').onclick = () => { setSetting('hardcore', !save.settings.hardcore); renderSettings(); };   // #94 toggle hardcore persistant
+document.getElementById('set-rain').onclick = () => { setSetting('rain', !save.settings.rain); setRain(save.settings.rain); renderSettings(); };   // #93 toggle pluie persistant
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
@@ -3988,7 +3994,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; // restart (#55-#128)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; // restart (#55-#128)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
