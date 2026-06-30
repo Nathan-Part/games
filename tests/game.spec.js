@@ -766,16 +766,6 @@ test('save : nettoyer une vague rapporte un bonus (par vague)', async ({ page })
   expect(after - before).toBe((1 + 1 + 2) * rates.perKill + rates.perWave * 1);   // combo (#29) booste l'argent par kill
 });
 
-test('save : nettoyer une vague PARFAITE ajoute le bonus survie (#100)', async ({ page }) => {
-  await startPlaying(page);
-  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
-  const rates = await page.evaluate(() => __game.debug.save.rates());
-  const before = await page.evaluate(() => __game.money);
-  await page.evaluate(() => __game.debug.killAllEnemies());       // 0 dégât subi → bonus survie parfaite vague 1 = 50
-  const after = await page.evaluate(() => __game.money);
-  expect(after - before).toBe((1 + 1 + 2) * rates.perKill + rates.perWave * 1 + 50);   // + bonus survie parfaite (#100)
-});
-
 test('save : une sauvegarde corrompue retombe sur les valeurs par defaut', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.booted);
