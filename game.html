@@ -836,7 +836,7 @@ const DIFFICULTIES = {
 function curDiff(){ return DIFFICULTIES[(save.settings && save.settings.difficulty) || 'normal'] || DIFFICULTIES.normal; }
 G.debug.difficulty = () => curDiff().id;
 G.debug.setDifficulty = (id) => { if(DIFFICULTIES[id]){ save.settings.difficulty = id; persist(); if(typeof renderSettings === 'function') renderSettings(); } };
-function addMoney(n){ n = Math.round(n * ksMoneyMultiplier()); save.money += n; G.money = save.money; addLifetimeStat('moneyEarned', n); persist(); updateMoneyHud(); }   // #80 : moneyEarned cumulé (était mort)
+function addMoney(n){ n = Math.round(n * ksMoneyMultiplier()); save.money += n; runMoney_ += n; G.money = save.money; addLifetimeStat('moneyEarned', n); persist(); updateMoneyHud(); }   // #80 : moneyEarned cumulé ; runMoney_ = gagné cette partie
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `${ico('coin')} ${save.money}`; }
 function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b> internes, garde l'icône SVG)
@@ -2216,8 +2216,10 @@ const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
 let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 // stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
 let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; }
+let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; }
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
+G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
 const ACHIEVEMENTS = [
   { id:'firstblood',  name:'Premier sang',       desc:'Éliminer un ennemi' },
@@ -2670,7 +2672,15 @@ function tryTriggerFrenzy(e){
   if(e.hp / e.maxHp > FRENZY_HP_THRESH) return;
   e.frenzyUsed = true; e.frenzyUntil = nowS() + FRENZY_DURATION; frenzyCount_++;
   setEnemyEmissive(e, true); showCallout('FRENZY!');
-  e.root.traverse(o => { if(o.isMesh && o.material) o.material.color.setHex(0xff1100); });
+  e.frenzyVisualOn = true; e.frenzyOrigColors = [];                 // sauvegarde la couleur d'origine pour la restaurer (sinon rouge bloqué à vie)
+  e.root.traverse(o => { if(o.isMesh && o.material){ const ms = Array.isArray(o.material)?o.material:[o.material];
+    ms.forEach(m => { if(m.color){ e.frenzyOrigColors.push({ m, c:m.color.clone() }); m.color.setHex(0xff1100); } }); } });
+}
+function endFrenzyVisual(e){   // restaure couleur + glow normaux quand le frenzy se termine (ou à la mort)
+  if(!e.frenzyVisualOn) return;
+  e.frenzyVisualOn = false;
+  if(e.frenzyOrigColors){ for(const o of e.frenzyOrigColors) o.m.color.copy(o.c); e.frenzyOrigColors = null; }
+  setEnemyEmissive(e, false);
 }
 G.debug.enemyInFrenzy = (i) => { const e=enemies[i]; return !!(e && e.frenzyUntil > nowS()); };
 G.debug.frenzyCount = () => frenzyCount_;
@@ -3313,7 +3323,7 @@ function showLevelUpToast(n){
 }
 G.debug.showLevelUpToast = (n) => showLevelUpToast(n);
 // ====== #67 Bouclier rechargeable ======
-const SHIELD_MAX = 50, SHIELD_REGEN = 15, SHIELD_DELAY = 4;
+const SHIELD_MAX = 25, SHIELD_REGEN = 8, SHIELD_DELAY = 6;   // affaibli : petit tampon (25) + régén lente/retardée → les ennemis lents percent et font de vrais dégâts
 let shieldHpVal = SHIELD_MAX, shieldLastDmg = -999;
 function updateShieldHud(){ const el=document.getElementById('shield-fill'); if(el) el.style.width=(shieldHpVal/SHIELD_MAX*100)+'%'; }
 function updateShield(dt){
@@ -4039,7 +4049,7 @@ function playerDie(){
     + `<div class="go-tile"><span>Précision</span><b>${runShots ? Math.round(runHits/runShots*100) : 0}%</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
-    + `<div class="go-tile gold"><span>Argent</span><b>${save.money}</b></div></div>`
+    + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
     + `<div class="go-rank">RANG <span class="go-rank-letter">${runRank()}</span></div>`;
   document.getElementById('gameover').classList.remove('hidden');
 }
@@ -4441,6 +4451,7 @@ function updateEnemies(dt){
       if(isFinite(lo)) e.root.position.y += (ENEMY_FOOT_Y + 0.05 - lo);
       continue;
     }
+    if(e.frenzyVisualOn && nowS() >= e.frenzyUntil) endFrenzyVisual(e); // #129 : fin du frenzy → couleur/glow normaux restaurés (plus de rouge bloqué)
     if(e.flashedUntil && nowS() < e.flashedUntil){ e.mixer.update(dt); setEnemyLoco(e,'idle'); continue; } // aveuglé (#57)
     if(!e.calledReinforcement && (e.type==='shooter'||e.type==='tank') && nowS()-e.spawnedAt >= REINFORCE_DELAY) callReinforcement(e); // renforts (#84)
     if(!e.isDecoy && !e.spawnedDecoy && e.type==='shooter' && wave>=DECOY_WAVE_MIN && nowS()-e.spawnedAt>=DECOY_SPAWN_INTERVAL){ e.spawnedDecoy=true; spawnDecoyNear(e); } // décoy (#124)
@@ -4571,8 +4582,7 @@ function setEnemyEmissive(e, on){
 }
 function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
-  if(e.frenzyUntil && nowS() < e.frenzyUntil) return; // invincible en frenzy (#129)
-  e.hp -= amount; playSound('hit');
+  e.hp -= amount; playSound('hit');                    // #129 : le berserker en frenzy est désormais TUABLE (plus d'invincibilité)
   tryTriggerFrenzy(e);                                 // #129 : vérifie si frenzy se déclenche
   if(e.hp <= 0){ killEnemy(e); return; }
   if(e.state === 'patrol') e.state = 'chase';   // touché => s'aggrave et se retourne/fonce vers le joueur
@@ -4737,6 +4747,7 @@ function killEnemy(e){
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
   e.frozenPose = null;
   if(e.muzzleFlash){ e.muzzleFlash.visible = false; e.muzzleFlashUntil = 0; }
+  endFrenzyVisual(e);                                           // #129 : restaure couleur d'origine si mort en frenzy (corps pas rouge vif)
   setEnemyEmissive(e, false); e.flashUntil = 0;                 // fin du flash rouge bloqué (corps propre)
   if(e.hitbox && e.hitbox.parent) e.hitbox.parent.remove(e.hitbox);  // hitbox off (corps non ciblable / traversable)
   if(e.shieldMesh) e.shieldMesh.visible = false;                     // bouclier masqué à la mort (#119)

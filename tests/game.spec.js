@@ -2798,21 +2798,23 @@ test('#66 hpbar : enemyHpBarFrac retourne fraction PV', async ({ page }) => {
   expect(frac).toBeLessThan(1);
 });
 
-// ====== #67 — Bouclier rechargeable ======
-test('#67 shield : shieldHp initial = 50', async ({ page }) => {
+// ====== #67 — Bouclier rechargeable (affaibli : max dynamique via maxShield) ======
+test('#67 shield : shieldHp initial = maxShield', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(50);
+  const max = await page.evaluate(() => __game.debug.maxShield());
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(max);
 });
 
 test('#67 shield : dégâts absorbés par le bouclier en premier', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => __game.debug.setShield(50));
+  const max = await page.evaluate(() => __game.debug.maxShield());
+  await page.evaluate(m => __game.debug.setShield(m), max);
   const hpBefore = await page.evaluate(() => __game.health);
-  await page.evaluate(() => __game.debug.damagePlayer(20));
+  await page.evaluate(() => __game.debug.damagePlayer(10)); // < max → entièrement absorbé
   const hpAfter = await page.evaluate(() => __game.health);
   const shield = await page.evaluate(() => __game.debug.shieldHp());
   expect(hpAfter).toBe(hpBefore); // HP intact
-  expect(shield).toBe(30);         // shield réduit
+  expect(shield).toBe(max - 10);  // shield réduit de 10
 });
 
 test('#67 shield : overflow de dégâts passe sur HP', async ({ page }) => {
@@ -3670,7 +3672,8 @@ test('#109 shield orb : spawnShieldOrb puis collecte recharge le bouclier', asyn
   await page.evaluate(() => __game.debug.spawnShieldOrb(0, 0));
   await page.evaluate(() => __game.debug.setPos(0, 0));
   await page.waitForTimeout(400);
-  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(50);
+  const max = await page.evaluate(() => __game.debug.maxShield());
+  expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(max);   // l'orbe recharge au max (25 désormais)
   expect(await page.evaluate(() => __game.debug.lastShieldOrbPickup())).toBe(true);
 });
 
@@ -4240,7 +4243,7 @@ test('#129 frenzy : forceEnemyFrenzy declenche le frenzy', async ({ page }) => {
   expect(inFrenzy).toBe(true);
 });
 
-test('#129 frenzy : berserker invincible pendant frenzy', async ({ page }) => {
+test('#129 frenzy : berserker TUABLE pendant frenzy (plus d invincibilite)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'berserker', 5, 0));
   await page.waitForTimeout(100);
@@ -4248,7 +4251,7 @@ test('#129 frenzy : berserker invincible pendant frenzy', async ({ page }) => {
   const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
   await page.evaluate(() => __game.debug.damageEnemy(0, 50));
   const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
-  expect(hpAfter).toBe(hpBefore); // dégâts bloqués
+  expect(hpAfter).toBeLessThan(hpBefore); // les dégâts s'appliquent (plus d'invincibilité)
 });
 
 test('#129 frenzy : frenzyCount incremente au declenchement', async ({ page }) => {
@@ -4515,7 +4518,7 @@ test('AUDIT3 #67/#94 : le bouclier ne regenere pas en mode hardcore', async ({ p
   expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(0);       // hardcore = aucune régén bouclier
   // contrôle : hors hardcore, le bouclier remonte bien (prouve que le test n'est pas tautologique)
   await page.evaluate(() => { __game.debug.killAllEnemies(); __game.debug.setHardcore(false); __game.debug.setShield(0); });
-  await page.waitForTimeout(5500);   // > SHIELD_DELAY (4s) : setShield pose shieldLastDmg=now, la régén attend le délai normal puis remonte
+  await page.waitForTimeout(7000);   // > SHIELD_DELAY (6s) : setShield pose shieldLastDmg=now, la régén attend le délai puis remonte
   expect(await page.evaluate(() => __game.debug.shieldHp())).toBeGreaterThan(0);
 });
 
@@ -4644,4 +4647,19 @@ test('bug perso : equiper le Cyborg reconstruit le modele 3D (shop + jeu)', asyn
   // le modèle 3D affiché EST bien le Cyborg (et pas blue-soldier)
   expect(await page.evaluate(() => __game.debug.currentModelCharId())).toBe('perso:robot');
   expect(await page.evaluate(() => __game.debug.save.get().selectedCharacterId)).toBe('perso:robot');
+});
+
+test('argent partie : runMoney compte l argent gagne CETTE partie (pas le total) et reset au restart', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runMoney())).toBe(0); // début de partie = 0 gagné
+  await page.evaluate(() => __game.debug.save.addMoney(0)); // no-op
+  // tuer un ennemi rapporte de l'argent → runMoney augmente
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0); __game.debug.damageEnemy(0, 99999); });
+  await page.waitForTimeout(100);
+  const earned = await page.evaluate(() => __game.debug.runMoney());
+  expect(earned).toBeGreaterThan(0);
+  // restart → runMoney remis à 0 (le total save.money n'est PAS touché)
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.runMoney())).toBe(0);
 });
