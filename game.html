@@ -1634,6 +1634,7 @@ function setLoco(state){
 // ====== Dash / esquive (#35) ======
 const DASH_DISTANCE = 2.6, DASH_SPEED = 16, DASH_CD = 1.4;
 let dashRemaining = 0, dashCdUntil = 0, dashDir = { x:0, z:1 };
+let lastMoveSpeed_ = 0;                                       // dernière vitesse de déplacement effective (#127 test)
 function dash(){
   if(G.phase !== 'playing' || !model || !grounded || nowS() < dashCdUntil) return false;
   const f = (input.forward?1:0)-(input.back?1:0), s = (input.left?1:0)-(input.right?1:0);
@@ -1672,6 +1673,7 @@ function updateController(dt){
     else { stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt); if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; }
     updateStaminaHud();
     speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1) * (rampageActive() ? RAMPAGE_SPEED : 1) * (activePower==='speed_boost' ? 2 : 1); // stun (#121) rampage (#125) speed boost (#127)
+    lastMoveSpeed_ = speed;                                   // vitesse effective (pour tests #127)
     model.position.x += vx*speed*dt;
     model.position.z += vz*speed*dt;
     const target = Math.atan2(vx, vz);
@@ -3989,6 +3991,7 @@ G.debug.spawnExplosiveAmmo = (x,z) => spawnPowerUp('explosive_ammo', x, z);
 G.debug.speedBoostActive = () => activePower === 'speed_boost';                 // #127
 G.debug.speedBoostTimeLeft = () => activePower === 'speed_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnSpeedBoost = (x,z) => spawnPowerUp('speed_boost', x, z);
+G.debug.playerMoveSpeed = () => lastMoveSpeed_;                                 // #127 vitesse effective (inclut le boost)
 
 function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');

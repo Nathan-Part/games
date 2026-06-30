@@ -3251,10 +3251,11 @@ test('#89 laser : laser visible quand sniper equipe + ADS', async ({ page }) => 
   expect(await page.evaluate(() => __game.debug.sniperLaserVisible())).toBe(true);
 });
 
-test('#89 laser : sniperLaserLength() > 0 en ADS sniper', async ({ page }) => {
+test('#89 laser : sniperLaserLength() = 60m en ADS sniper', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.forceEquipWeapon('sniper'); __game.debug.setInput({ aim: true }); });
-  expect(await page.evaluate(() => __game.debug.sniperLaserLength())).toBeGreaterThan(0);
+  // la roadmap #89 spécifie un rayon de 60 m
+  expect(await page.evaluate(() => __game.debug.sniperLaserLength())).toBe(60);
 });
 
 // ====== #90 — Rang de fin de partie ======
@@ -3902,18 +3903,18 @@ test('#119 shielder : spawn en vague 4+', async ({ page }) => {
 
 test('#119 shielder : tir frontal bloque (0 degats)', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => __game.debug.forceWave(4));
-  await page.waitForTimeout(200);
-  // Trouver un shielder
-  const idx = await page.evaluate(() => {
-    for(let i = 0; i < __game.debug.enemyCount(); i++) if(__game.debug.enemyType(i)==='shielder') return i;
-    return -1;
-  });
-  if(idx < 0) return; // pas de shielder cette vague, passer
-  const hpBefore = await page.evaluate(i => __game.debug.enemyHp(i), idx);
-  await page.evaluate(i => __game.debug.forceShieldBlock(i), idx);
-  const blocked = await page.evaluate(() => __game.debug.shieldBlockCount());
-  expect(blocked).toBeGreaterThan(0);
+  // spawn déterministe d'un shielder en slot 0
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shielder', 4, 0));
+  await page.waitForTimeout(100);
+  const blockedBefore = await page.evaluate(() => __game.debug.shieldBlockCount());
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.forceShieldBlock(0));
+  // le compteur de blocages augmente
+  const blockedAfter = await page.evaluate(() => __game.debug.shieldBlockCount());
+  expect(blockedAfter).toBeGreaterThan(blockedBefore);
+  // et surtout : 0 dégât → PV inchangés (le coeur du test, ce que le titre promet)
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hpAfter).toBe(hpBefore);
 });
 
 test('#119 shielder : enemyIsShielded retourne true pour un shielder', async ({ page }) => {
@@ -4172,18 +4173,24 @@ test('#127 speed_boost : speedBoostTimeLeft > 0 quand actif', async ({ page }) =
   expect(tl).toBeGreaterThan(0);
 });
 
-test('#127 speed_boost : le joueur se deplace avec le boost actif', async ({ page }) => {
+test('#127 speed_boost : la vitesse effective est doublee (x2) quand actif', async ({ page }) => {
   await startPlaying(page);
+  // vitesse normale (marche, sans boost)
+  await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.setInput({ forward: true }); });
+  await page.waitForTimeout(200);
+  const baseSpeed = await page.evaluate(() => __game.debug.playerMoveSpeed());
+  await page.evaluate(() => __game.debug.setInput({}));
+  expect(baseSpeed).toBeGreaterThan(0);
+  // activer le boost puis re-mesurer
   await page.evaluate(() => { __game.debug.spawnSpeedBoost(0, 0); __game.debug.setPos(0, 0); });
   await page.waitForTimeout(300); // pickup
-  const boosted = await page.evaluate(() => __game.debug.speedBoostActive());
-  expect(boosted).toBe(true);
+  expect(await page.evaluate(() => __game.debug.speedBoostActive())).toBe(true);
   await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.setInput({ forward: true }); });
-  await page.waitForTimeout(400);
-  const pos = await page.evaluate(() => __game.position());
+  await page.waitForTimeout(200);
+  const boostedSpeed = await page.evaluate(() => __game.debug.playerMoveSpeed());
   await page.evaluate(() => __game.debug.setInput({}));
-  const dist = Math.hypot(pos.x, pos.z);
-  expect(dist).toBeGreaterThan(0.1);
+  // ratio exactement 2 (même mode de marche, seul le boost change)
+  expect(boostedSpeed / baseSpeed).toBeCloseTo(2, 1);
 });
 
 // ====== #128 — Ennemi grenadier ======
