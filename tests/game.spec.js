@@ -3715,19 +3715,20 @@ test('#111 sniper : spawnEnemyTypeAt sniper, enemyIsSniper() true', async ({ pag
   expect(await page.evaluate(() => __game.debug.enemyIsSniper(0))).toBe(true);
 });
 
-test('#111 sniper : damageMult 2.5x vs shooter', async ({ page }) => {
+test('#111 sniper : damageMult 2.5x vs shooter 1.0x', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'sniper', 10, 10));
-  const dmgMult = await page.evaluate(() => {
-    const e = window.__game.debug.enemies ? window.__game.debug.enemies[0] : null;
-    const enemies = []; for(let i=0;i<10;i++){ try{ const s=__game.debug.enemyType(i); if(s==='sniper'){ return 2.5; } }catch(e){} } return null;
+  // sniper en slot 0, shooter en slot 1 → comparer leurs multiplicateurs de dégâts
+  await page.evaluate(() => {
+    __game.debug.spawnEnemyTypeAt(0, 'sniper', 10, 10);
+    __game.debug.spawnEnemyTypeAt(1, 'shooter', 12, 10);
   });
-  // Check via ENEMY_TYPES directly
-  const sniperDmg = await page.evaluate(() => {
-    const e = { type: 'sniper' };
-    return __game.debug.enemySniperShootCd(0);
-  });
-  expect(sniperDmg).toBe(4.0);
+  const sniperMult = await page.evaluate(() => __game.debug.enemyDamageMult(0));
+  const shooterMult = await page.evaluate(() => __game.debug.enemyDamageMult(1));
+  expect(sniperMult).toBe(2.5);
+  expect(shooterMult).toBe(1.0);
+  expect(sniperMult).toBe(shooterMult * 2.5);
+  // et la cadence sniper reste 4s
+  expect(await page.evaluate(() => __game.debug.enemySniperShootCd(0))).toBe(4.0);
 });
 
 test('#111 sniper : type sniper dans waveComposition vague 7', async ({ page }) => {

@@ -2747,6 +2747,7 @@ G.debug.forceRicochetHit = () => { ricochetsTotal_++; lastRicochetHit_=true; };
 G.debug.enemyIsGhost = (i) => { const e=enemies[i]; return !!e && e.type==='ghost'; };
 G.debug.enemyIsSniper = (i) => { const e=enemies[i]; return !!e && e.type==='sniper'; };
 G.debug.enemySniperShootCd = (i) => { const e=enemies[i]; return e ? (e.spec && e.spec.shootCd) || null : null; };
+G.debug.enemyDamageMult = (i) => { const e=enemies[i]; return e && e.spec ? e.spec.damageMult : null; };   // #111 : multiplicateur de dégâts du type d'ennemi
 // ====== #100 Bonus argent fin de vague (survie parfaite) ======
 const WAVE_BONUS_PER_WAVE = 50;
 let lastWaveBonus_ = 0;
