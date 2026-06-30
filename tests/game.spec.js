@@ -4277,3 +4277,25 @@ test('#93b pluie : le reglage settings s applique au restart', async ({ page }) 
   const off = await page.evaluate(() => __game.debug.rainActive());
   expect(off).toBe(false);
 });
+
+// ====== #97b — Arc de grenade au maintien de B ======
+test('#97b arc grenade : maintenir B affiche l arc, relacher lance la grenade', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.canvas && __game.canvas.focus && __game.canvas.focus());
+  // s'assurer d'avoir des grenades
+  const stock = await page.evaluate(() => __game.debug.grenadeCount());
+  expect(stock).toBeGreaterThan(0);
+  // maintenir B → arc visible
+  await page.keyboard.down('b');
+  await page.waitForTimeout(120);
+  const arcOn = await page.evaluate(() => __game.debug.grenadeArcVisible());
+  expect(arcOn).toBe(true);
+  const projBefore = await page.evaluate(() => __game.debug.grenadeProjCount());
+  // relâcher B → grenade lancée + arc masqué
+  await page.keyboard.up('b');
+  await page.waitForTimeout(120);
+  const arcOff = await page.evaluate(() => __game.debug.grenadeArcVisible());
+  expect(arcOff).toBe(false);
+  const projAfter = await page.evaluate(() => __game.debug.grenadeProjCount());
+  expect(projAfter).toBeGreaterThan(projBefore);
+});

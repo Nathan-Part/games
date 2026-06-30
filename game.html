@@ -1514,7 +1514,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
   if(e.code==='KeyF' && G.phase==='playing') reload();                                // F = recharger
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
-  if(e.code==='KeyB' && G.phase==='playing') throwGrenade();                          // B = lancer une grenade (#33)
+  if(e.code==='KeyB' && G.phase==='playing' && grenades > 0) showGrenadeArc(true);    // B (maintien) = viser l'arc de grenade (#33/#97)
   if(e.code==='KeyN' && G.phase==='playing') throwFlashbang();                        // N = lancer une flashbang (#57)
   if(e.code==='KeyT' && G.phase==='playing') fireModeToggle();                        // T = basculer auto/burst (#64)
   if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
@@ -1530,7 +1530,8 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
 addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
   if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyR') input.sprint=false;
   if(e.code==='KeyQ') input.aim=false;
-  if(e.code==='KeyE') input.fire=false; });
+  if(e.code==='KeyE') input.fire=false;
+  if(e.code==='KeyB' && arcVisible_){ throwGrenade(); showGrenadeArc(false); } });   // B relâché = lancer la grenade le long de l'arc visé (#97)
 G.debug.setInput = (s={}) => { input.forward=!!s.forward; input.back=!!s.back;
   input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint;
   input.fire=!!s.fire; input.aim=!!s.aim; };
@@ -3994,7 +3995,7 @@ function restartGame(){
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; // restart (#55-#128)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; showGrenadeArc(false); // restart (#55-#128, #97)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   spawnDefaultTargets();
