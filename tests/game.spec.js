@@ -330,8 +330,10 @@ test('la touche F recharge (et R ne recharge plus)', async ({ page }) => {
   });
   const a0 = await page.evaluate(() => __game.ammo);
   expect(a0).toBeLessThan(12);
+  const full = await page.evaluate(() => __game.debug.curMag());
   await page.keyboard.press('f');                         // F = recharger
-  await page.waitForFunction(() => __game.ammo === 12, null, { timeout:5000 });
+  // recharger avec ammo>0 donne +1 (bonus rechargement tactique #108)
+  await page.waitForFunction(f => __game.ammo === f + 1, full, { timeout:5000 });
 });
 
 test('enemyDecision : seuils patrouille/poursuite/tir', async ({ page }) => {
@@ -481,6 +483,7 @@ test('hitZoneDamage : tête/torse/jambes', async ({ page }) => {
 
 test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0)); // teste les PV : on vide le bouclier (#67) qui absorberait sinon
   expect(await page.evaluate(() => __game.health)).toBe(100);
   await page.evaluate(() => __game.debug.damagePlayer(40));
   expect(await page.evaluate(() => __game.health)).toBe(60);
@@ -489,6 +492,7 @@ test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', a
 
 test('à 0 PV : Game Over, puis Rejouer remet la partie à zéro', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : vider le bouclier pour que 100 dégâts tuent vraiment
   await page.evaluate(() => __game.debug.damagePlayer(100));
   expect(await page.evaluate(() => __game.phase)).toBe('dead');
   await expect(page.locator('#gameover')).toBeVisible();
@@ -506,6 +510,7 @@ test('un ennemi en vue tire et blesse le joueur', async ({ page }) => {
   // (sinon il entre en 'shoot' et tire en plus du forceEnemyShoot -> 2 impacts, test instable).
   // LOS dégagée le long de z=0 ; précision forcée à 1 -> le tir forcé touche à coup sûr.
   await page.evaluate(() => { __game.debug.setEnemyAccuracy(1); __game.debug.spawnEnemyAt(16, 0); });
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : sans bouclier, l'impact touche les PV
   const h0 = await page.evaluate(() => __game.health);
   await page.evaluate(() => __game.debug.forceEnemyShoot(0));
   expect(await page.evaluate(() => __game.health)).toBe(h0 - 10);  // exactement un impact (ENEMY_DAMAGE)
@@ -577,6 +582,7 @@ test('audio : chaque event de combat joue le bon son', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.audio.last())).toBe('enemyDie');
   await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.spawnEnemyAt(0,6); __game.debug.forceEnemyShoot(0); });
   expect(await page.evaluate(() => __game.debug.audio.last())).toBe('enemyShot');
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : sinon le bouclier absorbe et 'playerHit' ne se joue pas
   await page.evaluate(() => __game.debug.damagePlayer(10));
   expect(await page.evaluate(() => __game.debug.audio.last())).toBe('playerHit');
   await page.evaluate(() => __game.debug.damagePlayer(100)); // mort
@@ -754,9 +760,20 @@ test('save : nettoyer une vague rapporte un bonus (par vague)', async ({ page })
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   const rates = await page.evaluate(() => __game.debug.save.rates());
   const before = await page.evaluate(() => __game.money);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(1); }); // 1 dégât réel → pas de bonus "survie parfaite" (#100), on isole le bonus par-vague
   await page.evaluate(() => __game.debug.killAllEnemies());       // 3 kills (combo x1,x1,x2) + bonus vague 1
   const after = await page.evaluate(() => __game.money);
   expect(after - before).toBe((1 + 1 + 2) * rates.perKill + rates.perWave * 1);   // combo (#29) booste l'argent par kill
+});
+
+test('save : nettoyer une vague PARFAITE ajoute le bonus survie (#100)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
+  const rates = await page.evaluate(() => __game.debug.save.rates());
+  const before = await page.evaluate(() => __game.money);
+  await page.evaluate(() => __game.debug.killAllEnemies());       // 0 dégât subi → bonus survie parfaite vague 1 = 50
+  const after = await page.evaluate(() => __game.money);
+  expect(after - before).toBe((1 + 1 + 2) * rates.perKill + rates.perWave * 1 + 50);   // + bonus survie parfaite (#100)
 });
 
 test('save : une sauvegarde corrompue retombe sur les valeurs par defaut', async ({ page }) => {
@@ -852,6 +869,7 @@ test('accueil : Reglages ouvre un panneau puis Retour le ferme', async ({ page }
 
 test('accueil : on revient au menu apres un Game Over', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : vider le bouclier pour que 100 dégâts tuent
   await page.evaluate(() => __game.debug.damagePlayer(100));
   expect(await page.evaluate(() => __game.phase)).toBe('dead');
   await page.evaluate(() => __game.debug.backToHome());
@@ -1483,6 +1501,7 @@ test('types : un rusher fonce au contact et frappe le joueur (melee)', async ({ 
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.setPos(0,0); __game.debug.spawnEnemyTypeAt(0,'rusher',0,2.2); });
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : sans bouclier, la mêlée touche directement les PV
   await page.waitForFunction(() => __game.debug.enemyState(0) === 'melee', null, { timeout:5000 });
   await page.waitForFunction(() => __game.health < 100, null, { timeout:5000 });
 });
@@ -1492,6 +1511,7 @@ test('types : un tank est coriace (PV+) et frappe fort', async ({ page }) => {
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   await page.evaluate(() => { __game.debug.setEnemyAccuracy(1); __game.debug.spawnEnemyTypeAt(0,'tank',16,0); });
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeGreaterThan(200);
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : sans bouclier, le tir touche les PV
   const h0 = await page.evaluate(() => __game.health);
   await page.evaluate(() => __game.debug.forceEnemyShoot(0));
   expect(await page.evaluate(() => __game.health)).toBe(h0 - 18);   // ENEMY_DAMAGE(10)*1.8
@@ -1653,7 +1673,7 @@ test('loot : invite HUD a proximite + touche G ramasse', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'tank', 0, 1.5); __game.debug.damageEnemy(0, 99999); });
   await expect(page.locator('#pickup-prompt')).toBeVisible();
-  await expect(page.locator('#pickup-prompt')).toContainText('Sniper');
+  await expect(page.locator('#pickup-prompt')).toContainText('Eclipse SR'); // arme 'sniper' renommée en #49
   await page.keyboard.press('KeyG');
   expect(await page.evaluate(() => __game.debug.matchWeapon())).toBe('sniper');
 });
@@ -1837,6 +1857,7 @@ test('soin : drop force a la mort', async ({ page }) => {
 
 test('soin : ramasser un pack au contact soigne et le retire', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : sans bouclier, les 50 dégâts baissent vraiment les PV
   await page.evaluate(() => __game.debug.damagePlayer(50));
   const h0 = await page.evaluate(() => __game.debug.playerHealth());
   const pos = await page.evaluate(() => __game.position());
@@ -1981,11 +2002,17 @@ test('bomber : composition des vagues (des la v4)', async ({ page }) => {
 test('bomber : explose proche du joueur et le blesse', async ({ page }) => {
   await startPlaying(page);
   const pos = await page.evaluate(() => __game.position());
-  await page.evaluate(p => __game.debug.spawnEnemyTypeAt(0, 'bomber', p.x, p.z + 1), pos);
-  const h0 = await page.evaluate(() => __game.debug.playerHealth());
-  await page.evaluate(() => __game.debug.explodeBomberNow(0));
-  expect(await page.evaluate(() => __game.debug.playerHealth())).toBeLessThan(h0);
-  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');
+  // tout dans un seul evaluate synchrone : pas de frame entre spawn et explosion → pas d'explosion-contact parasite,
+  // et bouclier vidé (#67) juste avant pour que l'AoE touche les PV
+  const r = await page.evaluate(p => {
+    __game.debug.setShield(0);
+    __game.debug.spawnEnemyTypeAt(0, 'bomber', p.x, p.z + 1);
+    const h0 = __game.debug.playerHealth();
+    __game.debug.explodeBomberNow(0);
+    return { h0, h1: __game.debug.playerHealth(), state: __game.debug.enemyState(0) };
+  }, pos);
+  expect(r.h1).toBeLessThan(r.h0);
+  expect(r.state).toBe('dead');
 });
 
 test('bomber : explosion loin n inflige rien', async ({ page }) => {
@@ -2180,6 +2207,7 @@ test('difficulte : ajuste PV ennemis et degats recus', async ({ page }) => {
 test('difficulte : facile reduit les degats recus', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.setDifficulty('facile'));
+  await page.evaluate(() => __game.debug.setShield(0)); // #67 : sans bouclier, on mesure les dégâts réels sur les PV
   const h0 = await page.evaluate(() => __game.debug.playerHealth());
   await page.evaluate(() => __game.debug.damagePlayer(20));
   const lost = h0 - await page.evaluate(() => __game.debug.playerHealth());
@@ -3461,6 +3489,7 @@ test('#99 flank : triggerFlank("left") affiche avertissement', async ({ page }) 
 
 test('#99 flank : flankWarning() false apres expiration', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.killAllEnemies()); // sinon checkEnemyFlanks() re-déclenche en direct (ennemi dans le dos)
   await page.evaluate(() => __game.debug.triggerFlank('right'));
   await page.evaluate(() => __game.debug.expireFlank());
   expect(await page.evaluate(() => __game.debug.flankWarning())).toBe(false);

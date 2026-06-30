@@ -3308,7 +3308,7 @@ function updateShield(dt){
 function resetShield(){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); }
 G.debug.shieldHp = () => Math.round(shieldHpVal);
 G.debug.maxShield = () => SHIELD_MAX;
-G.debug.setShield = (v) => { shieldHpVal = Math.max(0, Math.min(SHIELD_MAX, v)); updateShieldHud(); };
+G.debug.setShield = (v) => { shieldHpVal = Math.max(0, Math.min(SHIELD_MAX, v)); shieldLastDmg = nowS(); updateShieldHud(); }; // shieldLastDmg=now → la valeur posée ne se régénère pas instantanément (tests déterministes)
 // ====== #66 Barres de vie ennemis ======
 const EHB_RANGE = 20, EHB_HEIGHT = 2.4;
 function updateEnemyHpBars(){
@@ -4832,7 +4832,7 @@ G.debug.spawnEnemyInFront = (dist=8) => {
 };
 
 // ====== Arme (modèle + attache main + viewmodel) ======
-const WEAPON_DIR = 'artefact/';
+const WEAPON_DIR = 'artefact/weapons/';   // GLB rangé sous artefact/weapons/AR-15/ ; findGlbInDir descend 1 niveau (→ AR-15/)
 let weaponSource = 'primitive', weaponTemplate = null, heldWeapon = null, viewModel = null;
 let handBoneName = null, weaponRecoil = 0, cameraInScene = false;
 function buildWeaponMesh(){
