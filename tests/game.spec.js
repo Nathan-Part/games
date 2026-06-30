@@ -4526,7 +4526,7 @@ test('AUDIT3 #67/#94 : le bouclier ne regenere pas en mode hardcore', async ({ p
   expect(await page.evaluate(() => __game.debug.shieldHp())).toBe(0);       // hardcore = aucune régén bouclier
   // contrôle : hors hardcore, le bouclier remonte bien (prouve que le test n'est pas tautologique)
   await page.evaluate(() => { __game.debug.killAllEnemies(); __game.debug.setHardcore(false); __game.debug.setShield(0); });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(5500);   // > SHIELD_DELAY (4s) : setShield pose shieldLastDmg=now, la régén attend le délai normal puis remonte
   expect(await page.evaluate(() => __game.debug.shieldHp())).toBeGreaterThan(0);
 });
 
