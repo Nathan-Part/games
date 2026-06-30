@@ -1703,7 +1703,7 @@ function updateController(dt){
 // ====== UI : HUD, pause, overlay ======
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
-  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · B : grenade · C : dash · G : ramasser · 1/2/3 : danses<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
+  h.innerHTML = `<b>${G.character?.label||''}</b><br>ZQSD / flèches : bouger · R ou Shift : courir · Espace : sauter<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · B (maintenir) : viser grenade · C : dash · G : ramasser · 1/2/3 : danses<br>Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
 }
 function showOverlay(msg){
   document.getElementById('overlay').classList.remove('hidden');
