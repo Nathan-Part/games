@@ -4510,3 +4510,56 @@ test('AUDIT3 #67/#94 : le bouclier ne regenere pas en mode hardcore', async ({ p
   await page.waitForTimeout(1200);
   expect(await page.evaluate(() => __game.debug.shieldHp())).toBeGreaterThan(0);
 });
+
+// ====== Boucle d'audit 2026-06-30 (itération 4) : boutique + sauvegarde ======
+
+test('AUDIT4 #62 : les contrats quotidiens sont initialises en jeu (sinon inertes en production)', async ({ page }) => {
+  await startPlaying(page);                                    // startGame doit initialiser save.daily
+  const daily = await page.evaluate(() => __game.debug.save.get().daily);
+  expect(daily).not.toBeNull();                                // sans le fix, save.daily reste null => track* inertes
+  expect(Array.isArray(daily.contracts)).toBe(true);
+  expect(daily.contracts.length).toBe(3);
+});
+
+test('AUDIT4 #80 : le playtime est comptabilise a chaque restart (pas seulement au 1er run)', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => __game.debug.restart());           // flush run1 + relance le chrono
+  const after1 = await page.evaluate(() => __game.debug.lifetimeStats().playtime);
+  expect(after1).toBeGreaterThan(0);
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => __game.debug.restart());           // flush run2 (serait perdu sans le fix)
+  const after2 = await page.evaluate(() => __game.debug.lifetimeStats().playtime);
+  expect(after2).toBeGreaterThan(after1);
+});
+
+test('AUDIT4 #18 : setSetting borne la sensibilite et le volume (pas de valeur pathologique persistee)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.settings.set('sensitivity', 0));
+  expect(await page.evaluate(() => __game.debug.settings.get().sensitivity)).toBeGreaterThanOrEqual(0.2);  // pas de visée figée
+  await page.evaluate(() => __game.debug.settings.set('volume', -5));
+  expect(await page.evaluate(() => __game.debug.settings.get().volume)).toBe(0);                            // pas de gain négatif
+  await page.evaluate(() => __game.debug.settings.set('volume', 50));
+  expect(await page.evaluate(() => __game.debug.settings.get().volume)).toBe(1);                            // borné à 1
+});
+
+test('AUDIT4 #53 : reequiper un boost annule un "Run" residuel (plus de boost fantome)', async ({ page }) => {
+  await startPlaying(page);
+  const bo = await page.evaluate(() => { __game.debug.save.addMoney(5000); const c = __game.debug.shop.boostCatalog()[0]; __game.debug.shop.buyBoost(c.id); __game.debug.shop.equipBoost(c.id); return c; });
+  expect(await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat)).toBeGreaterThan(0);
+  await page.evaluate((slot) => __game.debug.unequipBoostRun(slot), bo.slot);             // désactivé pour la partie
+  expect(await page.evaluate((slot) => __game.debug.isBoostRunDisabled(slot), bo.slot)).toBe(true);
+  await page.evaluate((id) => { __game.debug.shop.equipBoost(id); __game.debug.shop.equipBoost(id); }, bo.id);  // déséquipe puis ré-équipe en permanent
+  expect(await page.evaluate((slot) => __game.debug.isBoostRunDisabled(slot), bo.slot)).toBe(false);    // override nettoyé
+  expect(await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat)).toBeGreaterThan(0);  // bonus actif à nouveau
+});
+
+test('AUDIT4 #13 : buyWeapon rejette un id inconnu sans polluer la save ni debiter', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.addMoney(99999));
+  const owned0 = await page.evaluate(() => __game.debug.save.get().ownedWeapons.length);
+  const money0 = await page.evaluate(() => __game.money);
+  expect(await page.evaluate(() => __game.debug.shop.buy('garbage_id_xyz'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons.length)).toBe(owned0);   // pas d'id fantôme poussé
+  expect(await page.evaluate(() => __game.money)).toBe(money0);                                   // pas de débit
+});

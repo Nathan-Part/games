@@ -834,7 +834,7 @@ const DIFFICULTIES = {
 function curDiff(){ return DIFFICULTIES[(save.settings && save.settings.difficulty) || 'normal'] || DIFFICULTIES.normal; }
 G.debug.difficulty = () => curDiff().id;
 G.debug.setDifficulty = (id) => { if(DIFFICULTIES[id]){ save.settings.difficulty = id; persist(); if(typeof renderSettings === 'function') renderSettings(); } };
-function addMoney(n){ n = Math.round(n * ksMoneyMultiplier()); save.money += n; G.money = save.money; persist(); updateMoneyHud(); }
+function addMoney(n){ n = Math.round(n * ksMoneyMultiplier()); save.money += n; G.money = save.money; addLifetimeStat('moneyEarned', n); persist(); updateMoneyHud(); }   // #80 : moneyEarned cumulé (était mort)
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `${ico('coin')} ${save.money}`; }
 function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b> internes, garde l'icône SVG)
@@ -995,6 +995,8 @@ function applyVolume(){ if(masterGain && !muted) masterGain.gain.value = save.se
 function applyAllSettings(){ lookSensitivity = save.settings.sensitivity; applyVolume(); }
 function setSetting(key, val){
   if(!save.settings || !(key in save.settings)) return false;
+  if(key === 'sensitivity'){ const n=+val; val = isFinite(n) ? Math.max(0.2, Math.min(3, n)) : save.settings.sensitivity; }   // bornes slider (évite visée figée à 0)
+  if(key === 'volume'){ const n=+val; val = isFinite(n) ? Math.max(0, Math.min(1, n)) : save.settings.volume; }                // bornes slider (évite gain négatif/>1)
   save.settings[key] = val; persist();
   if(key === 'sensitivity') lookSensitivity = val;
   if(key === 'volume') applyVolume();
@@ -1422,6 +1424,7 @@ async function startGame(){
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
   resetSemiAuto(); rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;   // purge état run résiduel (rampage/stun/overheat) entre 2 parties lancées depuis le menu
   onStreakReset(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1; enemyGrenadeCount_=0; frenzyCount_=0; showGrenadeArc(false); dashRemaining=0; dashCdUntil=0;   // startGame reflète le bloc reset complet de restartGame (anti-asymétrie : streak/dash/compteurs/rank résiduels du menu)
+  getDailyContracts();   // #62 : initialise save.daily (sinon trackDailyKill/Wave sortent sur !save.daily → contrats inertes en production) + rafraîchit le seed du jour
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
   setRain(save.settings.rain);                                 // applique le réglage pluie (#93)
@@ -1816,8 +1819,8 @@ function applyWeaponStats(){ const s = weaponStats(), pf = powerFactor();
 }
 G.debug.weaponStats = (id) => weaponStats(id);
 function buyWeapon(id){
-  const w = weaponById(id);
-  if(save.ownedWeapons.includes(id) || save.money < w.price) return false;
+  const w = WEAPONS.find(x => x.id === id);   // pas de fallback default : un id inconnu ne doit pas être "acheté" (sinon id brut poussé dans ownedWeapons → save polluée)
+  if(!w || save.ownedWeapons.includes(id) || save.money < w.price) return false;
   save.money -= w.price; G.money = save.money; save.ownedWeapons.push(id);
   persist(); updateMoneyHud(); updateHomeMeta(); return true;
 }
@@ -3749,6 +3752,7 @@ function equipBoost(id){ const b = boostById(id); if(!b || !save.ownedBoosts.inc
   // toggle : si déjà équipé dans ce slot → déséquiper ; sinon équiper
   if(save.equippedBoosts[b.slot] === id) save.equippedBoosts[b.slot] = null;
   else save.equippedBoosts[b.slot] = id;
+  delete runBoostOverrides[b.slot];   // #53 : un (ré)équipement annule un éventuel "✕ Run" résiduel sur ce slot (sinon boost fantôme : équipé mais bonus/visuel inactifs)
   persist(); applyPlayerStats(); applyBoosts(model); return true; }
 function applyPlayerStats(){
   const b = characterById(save.selectedCharacterId).base;   // base du perso + améliorations (#15) + boosts (#28)
@@ -4027,6 +4031,7 @@ function restartGame(){
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
+  flushLifetimeTime(); startLifetimeTimer();                   // #80 : comptabilise le run abandonné (no-op si déjà flushé à la mort) puis relance le chrono (sinon temps des runs relancés perdu)
   spawnDefaultTargets();
   G.phase = 'playing';
   startWave(1);
