@@ -4563,3 +4563,30 @@ test('AUDIT4 #13 : buyWeapon rejette un id inconnu sans polluer la save ni debit
   expect(await page.evaluate(() => __game.debug.save.get().ownedWeapons.length)).toBe(owned0);   // pas d'id fantôme poussé
   expect(await page.evaluate(() => __game.money)).toBe(money0);                                   // pas de débit
 });
+
+// ====== Boucle d'audit 2026-06-30 (itération 5) : IA ennemie + bugs d'animation/visibilité ======
+
+test('AUDIT5 #119 : le bouclier shielder bloque selon le cap REEL de l ennemi (pas le +Z monde)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shielder', 0, 0); __game.debug.setPos(0, 8); }); // joueur au +Z
+  await page.evaluate(() => __game.debug.setEnemyYaw(0, 0));            // ennemi face +Z (vers le joueur) -> frontal
+  expect(await page.evaluate(() => __game.debug.enemyShieldBlocks(0))).toBe(true);
+  await page.evaluate(() => __game.debug.setEnemyYaw(0, Math.PI));      // ennemi dos au joueur -> non bloqué
+  expect(await page.evaluate(() => __game.debug.enemyShieldBlocks(0))).toBe(false);  // bug avant fix : true (figé sur +Z monde)
+});
+
+test('AUDIT5 #111 : le sniper a une portee d engagement longue (pas 9m comme les autres)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'sniper', 0, 20));
+  expect(await page.evaluate(() => __game.debug.enemyShootRange(0))).toBeGreaterThan(20);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 20));
+  expect(await page.evaluate(() => __game.debug.enemyShootRange(0))).toBeLessThanOrEqual(9);  // shooter normal
+});
+
+test('AUDIT5 #107 : le ghost est visible (opacite relevee, glow) et tuable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'ghost', 0, 6));
+  expect(await page.evaluate(() => __game.debug.enemyBodyOpacity(0))).toBeGreaterThanOrEqual(0.5);  // plus 0.35 quasi invisible
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('dead');                       // bien tuable
+});
