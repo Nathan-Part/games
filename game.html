@@ -1421,6 +1421,7 @@ async function startGame(){
   showHud();
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
   resetSemiAuto(); rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;   // purge état run résiduel (rampage/stun/overheat) entre 2 parties lancées depuis le menu
+  onStreakReset(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1; enemyGrenadeCount_=0; frenzyCount_=0; showGrenadeArc(false); dashRemaining=0; dashCdUntil=0;   // startGame reflète le bloc reset complet de restartGame (anti-asymétrie : streak/dash/compteurs/rank résiduels du menu)
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
   setRain(save.settings.rain);                                 // applique le réglage pluie (#93)
@@ -4036,9 +4037,10 @@ G.debug.restart = () => restartGame();
 // Retour à l'accueil (depuis le Game Over) : masque les HUD, vide la scène de jeu, réaffiche le menu
 function backToHome(){
   document.getElementById('gameover').classList.add('hidden');
+  flushLifetimeTime();                                         // #80 : comptabilise le temps de session avant de quitter (sinon perdu via pause→menu)
   resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
   resetCallouts();                                             // vide kill-feed + callouts résiduels (sinon persistent dans le lobby)
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   if(document.pointerLockElement) document.exitPointerLock?.();
@@ -5115,7 +5117,7 @@ function buildArmsViewModel(){
 }
 const FOV_BASE = 55, FOV_ADS = 42, FOV_SCOPE = 20, ADS_LERP = 10;
 const SNIPER_IDS = new Set(['sniper','phantom_sr']); // Eclipse SR, Phantom L115
-function isSniper(){ return SNIPER_IDS.has(save.selectedWeapon||'default'); }
+function isSniper(){ return SNIPER_IDS.has(effectiveWeaponId()||'default'); }   // #61/#89 : tient compte de l'arme lootée (matchWeaponId) comme isSemiAuto/isLmg
 const VM_HIP = new THREE.Vector3(0.12, -0.11, -0.34);   // pose hanche (arme visible en bas-droite)
 const VM_ADS = new THREE.Vector3(0.05, -0.26, -0.30);   // pose visée : l'arme plonge -> centre dégagé pour le viseur
 let adsT = 0;
@@ -5178,6 +5180,7 @@ function pickupWeapon(){
 G.debug.nearestPickup = () => nearestPickup();
 G.debug.pickupWeapon = () => pickupWeapon();
 G.debug.matchWeapon = () => matchWeaponId;
+G.debug.setMatchWeapon = (id) => { matchWeaponId = id; };   // debug : simule une arme lootée (test #61/#89 loot)
 
 // ====== Audio (synthèse Web Audio, aucun fichier) ======
 let actx = null, masterGain = null, muted = false; const soundLog = [];

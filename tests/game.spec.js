@@ -4458,3 +4458,44 @@ test('AUDIT #125 : pas d\'invincibilite rampage residuelle dans la partie suivan
   await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout: 20000 });
   expect(await page.evaluate(() => __game.debug.rampageActive())).toBe(false);  // rampage purge au demarrage
 });
+
+// ====== Boucle d'audit 2026-06-30 (itération 2) : symétrie reset startGame + fuites HUD + loot sniper ======
+
+test('AUDIT2 fuite HUD : stamina-hud et hardcore-hud masques au retour menu', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setStamina(50); __game.debug.setHardcore(true); });
+  await expect(page.locator('#stamina-hud')).toBeVisible();
+  await expect(page.locator('#hardcore-hud')).toBeVisible();
+  await page.evaluate(() => __game.debug.backToHome());
+  await expect(page.locator('#stamina-hud')).toBeHidden();
+  await expect(page.locator('#hardcore-hud')).toBeHidden();
+});
+
+test('AUDIT2 #72 : le streak kills est remis a zero au lancement depuis le menu', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 9999); });
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(1);   // streak actif
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => __game.debug.start(0));
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, { timeout: 20000 });
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(0);   // pas de streak residuel
+});
+
+test('AUDIT2 #80 : le temps de session est comptabilise au retour menu (pas seulement a la mort)', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.lifetimeStats().playtime || 0);
+  await page.waitForTimeout(1300);                                          // accumule >1s
+  await page.evaluate(() => __game.debug.backToHome());
+  const after = await page.evaluate(() => __game.debug.lifetimeStats().playtime || 0);
+  expect(after).toBeGreaterThan(before);                                    // flush au retour menu
+});
+
+test('AUDIT2 #61/#89 : isSniper tient compte de l\'arme lootee (lunette/laser coherents)', async ({ page }) => {
+  await startPlaying(page);
+  // arme de la save = non-sniper, mais sniper LOOTÉ au sol => lunette doit s'activer
+  await page.evaluate(() => { __game.debug.forceEquipWeapon('default'); __game.debug.setMatchWeapon('sniper'); __game.debug.setInput({ aim: true }); });
+  expect(await page.evaluate(() => __game.debug.sniperScopeActive())).toBe(true);
+  // inverse : sniper en save mais SMG lootée => pas de lunette fantome
+  await page.evaluate(() => { __game.debug.forceEquipWeapon('sniper'); __game.debug.setMatchWeapon('default'); });
+  expect(await page.evaluate(() => __game.debug.sniperScopeActive())).toBe(false);
+});
