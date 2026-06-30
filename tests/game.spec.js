@@ -4243,3 +4243,20 @@ test('#129 frenzy : frenzyCount incremente au declenchement', async ({ page }) =
   const after = await page.evaluate(() => __game.debug.frenzyCount());
   expect(after).toBeGreaterThan(before);
 });
+
+// ====== #94b — Hardcore en réglage persistant ======
+test('#94b hardcore : le reglage settings s applique au restart', async ({ page }) => {
+  await startPlaying(page);
+  // règle hardcore=true via le setting persistant, puis restart
+  await page.evaluate(() => __game.debug.settings.set('hardcore', true));
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  const hcOn = await page.evaluate(() => __game.debug.hardcoreMode());
+  expect(hcOn).toBe(true);
+  // règle hardcore=false via le setting, restart → désactivé
+  await page.evaluate(() => __game.debug.settings.set('hardcore', false));
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  const hcOff = await page.evaluate(() => __game.debug.hardcoreMode());
+  expect(hcOff).toBe(false);
+});
