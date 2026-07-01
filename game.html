@@ -2232,7 +2232,7 @@ let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 // stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
 let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; }   // #139 #148
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; }   // #139 #148 #149
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
@@ -5087,6 +5087,7 @@ G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;
 G.debug.forceOverkill = (i) => { const e = enemies[i]; if(e) damageEnemy(e, e.hp + OVERKILL_THRESHOLD + 10); };
 // ====== Wave director : enchaîne les vagues, tient le record ======
+let waveStartTime = 0;
 function startWave(w){
   wave = w; G.wave = w; checkAchievements();          // succès (#44) : survivant à la vague 5
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
@@ -5094,9 +5095,14 @@ function startWave(w){
   maybeMarkVip(w);                                                          // marque un ennemi VIP (#140)
   maybeSpawnCarePackage(w);                                                 // caisse de ravitaillement (#143)
   dmgThisWave = 0; waveState = 'active'; refillGrenades(); spawnBarrels();    // grenades + barils (#33/#41) ; reset dmgThisWave (#55)
+  waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
 }
+G.debug.waveElapsed = () => nowS() - waveStartTime;
+G.debug.ageWaveStart = (seconds) => { waveStartTime -= seconds; };   // #149 : recule artificiellement le chrono (test déterministe)
+const SPEED_CLEAR_THRESHOLD = 15, SPEED_CLEAR_BONUS = 100;
+let speedClearCount_ = 0, lastSpeedClear_ = false;
 function checkWaveCleared(){
   if(waveState !== 'active' || enemies.some(e => e.alive && !e.isDecoy)) return; // decoys excluded (#124)
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
@@ -5105,8 +5111,12 @@ function checkWaveCleared(){
   addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   addXp(XP_WAVE * wave);                                                           // XP par vague (#60)
   trackDailyWave(wave);                                                             // contrats vague (#62)
+  lastSpeedClear_ = (nowS() - waveStartTime) < SPEED_CLEAR_THRESHOLD;               // #149 : vague éclair
+  if(lastSpeedClear_){ speedClearCount_++; addMoney(SPEED_CLEAR_BONUS); showCallout('VAGUE ÉCLAIR!'); }
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
+G.debug.speedClearCount = () => speedClearCount_;
+G.debug.lastSpeedClear = () => lastSpeedClear_;
 function updateWaves(dt){
   if(G.phase !== 'playing') return;
   if(waveState === 'cleared' && nowS() >= nextWaveAt) startWave(wave + 1);

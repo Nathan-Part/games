@@ -5409,3 +5409,32 @@ test('#148 execution : executionHealCount incremente a chaque execution', async 
   const after = await page.evaluate(() => __game.debug.executionHealCount());
   expect(after).toBe(before + 1);
 });
+
+// ====== #149 — Bonus vague eclair (clear rapide) ======
+test('#149 vague eclair : nettoyer la vague juste apres son lancement declenche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.debug.runMoney());
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.lastSpeedClear())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.runMoney())).toBeGreaterThan(moneyBefore);
+});
+
+test('#149 vague eclair : une vague nettoyee apres le seuil ne declenche pas le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.ageWaveStart(20)); // recule le chrono au-dela du seuil de 15s
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.lastSpeedClear())).toBe(false);
+});
+
+test('#149 vague eclair : speedClearCount incremente et se reinitialise au restart', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.speedClearCount());
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.speedClearCount())).toBe(before + 1);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.speedClearCount())).toBe(0);
+});
