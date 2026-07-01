@@ -1940,17 +1940,18 @@ test('soin : pack trop loin ne soigne pas', async ({ page }) => {
 });
 
 // ====== Tranche 33 : grenades ======
-test('grenade : lancer decremente le stock et cree un projectile', async ({ page }) => {
+test('grenade -> #155 : lancer decremente le stock persistant et cree un projectile', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(12);   // stock de depart (#155)
   expect(await page.evaluate(() => __game.debug.throwGrenade())).toBe(true);
-  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(11);
   expect(await page.evaluate(() => __game.debug.grenadeProjCount())).toBeGreaterThanOrEqual(1);
 });
 
 test('grenade : stock vide refuse', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.throwGrenade(); __game.debug.throwGrenade(); __game.debug.throwGrenade(); });
+  await page.evaluate(() => __game.debug.setConsumableStock('frag', 1));
+  await page.evaluate(() => __game.debug.throwGrenade());
   expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
   expect(await page.evaluate(() => __game.debug.throwGrenade())).toBe(false);
 });
@@ -1963,12 +1964,13 @@ test('grenade : explosion inflige des degats de zone', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hp0);
 });
 
-test('grenade : recharge a chaque vague', async ({ page }) => {
+test('grenade -> #155 : le stock n est plus recharge a chaque vague (persistant)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.throwGrenade(); __game.debug.throwGrenade(); __game.debug.throwGrenade(); });
-  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(9);   // 12 - 3
   await page.evaluate(() => __game.debug.forceNextWave());
-  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(3);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(9);   // stock inchange
 });
 
 // ====== Tranche 34 : power-ups ======
@@ -2564,17 +2566,17 @@ test('#56 stamina : reset a 100 apres restart', async ({ page }) => {
 });
 
 // ====== #57 — Flashbang ======
-test('#57 flashbang : stock initial = 2', async ({ page }) => {
+test('#57 -> #155 : flashbang stock initial = 8 (persistant)', async ({ page }) => {
   await startPlaying(page);
   const count = await page.evaluate(() => __game.debug.flashbangCount());
-  expect(count).toBe(2);
+  expect(count).toBe(8);
 });
 
 test('#57 flashbang : lancer reduit le stock', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.throwFlashbang());
   const count = await page.evaluate(() => __game.debug.flashbangCount());
-  expect(count).toBe(1);
+  expect(count).toBe(7);
 });
 
 test('#57 flashbang : explosion aveugle les ennemis proches', async ({ page }) => {
@@ -2593,14 +2595,14 @@ test('#57 flashbang : ennemi loin non aveugle', async ({ page }) => {
   expect(blinded).toBe(false);
 });
 
-test('#57 flashbang : rechargé par vague', async ({ page }) => {
+test('#57 -> #155 : flashbang n est plus recharge par vague (stock persistant)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.throwFlashbang());
   await page.evaluate(() => __game.debug.throwFlashbang());
-  expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(6);   // 8 - 2
   await page.evaluate(() => __game.debug.forceNextWave());
-  await page.waitForFunction(() => __game.debug.flashbangCount() > 0, null, {timeout:10000});
-  expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(2);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.flashbangCount())).toBe(6);   // stock inchange
 });
 
 // ====== #58 — Killstreak Rewards ======
@@ -2928,15 +2930,15 @@ test('#68 lvlup : addXp suffisant declenche le toast', async ({ page }) => {
 });
 
 // ====== #69 — Grenade fumigène ======
-test('#69 smoke : stock initial = 2', async ({ page }) => {
+test('#69 -> #155 : smoke stock initial = 6 (persistant)', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.smokeStock())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.smokeStock())).toBe(6);
 });
 
 test('#69 smoke : throwSmoke reduit le stock', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.throwSmoke());
-  expect(await page.evaluate(() => __game.debug.smokeStock())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.smokeStock())).toBe(5);
 });
 
 test('#69 smoke : explodeSmokeAt cree un nuage', async ({ page }) => {
@@ -3943,15 +3945,15 @@ test('#117 ammo pack : ramassage recharge les munitions', async ({ page }) => {
 });
 
 // ====== #118 — Sticky grenade ======
-test('#118 sticky : stickyStock 1 par defaut', async ({ page }) => {
+test('#118 -> #155 : stickyStock 4 par defaut (persistant)', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(4);
 });
 
 test('#118 sticky : throwSticky decrement stickyStock', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.throwSticky());
-  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(3);
 });
 
 test('#118 sticky : throwSticky cree un projectile sticky', async ({ page }) => {
@@ -4477,13 +4479,45 @@ test('#53b boost run : unequipBoostRun desactive le bonus pour la partie, restar
 
 // ====== Boucle d'audit 2026-06-30 (2e cycle) : conformité doc/code + fuites de scène/HUD ======
 
-test('AUDIT #118 : la grenade collante est rechargee a CHAQUE vague (1/vague, pas 1/partie)', async ({ page }) => {
+test('AUDIT #118 -> #155 : la grenade collante n est plus rechargee par vague (stock persistant achete)', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(1);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(4);   // stock de depart (#155)
   await page.evaluate(() => __game.debug.throwSticky());
-  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(0);   // consommee
-  await page.evaluate(() => __game.debug.forceNextWave());                 // vague suivante => refill
-  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(1);   // rechargee
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(3);   // consommee
+  await page.evaluate(() => __game.debug.forceNextWave());                 // vague suivante => plus de refill (#155)
+  expect(await page.evaluate(() => __game.debug.stickyStock())).toBe(3);   // stock inchange
+});
+
+test('#155 : le stock consomme persiste au restart (pas de reset au max)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.throwGrenade());
+  await page.evaluate(() => __game.debug.throwGrenade());
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(10);   // 12 - 2
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(10);   // pas de refill
+  expect(await page.evaluate(() => __game.debug.consumables().frag)).toBe(10);   // save synchronisee
+});
+
+test('#155 : caisse de ravitaillement "grenades" ajoute un bonus fixe (pas un refill au max)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.setConsumableStock('frag', 5));
+  await page.evaluate(() => __game.debug.forceCarePackageReward('grenades'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.grenadeCount())).toBe(8);   // 5 + bonus fixe (+3), pas remis a 12
+  expect(await page.evaluate(() => __game.debug.consumables().frag)).toBe(8);
+});
+
+test('#155 : a 0 stock, lancer un objet echoue sans exception ni decrementation negative', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.setConsumableStock('emp', 0));
+  expect(await page.evaluate(() => __game.debug.throwEmp())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
 });
 
 test('AUDIT fuite scene : sticky + grenades ennemies nettoyees au retour menu (backToHome)', async ({ page }) => {
@@ -4730,16 +4764,17 @@ test('argent partie : runMoney compte l argent gagne CETTE partie (pas le total)
 });
 
 // ====== #130 — Molotov cocktail (zone de feu) ======
-test('#130 molotov : stock initial = 1, throwMolotov le decremente', async ({ page }) => {
+test('#130 -> #155 : molotov stock initial = 4 (persistant), throwMolotov le decremente', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(4);
   await page.evaluate(() => __game.debug.throwMolotov());
-  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(3);
   expect(await page.evaluate(() => __game.debug.molotovCount())).toBe(1); // en vol
 });
 
 test('#130 molotov : throwMolotov refuse si stock epuise', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setConsumableStock('molotov', 1));
   await page.evaluate(() => __game.debug.throwMolotov());
   const ok = await page.evaluate(() => __game.debug.throwMolotov());
   expect(ok).toBe(false);
@@ -4771,13 +4806,13 @@ test('#130 molotov : la zone inflige des degats periodiques a l ennemi dedans', 
   expect(hpAfter).toBeLessThan(hpBefore);
 });
 
-test('#130 molotov : stock recharge a chaque vague', async ({ page }) => {
+test('#130 -> #155 : molotov n est plus recharge par vague (stock persistant)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.throwMolotov());
-  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(3);   // 4 - 1
   await page.evaluate(() => __game.debug.forceNextWave());
   await page.waitForTimeout(100);
-  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(3);   // stock inchange
 });
 
 // ====== #131 — Ennemi Juggernaut (elite blinde) ======
@@ -5000,16 +5035,17 @@ test('#135 double saut : se rearme apres avoir retouche le sol', async ({ page }
 });
 
 // ====== #136 — Grenade EMP ======
-test('#136 grenade EMP : stock initial = 1, throwEmp le decremente', async ({ page }) => {
+test('#136 -> #155 : grenade EMP stock initial = 3 (persistant), throwEmp le decremente', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.empStock())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(3);
   await page.evaluate(() => __game.debug.throwEmp());
-  expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(2);
   expect(await page.evaluate(() => __game.debug.empCount())).toBe(1);
 });
 
 test('#136 grenade EMP : throwEmp refuse si stock epuise', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setConsumableStock('emp', 1));
   await page.evaluate(() => __game.debug.throwEmp());
   const ok = await page.evaluate(() => __game.debug.throwEmp());
   expect(ok).toBe(false);
@@ -5030,13 +5066,13 @@ test('#136 grenade EMP : un ennemi hors rayon n est pas affecte', async ({ page 
   expect(await page.evaluate(() => __game.debug.enemyEmpDisabled(0))).toBe(false);
 });
 
-test('#136 grenade EMP : stock recharge a chaque vague', async ({ page }) => {
+test('#136 -> #155 : grenade EMP n est plus rechargee par vague (stock persistant)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.throwEmp());
-  expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(2);   // 3 - 1
   await page.evaluate(() => __game.debug.forceNextWave());
   await page.waitForTimeout(100);
-  expect(await page.evaluate(() => __game.debug.empStock())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(2);   // stock inchange
 });
 
 // ====== #137 — Dernier souffle (second wind) ======

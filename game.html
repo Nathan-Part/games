@@ -1695,12 +1695,13 @@ async function startGame(){
   document.getElementById('wave-hud').classList.remove('hidden');
   document.getElementById('money-hud').classList.remove('hidden'); updateMoneyHud();
   document.getElementById('radar').classList.remove('hidden');   // mini-carte (#21)
-  document.getElementById('grenade-hud').classList.remove('hidden'); updateGrenadeHud();   // compteur grenades (#33)
-  document.getElementById('flashbang-hud').classList.remove('hidden'); refillFlashbangs(); // flashbangs (#57)
+  grenades = save.consumables.frag; document.getElementById('grenade-hud').classList.remove('hidden'); updateGrenadeHud();   // stock persistant (#155)
+  flashbangs = save.consumables.flashbang; document.getElementById('flashbang-hud').classList.remove('hidden'); updateFlashbangHud(); // stock persistant (#155)
   document.getElementById('firemode-hud').classList.remove('hidden'); resetFireMode(); updateFiremodeHud(); // burst (#64)
-  clearMines(); mineStock = MAX_MINES; document.getElementById('mine-hud').classList.remove('hidden'); updateMineHud(); // claymore (#65)
+  clearMines(); mineStock = MAX_MINES; document.getElementById('mine-hud').classList.remove('hidden'); updateMineHud(); // claymore (#65, hors-scope #155)
   resetShield(); document.getElementById('shield-bar').classList.remove('hidden'); // shield (#67)
-  refillSmokes(); document.getElementById('smoke-hud').classList.remove('hidden');  // smoke (#69)
+  smokeStock = save.consumables.smoke; document.getElementById('smoke-hud').classList.remove('hidden'); updateSmokeHud();  // stock persistant (#155)
+  stickyStockCount = save.consumables.sticky; molotovStockCount = save.consumables.molotov; empStockCount = save.consumables.emp; // stock persistant (#155)
   document.getElementById('xp-hud').classList.remove('hidden'); updateXpHud();            // XP (#60)
   document.getElementById('dash-hud').classList.remove('hidden'); updateDashHud();         // dash (#35)
   updateCombatHud();
@@ -2746,7 +2747,7 @@ function buildGrenadeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.09
   new THREE.MeshStandardMaterial({ color:0x2a3a22, metalness:0.4, roughness:0.6, emissive:0x0a1505 })); }
 function throwGrenade(){
   if(G.phase !== 'playing' || grenades <= 0) return false;
-  grenades--; updateGrenadeHud();
+  grenades--; save.consumables.frag = grenades; persist(); updateGrenadeHud();
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const m = buildGrenadeMesh(); m.castShadow = true;
   m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
@@ -2787,7 +2788,6 @@ function updateGrenades(dt){ const t = nowS();
     f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
 function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
   for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
-function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); refillSticky(); refillMolotov(); refillEmp(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
@@ -2799,7 +2799,7 @@ const stickyProjs = [];
 function buildStickyMesh(){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.12,10,8), new THREE.MeshStandardMaterial({ color:0xff3300, emissive:0xff2200, emissiveIntensity:0.9, roughness:0.4 })); return m; }
 function throwSticky(){
   if(G.phase !== 'playing' || stickyStockCount <= 0) return false;
-  stickyStockCount--;
+  stickyStockCount--; save.consumables.sticky = stickyStockCount; persist();
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const pos = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
   // Raycast : colle sur ennemi direct ?
@@ -2826,8 +2826,7 @@ function updateStickyGrenades(dt){ const t = nowS();
       scene.remove(s.mesh); stickyProjs.splice(i, 1); } }
 }
 function clearSticky(){ for(const s of stickyProjs) scene.remove(s.mesh); stickyProjs.length = 0; }   // nettoyage scène seul (sans toucher au stock)
-function refillSticky(){ stickyStockCount = STICKY_STOCK_MAX; }                                       // #118 : 1/vague (appelé par refillGrenades à chaque vague)
-function resetSticky(){ clearSticky(); refillSticky(); }
+function resetSticky(){ clearSticky(); }
 G.debug.stickyStock = () => stickyStockCount;
 G.debug.stickyCount = () => stickyProjs.length;
 G.debug.throwSticky = () => throwSticky();
@@ -2840,7 +2839,7 @@ function buildMolotovMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13
   new THREE.MeshStandardMaterial({ color:0xff6a1a, emissive:0xff3300, emissiveIntensity:0.9, roughness:0.4 })); }
 function throwMolotov(){
   if(G.phase !== 'playing' || molotovStockCount <= 0) return false;
-  molotovStockCount--;
+  molotovStockCount--; save.consumables.molotov = molotovStockCount; persist();
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const m = buildMolotovMesh(); scene.add(m);
   m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
@@ -2869,7 +2868,6 @@ function updateFireZones(dt){ const t = nowS();
 }
 function clearMolotovs(){ for(const p of molotovProjs) scene.remove(p.mesh); molotovProjs.length = 0;
   for(const fz of fireZones) scene.remove(fz.mesh); fireZones.length = 0; }
-function refillMolotov(){ molotovStockCount = MOLOTOV_STOCK_MAX; }
 G.debug.molotovStock = () => molotovStockCount;
 G.debug.molotovCount = () => molotovProjs.length;
 G.debug.throwMolotov = () => throwMolotov();
@@ -2926,7 +2924,7 @@ function buildEmpMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13,10,
   new THREE.MeshStandardMaterial({ color:0x2ad6ff, emissive:0x2ad6ff, emissiveIntensity:0.9, roughness:0.3 })); }
 function throwEmp(){
   if(G.phase !== 'playing' || empStockCount <= 0) return false;
-  empStockCount--;
+  empStockCount--; save.consumables.emp = empStockCount; persist();
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const m = buildEmpMesh(); scene.add(m);
   m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
@@ -2945,7 +2943,6 @@ function updateEmpProjs(dt){
     if(p.mesh.position.y <= 0.12){ triggerEmpBlast(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); empProjs.splice(i,1); } }
 }
 function clearEmp(){ for(const p of empProjs) scene.remove(p.mesh); empProjs.length = 0; }
-function refillEmp(){ empStockCount = EMP_STOCK_MAX; }
 G.debug.empStock = () => empStockCount;
 G.debug.empCount = () => empProjs.length;
 G.debug.throwEmp = () => throwEmp();
@@ -3718,7 +3715,7 @@ function buildSmokeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.12,8
 function buildCloudMesh(r){ return new THREE.Mesh(new THREE.SphereGeometry(r,12,8), new THREE.MeshBasicMaterial({color:0xaaaaaa,transparent:true,opacity:0.38,depthWrite:false})); }
 function throwSmoke(){
   if(G.phase!=='playing'||smokeStock<=0) return false;
-  smokeStock--; updateSmokeHud();
+  smokeStock--; save.consumables.smoke = smokeStock; persist(); updateSmokeHud();
   const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
   const m=buildSmokeMesh(); m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir,0.5);
   scene.add(m); const vel=dir.multiplyScalar(7); vel.y+=3;
@@ -3740,7 +3737,6 @@ function updateSmokes(dt){ const t=nowS();
     else{ const frac=Math.max(0,(c.expiresAt-t)/SMOKE_DUR); if(c.mesh.material) c.mesh.material.opacity=0.38*frac; } }
 }
 function clearSmokes(){ for(const g of smokeProjs) scene.remove(g.mesh); smokeProjs.length=0; for(const c of smokeClouds) scene.remove(c.mesh); smokeClouds.length=0; }
-function refillSmokes(){ smokeStock=MAX_SMOKES; updateSmokeHud(); }
 function updateSmokeHud(){ const el=document.getElementById('smoke-hud'); if(el) el.innerHTML=`🌫 <b>${smokeStock}</b>`; }
 G.debug.smokeStock=()=>smokeStock; G.debug.smokeCount=()=>smokeClouds.length;
 G.debug.throwSmoke=()=>throwSmoke(); G.debug.explodeSmokeAt=(x,z)=>explodeSmokeAt(x,z);
@@ -4047,7 +4043,7 @@ let flashbangs = MAX_FLASHBANGS, flashbangProjs = [], flashScreenT = null;
 function buildFlashbangMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6), new THREE.MeshBasicMaterial({color:0xffffaa})); }
 function throwFlashbang(){
   if(G.phase !== 'playing' || flashbangs <= 0) return false;
-  flashbangs--; updateFlashbangHud();
+  flashbangs--; save.consumables.flashbang = flashbangs; persist(); updateFlashbangHud();
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const m = buildFlashbangMesh(); m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
   scene.add(m); const vel = dir.multiplyScalar(8); vel.y += 3;
@@ -4074,7 +4070,6 @@ function updateFlashbangs(dt){ const t = nowS();
     if(t >= g.explodeAt){ explodeFlashbangAt(g.mesh.position.x, g.mesh.position.y, g.mesh.position.z); scene.remove(g.mesh); flashbangProjs.splice(i,1); } }
 }
 function clearFlashbangs(){ for(const g of flashbangProjs) scene.remove(g.mesh); flashbangProjs.length = 0; }
-function refillFlashbangs(){ flashbangs = MAX_FLASHBANGS; updateFlashbangHud(); }
 function updateFlashbangHud(){ const el = document.getElementById('flashbang-hud'); if(el) el.innerHTML = `⚡ <b>${flashbangs}</b>`; }
 G.debug.throwFlashbang = () => throwFlashbang();
 G.debug.flashbangCount = () => flashbangs;
@@ -4508,9 +4503,19 @@ function maybeSpawnCarePackage(w){
   if(w % CARE_PACKAGE_WAVE_INTERVAL !== 0) return;
   const sp = randomSpawn(); spawnCarePackage(sp.x, sp.z);
 }
+const GRENADE_BUNDLE_BONUS = { frag:3, flashbang:2, smoke:2, sticky:1, molotov:1, emp:1 };   // #155 : bonus fixe (plus de "refill au max")
+function grantGrenadeBundle(){
+  grenades += GRENADE_BUNDLE_BONUS.frag; save.consumables.frag = grenades; updateGrenadeHud();
+  flashbangs += GRENADE_BUNDLE_BONUS.flashbang; save.consumables.flashbang = flashbangs; updateFlashbangHud();
+  smokeStock += GRENADE_BUNDLE_BONUS.smoke; save.consumables.smoke = smokeStock; updateSmokeHud();
+  stickyStockCount += GRENADE_BUNDLE_BONUS.sticky; save.consumables.sticky = stickyStockCount;
+  molotovStockCount += GRENADE_BUNDLE_BONUS.molotov; save.consumables.molotov = molotovStockCount;
+  empStockCount += GRENADE_BUNDLE_BONUS.emp; save.consumables.emp = empStockCount;
+  persist();
+}
 function applyCarePackageReward(type){
   if(type === 'money'){ addMoney(CARE_PACKAGE_MONEY); }
-  else if(type === 'grenades'){ refillGrenades(); }
+  else if(type === 'grenades'){ grantGrenadeBundle(); }
   else if(type === 'ammo'){ ammo = curMag; G.ammo = ammo; }
   showCallout('RAVITAILLEMENT!'); flashHeal(); playSound('reload');
 }
@@ -5432,7 +5437,7 @@ function startWave(w){
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   maybeMarkVip(w);                                                          // marque un ennemi VIP (#140)
   maybeSpawnCarePackage(w);                                                 // caisse de ravitaillement (#143)
-  dmgThisWave = 0; waveState = 'active'; refillGrenades(); spawnBarrels();    // grenades + barils (#33/#41) ; reset dmgThisWave (#55)
+  dmgThisWave = 0; waveState = 'active'; spawnBarrels();    // barils (#41) ; reset dmgThisWave (#55) ; plus de refill grenades par vague (#155)
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
