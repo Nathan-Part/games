@@ -5438,3 +5438,57 @@ test('#149 vague eclair : speedClearCount incremente et se reinitialise au resta
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.speedClearCount())).toBe(0);
 });
+
+// ====== #150 — Power-up Munitions perforantes (piercing) ======
+async function alignTwoEnemies(page){
+  await page.evaluate(() => {
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.moveEnemy(0,0,3); __game.debug.moveEnemy(1,0,6); __game.debug.moveEnemy(2,40,40);
+    __game.debug.setPaused(true);
+  });
+}
+
+test('#150 piercing : spawn puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnPiercingRounds(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.piercingRoundsActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.piercingRoundsTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#150 piercing : un tir aligne blesse les 2 ennemis quand le power est actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnPiercingRounds(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await alignTwoEnemies(page);
+  const hp0Before = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp1Before = await page.evaluate(() => __game.debug.enemyHp(1));
+  await page.evaluate(() => __game.debug.tryFire());
+  const hp0After = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp1After = await page.evaluate(() => __game.debug.enemyHp(1));
+  expect(hp0After).toBeLessThan(hp0Before);
+  expect(hp1After).toBeLessThan(hp1Before);
+});
+
+test('#150 piercing : sans le power, seul le 1er ennemi aligne est touche', async ({ page }) => {
+  await startPlaying(page);
+  await alignTwoEnemies(page);
+  const hp0Before = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp1Before = await page.evaluate(() => __game.debug.enemyHp(1));
+  await page.evaluate(() => __game.debug.tryFire());
+  const hp0After = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp1After = await page.evaluate(() => __game.debug.enemyHp(1));
+  expect(hp0After).toBeLessThan(hp0Before);
+  expect(hp1After).toBe(hp1Before);
+});
+
+test('#150 piercing : piercedHitCount incremente quand un 2e ennemi est perfore', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnPiercingRounds(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await alignTwoEnemies(page);
+  const before = await page.evaluate(() => __game.debug.piercedHitCount());
+  await page.evaluate(() => __game.debug.tryFire());
+  const after = await page.evaluate(() => __game.debug.piercedHitCount());
+  expect(after).toBe(before + 1);
+});
