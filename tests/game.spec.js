@@ -4758,3 +4758,41 @@ test('#131 juggernaut : compte dans armoredKillCount a la mort', async ({ page }
   const after = await page.evaluate(() => __game.debug.armoredKillCount());
   expect(after).toBeGreaterThan(before);
 });
+
+// ====== #132 — Tourelle sentinelle deployable ======
+test('#132 turret : deployTurret cree une tourelle active', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.turretActive())).toBe(false);
+  const ok = await page.evaluate(() => __game.debug.deployTurret());
+  expect(ok).toBe(true);
+  expect(await page.evaluate(() => __game.debug.turretActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.turretCount())).toBe(1);
+});
+
+test('#132 turret : refuse un second deploiement tant qu une tourelle est active', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.deployTurret());
+  const ok2 = await page.evaluate(() => __game.debug.deployTurret());
+  expect(ok2).toBe(false);
+  expect(await page.evaluate(() => __game.debug.turretCount())).toBe(1);
+});
+
+test('#132 turret : tire automatiquement sur un ennemi proche et lui inflige des degats', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 3, 0));
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.deployTurret());
+  await page.waitForTimeout(700); // > 1 tick (0.5s)
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hpAfter).toBeLessThan(hpBefore);
+});
+
+test('#132 turret : ignore un ennemi hors de portee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 50, 50));
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.deployTurret());
+  await page.waitForTimeout(700);
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hpAfter).toBe(hpBefore);
+});

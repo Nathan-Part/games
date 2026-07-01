@@ -1425,7 +1425,7 @@ async function startGame(){
   showHud();
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
   resetSemiAuto(); rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;   // purge état run résiduel (rampage/stun/overheat) entre 2 parties lancées depuis le menu
-  onStreakReset(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1; enemyGrenadeCount_=0; frenzyCount_=0; showGrenadeArc(false); dashRemaining=0; dashCdUntil=0;   // startGame reflète le bloc reset complet de restartGame (anti-asymétrie : streak/dash/compteurs/rank résiduels du menu)
+  onStreakReset(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1; enemyGrenadeCount_=0; frenzyCount_=0; showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0;   // startGame reflète le bloc reset complet de restartGame (anti-asymétrie : streak/dash/compteurs/rank résiduels du menu)
   getDailyContracts();   // #62 : initialise save.daily (sinon trackDailyKill/Wave sortent sur !save.daily → contrats inertes en production) + rafraîchit le seed du jour
   score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
   setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
@@ -1525,6 +1525,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyN' && G.phase==='playing') throwFlashbang();                        // N = lancer une flashbang (#57)
   if(e.code==='KeyT' && G.phase==='playing') fireModeToggle();                        // T = basculer auto/burst (#64)
   if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
+  if(e.code==='KeyL' && G.phase==='playing') deployTurret();                           // L = tourelle sentinelle (#132)
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
   if(e.code==='KeyJ' && G.phase==='playing') throwSticky();                           // J = grenade collante (#118)
   if(e.code==='KeyK' && G.phase==='playing') throwMolotov();                          // K = molotov, zone de feu (#130)
@@ -3443,6 +3444,32 @@ G.debug.mineStock = () => mineStock;
 G.debug.mineCount = () => mines.length;
 G.debug.placeMine = () => placeMine();
 G.debug.explodeMineAt = (i, x, z) => explodeMineAt(x, 0, z);
+// ====== #132 Tourelle sentinelle déployable ======
+const TURRET_RANGE = 15, TURRET_FIRE_CD = 0.5, TURRET_DMG = 12, TURRET_DURATION = 20, TURRET_COOLDOWN = 25;
+let turret = null, turretCooldownUntil = 0;
+function buildTurretMesh(){ const m = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshStandardMaterial({ color:0x556070, emissive:0x223344, emissiveIntensity:0.5, roughness:0.5 })); return m; }
+function deployTurret(){
+  if(G.phase !== 'playing' || !model || turret || nowS() < turretCooldownUntil) return false;
+  const mesh = buildTurretMesh(); mesh.position.copy(model.position); mesh.position.y += 0.45; scene.add(mesh);
+  turret = { mesh, expireAt: nowS() + TURRET_DURATION, lastShot: 0 };
+  return true;
+}
+function updateTurret(dt){
+  if(!turret) return; const t = nowS();
+  if(t >= turret.expireAt){ scene.remove(turret.mesh); turret = null; turretCooldownUntil = t + TURRET_COOLDOWN; return; }
+  if(t - turret.lastShot < TURRET_FIRE_CD) return;
+  let best = null, bestD = TURRET_RANGE;
+  for(const e of enemies){ if(!e.alive) continue;
+    const d = Math.hypot(e.root.position.x - turret.mesh.position.x, e.root.position.z - turret.mesh.position.z);
+    if(d <= bestD){ bestD = d; best = e; } }
+  if(best){ damageEnemy(best, TURRET_DMG); turret.lastShot = t; }
+}
+function clearTurret(){ if(turret){ scene.remove(turret.mesh); turret = null; } }
+G.debug.turretActive = () => !!turret;
+G.debug.turretCount = () => turret ? 1 : 0;
+G.debug.deployTurret = () => deployTurret();
+G.debug.turretTimeLeft = () => turret ? Math.max(0, turret.expireAt - nowS()) : 0;
+G.debug.turretCooldownLeft = () => Math.max(0, turretCooldownUntil - nowS());
 // ====== #64 Mode tir burst/auto ======
 const BURST_WEAPONS = new Set(['default','raptor','cyclone']); // armes assaut
 const BURST_SIZE = 3, BURST_DELAY = 0.08;
@@ -4111,7 +4138,7 @@ function restartGame(){
   resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   flushLifetimeTime(); startLifetimeTimer();                   // #80 : comptabilise le run abandonné (no-op si déjà flushé à la mort) puis relance le chrono (sinon temps des runs relancés perdu)
@@ -4439,7 +4466,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -5359,7 +5386,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
