@@ -5325,3 +5325,30 @@ test('#146 cryo : waveComposition alterne cryo/stunner au slot commun des la vag
   expect(comp8).toContain('cryo');
   expect(comp9).not.toContain('cryo');
 });
+
+// ====== #147 — Power-up Regen boost ======
+test('#147 regen boost : spawn puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnRegenBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.regenBoostActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.regenBoostTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#147 regen boost : la regeneration est plus rapide avec le power actif', async ({ page }) => {
+  test.setTimeout(45000);
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(50));
+  await page.waitForTimeout(7500); // REGEN_DELAY=6s + un peu de regen
+  const hpNormal = await page.evaluate(() => __game.debug.playerHealth());
+
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(50));
+  await page.evaluate(() => { __game.debug.spawnRegenBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(7500);
+  const hpBoosted = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpBoosted).toBeGreaterThan(hpNormal);
+});
