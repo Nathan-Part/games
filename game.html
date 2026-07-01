@@ -1671,6 +1671,7 @@ G.debug.dash = () => dash();
 G.debug.isDashing = () => dashRemaining > 0;
 G.debug.dashReady = () => G.phase==='playing' && grounded && nowS() >= dashCdUntil;
 G.debug.dashCooldownLeft = () => Math.max(0, dashCdUntil - nowS());
+G.debug.dashInvulnActive = () => dashRemaining > 0;   // #142
 function updateController(dt){
   if(G.phase!=='playing' || !model) return;
   if(dancing){// danse en cours (#27) : fige la loco
@@ -4070,6 +4071,7 @@ function damagePlayer(amount){
   if(G.phase !== 'playing') return;
   if(rampageActive()) return;                              // invincible pendant rampage (#125)
   if(nowS() < secondWindInvulnUntil) return;                // invincibilité post-dernier-souffle (#137)
+  if(dashRemaining > 0) return;                             // frames d'invincibilité pendant le dash (#142)
   onStreakReset(); onRampageReset();                                        // tout hit reset le streak (#72), avant guard clauses
   headStreakCount_ = 0;                                  // reset headshot streak (#110)
   amount = Math.round(amount * curDiff().dmg);          // #46 difficulté : dégâts reçus

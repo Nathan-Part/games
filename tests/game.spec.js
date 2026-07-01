@@ -5164,3 +5164,28 @@ test('#141 toxic : waveComposition alterne toxic/bomber au slot commun des la va
   expect(comp6).toContain('toxic');
   expect(comp7).not.toContain('toxic');
 });
+
+// ====== #142 — Frames d'invincibilite du dash ======
+test('#142 dash iframes : aucun degat recu pendant un dash actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.evaluate(() => __game.debug.dash());
+  expect(await page.evaluate(() => __game.debug.dashInvulnActive())).toBe(true);
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.damagePlayer(50));
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+});
+
+test('#142 dash iframes : les degats reprennent normalement une fois le dash termine', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.evaluate(() => __game.debug.dash());
+  await page.waitForFunction(() => !window.__game.debug.dashInvulnActive(), null, { timeout: 3000 });
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.damagePlayer(20));
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBeLessThan(hpBefore);
+});
