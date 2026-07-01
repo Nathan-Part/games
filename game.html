@@ -2610,9 +2610,11 @@ const RESPAWN_DELAY = 2.0, SHOT_RANGE = 80;
 let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 // stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
 let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
+let runBestHit_ = 0;   // #162 : plus gros degat inflige en un coup, sur la partie en cours
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; }   // #139 #148 #149 #150 #153
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; }   // #139 #148 #149 #150 #153 #162
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
+G.debug.runBestHit = () => runBestHit_;   // #162
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
 const ACHIEVEMENTS = [
@@ -4897,6 +4899,7 @@ function playerDie(){
     + `<div class="go-tile"><span>Kills</span><b>${runKills}</b></div>`
     + `<div class="go-tile"><span>Headshots</span><b>${runHeadshots}</b></div>`
     + `<div class="go-tile"><span>Précision</span><b>${accuracy_}%</b></div>`
+    + `<div class="go-tile"><span>Meilleur coup</span><b>${runBestHit_}</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
     + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
@@ -5469,6 +5472,7 @@ const OVERKILL_THRESHOLD = 50, OVERKILL_BONUS = 25;
 let overkillCount_ = 0, lastOverkill_ = false;
 function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
+  if(amount > runBestHit_) runBestHit_ = amount;   // #162 : meilleur coup de la partie
   e.lastOverkillFlag = (amount - e.hp) >= OVERKILL_THRESHOLD;   // #139 : excédent avant application des dégâts
   e.hp -= amount; playSound('hit');                    // #129 : le berserker en frenzy est désormais TUABLE (plus d'invincibilité)
   if(activePower === 'vampire' && !hardcore_ && model){ health = Math.min(maxHealth, health + Math.round(amount * 0.2)); G.health = health; updateHealthHud(); } // #133 lifesteal

@@ -6316,3 +6316,28 @@ test('#161 : une nouvelle vague reactive le bonus', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.firstBloodCount())).toBe(2);
   expect(await page.evaluate(() => __game.debug.lastWasFirstBlood())).toBe(true);
 });
+
+// ====== #162 — Meilleur coup ======
+test('#162 : runBestHit demarre a 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runBestHit())).toBe(0);
+});
+
+test('#162 : runBestHit suit le plus gros coup, ne redescend pas', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'tank', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));
+  expect(await page.evaluate(() => __game.debug.runBestHit())).toBe(50);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 20));
+  expect(await page.evaluate(() => __game.debug.runBestHit())).toBe(50);
+});
+
+test('#162 : restart remet runBestHit a 0', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'tank', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 50));
+  expect(await page.evaluate(() => __game.debug.runBestHit())).toBe(50);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.runBestHit())).toBe(0);
+});
