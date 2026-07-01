@@ -4714,3 +4714,47 @@ test('#130 molotov : stock recharge a chaque vague', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(1);
 });
+
+// ====== #131 — Ennemi Juggernaut (elite blinde) ======
+test('#131 juggernaut : enemyIsJuggernaut detecte le type', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 5, 0));
+  expect(await page.evaluate(() => __game.debug.enemyIsJuggernaut(0))).toBe(true);
+});
+
+test('#131 juggernaut : HP tres eleve (hpMult 5x) vs shooter', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0); __game.debug.spawnEnemyTypeAt(1, 'juggernaut', 8, 0); });
+  const shooterHp = await page.evaluate(() => __game.debug.enemyHp(0));
+  const jugHp = await page.evaluate(() => __game.debug.enemyHp(1));
+  expect(jugHp).toBeGreaterThan(shooterHp * 4);
+});
+
+test('#131 juggernaut : armure integrale reduit les degats sur TOUTES les zones', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 5, 0));
+  const head = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'head'));
+  const torso = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'torso'));
+  const legs = await page.evaluate(() => __game.debug.enemyArmorMult(0, 'legs'));
+  expect(head).toBeLessThan(1);
+  expect(torso).toBeLessThan(1);
+  expect(legs).toBeLessThan(1);
+});
+
+test('#131 juggernaut : waveComposition v11 remplace le tank par juggernaut (v10 = boss wave)', async ({ page }) => {
+  await startPlaying(page);
+  const comp11 = await page.evaluate(() => __game.debug.waveComposition(11));
+  const comp9 = await page.evaluate(() => __game.debug.waveComposition(9));
+  expect(comp11).toContain('juggernaut');
+  expect(comp9).not.toContain('juggernaut');
+  expect(comp9).toContain('tank'); // v9 : toujours le tank classique
+});
+
+test('#131 juggernaut : compte dans armoredKillCount a la mort', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 5, 0));
+  const before = await page.evaluate(() => __game.debug.armoredKillCount());
+  await page.evaluate(() => __game.debug.damageEnemy(0, 999999));
+  const after = await page.evaluate(() => __game.debug.armoredKillCount());
+  expect(after).toBeGreaterThan(before);
+});

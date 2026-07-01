@@ -2732,10 +2732,15 @@ G.debug.enemyInFrenzy = (i) => { const e=enemies[i]; return !!(e && e.frenzyUnti
 G.debug.frenzyCount = () => frenzyCount_;
 G.debug.forceEnemyFrenzy = (i) => { const e=enemies[i]; if(e){ e.frenzyUsed=false; e.hp=Math.floor(e.maxHp*0.2); tryTriggerFrenzy(e); }};
 // ====== #114 Armor system ======
-const ARMOR_TYPES = new Set(['tank','boss']);
+const ARMOR_TYPES = new Set(['tank','boss','juggernaut']);   // #131 : juggernaut compte aussi comme kill blindé
 const ARMOR_TORSO_MULT = 0.7;
+const FULL_ARMOR_TYPES = new Set(['juggernaut']);   // #131 : armure intégrale (toutes zones), pas juste le torse
+const FULL_ARMOR_MULT = 0.6;
 let armoredKillCount_ = 0;
-function enemyArmorMult(e, zone){ return ARMOR_TYPES.has(e.type) && zone === 'torso' ? ARMOR_TORSO_MULT : 1.0; }
+function enemyArmorMult(e, zone){
+  if(FULL_ARMOR_TYPES.has(e.type)) return FULL_ARMOR_MULT;
+  return ARMOR_TYPES.has(e.type) && zone === 'torso' ? ARMOR_TORSO_MULT : 1.0;
+}
 G.debug.enemyArmorMult = (i, zone) => { const e=enemies[i]; return e ? enemyArmorMult(e, zone) : 1.0; };
 G.debug.armoredKillCount = () => armoredKillCount_;
 // ====== #112 Auto-reload ======
@@ -2823,6 +2828,7 @@ G.debug.enemyShootRange = (i) => { const e=enemies[i]; if(!e) return null; retur
 G.debug.enemyIsSniper = (i) => { const e=enemies[i]; return !!e && e.type==='sniper'; };
 G.debug.enemySniperShootCd = (i) => { const e=enemies[i]; return e ? (e.spec && e.spec.shootCd) || null : null; };
 G.debug.enemyDamageMult = (i) => { const e=enemies[i]; return e && e.spec ? e.spec.damageMult : null; };   // #111 : multiplicateur de dégâts du type d'ennemi
+G.debug.enemyIsJuggernaut = (i) => { const e=enemies[i]; return !!e && e.type==='juggernaut'; };   // #131
 // ====== #100 Bonus argent fin de vague (survie parfaite) ======
 const WAVE_BONUS_PER_WAVE = 50;
 let lastWaveBonus_ = 0;
@@ -4156,6 +4162,7 @@ const ENEMY_TYPES = {
   medic:     { id:'medic',    hpMult:0.7, speedMult:0.8,  scale:0.95, melee:false, damageMult:0.8, burst:1, glow:0x00cc55 },         // #120 guérisseur
   stunner:   { id:'stunner',  hpMult:0.9, speedMult:1.1,  scale:1.0,  melee:false, damageMult:0.7, burst:2, glow:0xffdd00 },         // #121 éclaire/ralentit le joueur
   grenadier: { id:'grenadier',hpMult:1.2, speedMult:0.7,  scale:1.05, melee:false, damageMult:0.8, burst:1, glow:0xaaff00 },         // #128 lance des grenades
+  juggernaut:{ id:'juggernaut',hpMult:5.0, speedMult:0.45, scale:1.5, melee:true,  damageMult:2.2, burst:1, glow:0x888899 },         // #131 élite blindé, armure intégrale, vague 10+
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -4171,7 +4178,8 @@ function waveComposition(w){
   if(isBossWave(w)) return ['boss', 'shooter', 'shooter'];                      // boss + 2 sbires (#31)
   const n = enemiesForWave(w), out = [];
   for(let i=0;i<n;i++){
-    if(w>=3 && i%4===3) out.push('tank');
+    if(w>=10 && i%4===3) out.push('juggernaut');                                   // v10+ : élite blindé remplace le tank (#131)
+    else if(w>=3 && i%4===3) out.push('tank');
     else if(w>=7 && i%6===5) out.push('stunner');                               // stunner dès v7 (slot libéré : ghost supprimé) (#121)
     else if(w>=8 && i%7===6) out.push(w%2===0 ? 'grenadier' : 'sniper');        // v8+ : alternance grenadier (pair) / sniper (impair) par parité (#128/#111)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper v5-7 (#111)
