@@ -284,6 +284,14 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
+  .ls-hud{position:fixed;right:16px;width:200px;z-index:10}
+  #ls-turret-hud{bottom:90px} #ls-mine-hud{bottom:126px} #ls-airstrike-hud{bottom:162px} #ls-carepackage-hud{bottom:198px}
+  .ls-label{display:flex;justify-content:space-between;font-family:var(--font-display);font-size:var(--t-xs);
+    text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--text-2);margin-bottom:3px}
+  .ls-track{height:6px;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);overflow:hidden;--ch:3px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .ls-fill{height:100%;width:0%;background:var(--accent-2);transition:width .15s}
+  .ls-fill.ready{background:var(--ok);box-shadow:0 0 8px var(--ok)}
   #hud-ammo-flash{position:fixed;bottom:58px;right:18px;width:80px;height:50px;pointer-events:none;border-radius:6px;opacity:0}
   #hud-ammo-flash.empty-flash{animation:emptyFlash 0.3s}
   @keyframes emptyFlash{0%{opacity:.7;background:#f44}100%{opacity:0;background:#f44}}
@@ -684,6 +692,7 @@
       <button id="btn-shop" class="btn btn--ghost"><svg class="ico"><use href="#i-weapon"></use></svg> Armurerie</button>
       <button id="btn-settings" class="btn btn--ghost"><svg class="ico"><use href="#i-gear"></use></svg> Réglages</button>
       <button id="btn-howto" class="btn btn--ghost"><svg class="ico"><use href="#i-help"></use></svg> Comment jouer</button>
+      <button id="btn-loadout" class="btn btn--ghost"><svg class="ico"><use href="#i-grenade"></use></svg> Série de points</button>
     </div>
     <button id="play-btn" class="btn btn--primary deploy-btn"><svg class="ico"><use href="#i-play"></use></svg>
       <span class="deploy-lbl">Déployer<small>// Survie — vagues infinies</small></span></button>
@@ -719,6 +728,10 @@
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
 <div id="stamina-hud" class="hidden"><div id="stamina-label"><svg class="ico"><use href="#i-sprint"></use></svg> Sprint</div><div id="stamina-track"><div id="stamina-fill"></div></div></div>
+<div id="ls-turret-hud" class="hidden ls-hud"><div class="ls-label">Tourelle <b>L</b></div><div class="ls-track"><div id="ls-turret-fill" class="ls-fill"></div></div></div>
+<div id="ls-mine-hud" class="hidden ls-hud"><div class="ls-label">Claymore <b>Y</b></div><div class="ls-track"><div id="ls-mine-fill" class="ls-fill"></div></div></div>
+<div id="ls-airstrike-hud" class="hidden ls-hud"><div class="ls-label">Frappe aérienne <b>U</b></div><div class="ls-track"><div id="ls-airstrike-fill" class="ls-fill"></div></div></div>
+<div id="ls-carepackage-hud" class="hidden ls-hud"><div class="ls-label">Caisse <b>I</b></div><div class="ls-track"><div id="ls-carepackage-fill" class="ls-fill"></div></div></div>
 <div id="hud-ammo-flash"></div>
 <div id="precision-hud"></div>
 <div id="longshot-hud"></div>
@@ -802,6 +815,14 @@
   <div class="set-row"><label for="set-rain"><svg class="ico"><use href="#i-gauge"></use></svg> Pluie <span style="opacity:.6;font-size:.78em">(ambiance orageuse)</span></label>
     <button id="set-rain" class="set-toggle"></button></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
+</div></div>
+
+<div id="loadout-panel" class="panel hidden"><div class="panel-card">
+  <div class="eyebrow">// Chargement de combat</div>
+  <h2>Série de points</h2>
+  <p class="howto-intro">Choisis 3 bonus. Chaque kill donne 100 points à chacun, en parallèle. Une fois le palier atteint, la touche indiquée le déclenche.</p>
+  <div id="loadout-grid" class="shop-grid" style="padding:16px"></div>
+  <button class="panel-back" data-panel="loadout-panel">◀ Retour</button>
 </div></div>
 
 <div id="howto-panel" class="panel hidden"><div class="panel-card howto-card">
@@ -1081,7 +1102,8 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
   settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false, rain:false },
   lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 },
-  consumables:{ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 } }; }   // #155 : stock persistant, migration auto via Object.assign(defaultSave(), p)
+  consumables:{ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 },   // #155 : stock persistant, migration auto via Object.assign(defaultSave(), p)
+  selectedLoadout:['turret','mine','airstrike'] }; }   // #156 : killstreak loadout, migration auto
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -1690,7 +1712,7 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak();   // reset + init (#55-#58)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetLoadoutPoints();   // reset + init (#55-#58)
   resetSemiAuto(); rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;   // purge état run résiduel (rampage/stun/overheat) entre 2 parties lancées depuis le menu
   onStreakReset(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1; enemyGrenadeCount_=0; frenzyCount_=0; showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; secondWindUsed=false; secondWindInvulnUntil=0;   // startGame reflète le bloc reset complet de restartGame (anti-asymétrie : streak/dash/compteurs/rank résiduels du menu)
   getDailyContracts();   // #62 : initialise save.daily (sinon trackDailyKill/Wave sortent sur !save.daily → contrats inertes en production) + rafraîchit le seed du jour
@@ -1722,6 +1744,7 @@ async function startGame(){
   ensureWeapon();                              // chargement non-bloquant (l'arme apparaît dès qu'elle est prête)
   startLifetimeTimer(); // lifetime playtime (#80)
   G.phase = 'playing';
+  updateLoadoutHud();   // affiche les barres du loadout choisi (#156)
 }
 G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
 
@@ -1740,6 +1763,20 @@ document.getElementById('shop-next').onclick = () => shopNav(1);
 for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShopTab(t.dataset.tab);
 document.getElementById('btn-settings').onclick = () => openSettings();
 document.getElementById('btn-howto').onclick = () => openPanel('howto-panel');
+document.getElementById('btn-loadout').onclick = () => { renderLoadoutPanel(); openPanel('loadout-panel'); };
+function renderLoadoutPanel(){
+  const el = document.getElementById('loadout-grid'); if(!el) return;
+  const LOADOUT_ICON = { turret:'grenade', mine:'sticky', airstrike:'flash', carepackage:'molotov' };
+  const LOADOUT_KEYLABEL = { turret:'L', mine:'Y', airstrike:'U', carepackage:'I' };
+  let html = '';
+  for(const key of LOADOUT_BONUSES){
+    const on = save.selectedLoadout.includes(key);
+    const foot = `<button class="icbtn${on?' on':''}" data-loadout="${key}">${on ? '✓ Choisi' : 'Choisir'} — touche ${LOADOUT_KEYLABEL[key]}</button>`;
+    html += itemCard({ rc:rarityInfo('commun').color, icon:LOADOUT_ICON[key], name:LOADOUT_NAMES[key], rarity:'commun', sub:`Palier : ${LOADOUT_THRESHOLDS[key]} pts`, foot, on, data:` data-loadout="${key}"` });
+  }
+  el.innerHTML = html;
+  el.querySelectorAll('[data-loadout]').forEach(b => b.onclick = () => { toggleLoadoutBonus(b.dataset.loadout); renderLoadoutPanel(); });
+}
 for(const t of document.querySelectorAll('.howto-tab')) t.onclick = () => {
   for(const x of document.querySelectorAll('.howto-tab')) x.classList.toggle('active', x === t);
   for(const p of document.querySelectorAll('.howto-page')) p.classList.toggle('active', p.dataset.howtoPage === t.dataset.howto);
@@ -1804,8 +1841,10 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyB' && G.phase==='playing' && grenades > 0) showGrenadeArc(true);    // B (maintien) = viser l'arc de grenade (#33/#97)
   if(e.code==='KeyN' && G.phase==='playing') throwFlashbang();                        // N = lancer une flashbang (#57)
   if(e.code==='KeyT' && G.phase==='playing') fireModeToggle();                        // T = basculer auto/burst (#64)
-  if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
-  if(e.code==='KeyL' && G.phase==='playing') deployTurret();                           // L = tourelle sentinelle (#132)
+  if(e.code==='KeyY' && G.phase==='playing') triggerLoadoutBonus('mine');              // Y = claymore prête (loadout #156)
+  if(e.code==='KeyL' && G.phase==='playing') triggerLoadoutBonus('turret');            // L = tourelle prête (loadout #156)
+  if(e.code==='KeyU' && G.phase==='playing') triggerLoadoutBonus('airstrike');         // U = frappe aérienne prête (loadout #156)
+  if(e.code==='KeyI' && G.phase==='playing') triggerLoadoutBonus('carepackage');       // I = caisse de ravitaillement prête (loadout #156)
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
   if(e.code==='KeyJ' && G.phase==='playing') throwSticky();                           // J = grenade collante (#118)
   if(e.code==='KeyK' && G.phase==='playing') throwMolotov();                          // K = molotov, zone de feu (#130)
@@ -3815,6 +3854,13 @@ function placeMine(){
   const mesh = buildMineMesh(); mesh.position.copy(pos); scene.add(mesh);
   mines.push({ mesh, armed:false, armAt: nowS() + 1.0 }); updateMineHud(); return true;
 }
+function placeMineFree(){   // #156 : variante loadout, ignore le stock (mineStock inchangé)
+  if(G.phase !== 'playing' || !model) return false;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+  const pos = model.position.clone().addScaledVector(dir, 1.5); pos.y = 0.03;
+  const mesh = buildMineMesh(); mesh.position.copy(pos); scene.add(mesh);
+  mines.push({ mesh, armed:false, armAt: nowS() + 1.0 }); return true;
+}
 function explodeMineAt(x, y, z){
   for(const e of enemies){ if(!e.alive) continue;
     const d = Math.hypot(e.root.position.x - x, e.root.position.z - z);
@@ -3843,6 +3889,12 @@ let turret = null, turretCooldownUntil = 0;
 function buildTurretMesh(){ const m = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), new THREE.MeshStandardMaterial({ color:0x556070, emissive:0x223344, emissiveIntensity:0.5, roughness:0.5 })); return m; }
 function deployTurret(){
   if(G.phase !== 'playing' || !model || turret || nowS() < turretCooldownUntil) return false;
+  const mesh = buildTurretMesh(); mesh.position.copy(model.position); mesh.position.y += 0.45; scene.add(mesh);
+  turret = { mesh, expireAt: nowS() + TURRET_DURATION, lastShot: 0 };
+  return true;
+}
+function deployTurretFree(){   // #156 : variante loadout, ignore l'ancien cooldown (mais garde "1 seule active")
+  if(G.phase !== 'playing' || !model || turret) return false;
   const mesh = buildTurretMesh(); mesh.position.copy(model.position); mesh.position.y += 0.45; scene.add(mesh);
   turret = { mesh, expireAt: nowS() + TURRET_DURATION, lastShot: 0 };
   return true;
@@ -4009,7 +4061,7 @@ function showHitMarker(headshot){
 }
 G.debug.showHitMarker = (hs) => showHitMarker(hs);
 // ====== #58 Killstreak Rewards ======
-const KS_WINDOW = 8, KS_THRESHOLDS = [3, 5, 7, 10];
+const KS_WINDOW = 8, KS_THRESHOLDS = [3, 5, 7];
 let ksKillTimes = [], ksAwarded = new Set();
 let ksShieldUntil = 0, ksMoneyMultUntil = 0;
 function registerKsKill(){
@@ -4022,7 +4074,7 @@ function fireKsReward(thr){
   if(thr === 3){ ammo = curMag; G.ammo = ammo; showKsBanner('TRIPLE KILL  ⚡ Rechargé', '#f0c040'); }
   else if(thr === 5){ ksShieldUntil = nowS() + 5; showKsBanner('RAMPAGE  🛡 Bouclier actif', '#4fc3f7'); }
   else if(thr === 7){ ksMoneyMultUntil = nowS() + 10; showKsBanner('UNSTOPPABLE  💰 ×2 Argent', '#81c784'); }
-  else if(thr === 10){ triggerAirstrike(); showKsBanner('AIRSTRIKE  💥 Frappe aérienne', '#ff6a1a'); }   // #138
+  // #156 : le palier 10 (frappe aérienne auto) est retiré, remplacé par le système de points loadout
 }
 // ====== #138 Frappe aérienne (killstreak tier 10) ======
 const AIRSTRIKE_TARGETS = 3, AIRSTRIKE_DMG = 150;
@@ -4054,6 +4106,56 @@ G.debug.ksCount = () => { const t = nowS(); return ksKillTimes.filter(t2 => t - 
 G.debug.ksRewardFired = (thr) => ksAwarded.has(thr);
 G.debug.ksShieldActive = () => ksShieldActive();
 G.debug.ksMoneyMult = () => ksMoneyMultiplier();
+// ====== #156 Série de points (killstreak loadout à 3 bonus) ======
+const LOADOUT_BONUSES = ['turret','mine','airstrike','carepackage'];
+const LOADOUT_THRESHOLDS = { turret:1200, mine:600, airstrike:1800, carepackage:1000 };
+const LOADOUT_NAMES = { turret:'Tourelle', mine:'Claymore', airstrike:'Frappe aérienne', carepackage:'Caisse' };
+const LOADOUT_POINTS_PER_KILL = 100;
+let loadoutPoints = { turret:0, mine:0, airstrike:0, carepackage:0 };
+function registerLoadoutKill(){
+  for(const key of save.selectedLoadout) loadoutPoints[key] = (loadoutPoints[key]||0) + LOADOUT_POINTS_PER_KILL;
+  updateLoadoutHud();
+}
+function loadoutReady(key){ return save.selectedLoadout.includes(key) && loadoutPoints[key] >= LOADOUT_THRESHOLDS[key]; }
+function toggleLoadoutBonus(key){
+  if(!LOADOUT_BONUSES.includes(key)) return false;
+  const arr = save.selectedLoadout, i = arr.indexOf(key);
+  if(i >= 0) arr.splice(i, 1);
+  else { arr.push(key); if(arr.length > 3) arr.shift(); }
+  persist(); updateLoadoutHud(); return true;
+}
+function resetLoadoutPoints(){ loadoutPoints = { turret:0, mine:0, airstrike:0, carepackage:0 }; updateLoadoutHud(); }
+function updateLoadoutHud(){
+  for(const key of LOADOUT_BONUSES){
+    const hud = document.getElementById('ls-'+key+'-hud'), fill = document.getElementById('ls-'+key+'-fill');
+    if(!hud || !fill) continue;
+    const show = G.phase === 'playing' && save.selectedLoadout.includes(key);
+    hud.classList.toggle('hidden', !show);
+    if(!show) continue;
+    const pts = loadoutPoints[key] || 0, thr = LOADOUT_THRESHOLDS[key];
+    fill.style.width = Math.min(100, Math.round(pts/thr*100)) + '%';
+    fill.classList.toggle('ready', pts >= thr);
+  }
+}
+G.debug.selectedLoadout = () => save.selectedLoadout.slice();
+G.debug.toggleLoadoutBonus = (key) => toggleLoadoutBonus(key);
+G.debug.loadoutPoints = (key) => loadoutPoints[key] || 0;
+G.debug.loadoutThreshold = (key) => LOADOUT_THRESHOLDS[key];
+G.debug.loadoutReady = (key) => loadoutReady(key);
+G.debug.registerLoadoutKill = () => registerLoadoutKill();
+function triggerLoadoutBonus(key){
+  if(!loadoutReady(key)) return false;
+  let ok = false;
+  if(key === 'turret') ok = deployTurretFree();
+  else if(key === 'mine') ok = placeMineFree();
+  else if(key === 'airstrike'){ triggerAirstrike(); ok = true; }
+  else if(key === 'carepackage'){ if(!model || carePackage) return false;
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+    spawnCarePackage(model.position.x + dir.x*3, model.position.z + dir.z*3); ok = true; }
+  if(ok){ loadoutPoints[key] = 0; updateLoadoutHud(); showCallout(LOADOUT_NAMES[key].toUpperCase() + ' PRÊT UTILISÉ !'); }
+  return ok;
+}
+G.debug.triggerLoadoutBonus = (key) => triggerLoadoutBonus(key);
 // ====== #57 Flashbang ======
 const MAX_FLASHBANGS = 2, FLASH_FUSE = 1.5, FLASH_BLIND_R = 9, FLASH_BLIND_DUR = 2.0, FLASH_PLAYER_R = 10;
 let flashbangs = MAX_FLASHBANGS, flashbangProjs = [], flashScreenT = null;
@@ -4504,7 +4606,7 @@ G.debug.spawnAmmoPack = (x,z) => spawnAmmoPack(x,z);
 G.debug.forceAmmoDrop = (b) => { forceAmmoDrop_ = !!b; };
 // ====== #143 Caisse de ravitaillement (care package) ======
 const CARE_PACKAGE_WAVE_INTERVAL = 4, CARE_PACKAGE_PICKUP_R = 1.8, CARE_PACKAGE_MONEY = 150;
-const CARE_PACKAGE_REWARDS = ['money', 'grenades', 'ammo'];
+const CARE_PACKAGE_REWARDS = ['money', 'grenades', 'ammo', 'bonus_turret', 'bonus_mine', 'bonus_airstrike'];
 let carePackage = null, carePackageForcedReward_ = null;
 function buildCarePackageMesh(){
   const g = new THREE.Group();
@@ -4534,6 +4636,9 @@ function applyCarePackageReward(type){
   if(type === 'money'){ addMoney(CARE_PACKAGE_MONEY); }
   else if(type === 'grenades'){ grantGrenadeBundle(); }
   else if(type === 'ammo'){ ammo = curMag; G.ammo = ammo; }
+  else if(type === 'bonus_turret'){ deployTurretFree(); }       // #156 : octroi instantané gratuit, indépendant du palier de points
+  else if(type === 'bonus_mine'){ placeMineFree(); }
+  else if(type === 'bonus_airstrike'){ triggerAirstrike(); }
   showCallout('RAVITAILLEMENT!'); flashHeal(); playSound('reload');
 }
 function updateCarePackage(dt){
@@ -4677,12 +4782,13 @@ function restartGame(){
   resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; doubleJumpAvailable = false; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; secondWindUsed=false; secondWindInvulnUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetLoadoutPoints(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; secondWindUsed=false; secondWindInvulnUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   flushLifetimeTime(); startLifetimeTimer();                   // #80 : comptabilise le run abandonné (no-op si déjà flushé à la mort) puis relance le chrono (sinon temps des runs relancés perdu)
   spawnDefaultTargets();
   G.phase = 'playing';
+  updateLoadoutHud();   // affiche les barres du loadout choisi (#156)
   startWave(1);
 }
 document.getElementById('go-restart').addEventListener('click', restartGame);
@@ -4694,7 +4800,7 @@ function backToHome(){
   flushLifetimeTime();                                         // #80 : comptabilise le temps de session avant de quitter (sinon perdu via pause→menu)
   resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
   resetCallouts();                                             // vide kill-feed + callouts résiduels (sinon persistent dans le lobby)
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud','ls-turret-hud','ls-mine-hud','ls-airstrike-hud','ls-carepackage-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
@@ -5434,6 +5540,7 @@ function killEnemy(e){
   if(e.isVip) showCallout('VIP ÉLIMINÉ!');              // #140
   addKillFeedEntry(e);                                  // journal kill (#54)
   registerKsKill();                                     // récompenses killstreak (#58)
+  registerLoadoutKill();                                 // points série de killstreak loadout (#156)
   addXp((XP_KILL + (e.lastHitHead ? XP_HEAD : 0)) * vipMult);      // XP par kill (#60) × VIP (#140)
   onStreakKill();                                         // streak counter (#72)
   spawnMoneyOrb(e.root.position.x, e.root.position.z, MONEY_PER_KILL); // orbe argent (#79)
@@ -5453,7 +5560,7 @@ function startWave(w){
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   maybeMarkVip(w);                                                          // marque un ennemi VIP (#140)
-  maybeSpawnCarePackage(w);                                                 // caisse de ravitaillement (#143)
+  // #156 : plus d'auto-spawn caisse toutes les 4 vagues, remplacé par la touche loadout I
   dmgThisWave = 0; waveState = 'active'; spawnBarrels();    // barils (#41) ; reset dmgThisWave (#55) ; plus de refill grenades par vague (#155)
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);

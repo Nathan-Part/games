@@ -5780,3 +5780,203 @@ test('#154 full auto : maintenir le tir en semi-auto tire plusieurs fois AVEC le
   const ammoAfter = await page.evaluate(() => __game.ammo);
   expect(ammoBefore - ammoAfter).toBeGreaterThan(1); // plusieurs coups malgre le semi-auto (override)
 });
+
+// ====== #156 — Série de points (killstreak loadout) ======
+test('#156 : registerLoadoutKill ajoute 100pts aux bonus selectionnes, rien aux autres', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); });
+  expect(await page.evaluate(() => __game.debug.selectedLoadout())).toEqual(['turret','mine','airstrike']);
+  await page.evaluate(() => __game.debug.registerLoadoutKill());
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('turret'))).toBe(100);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('mine'))).toBe(100);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('airstrike'))).toBe(100);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('carepackage'))).toBe(0);
+});
+
+test('#156 : un kill reel alimente aussi les points loadout', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('turret'))).toBe(100);
+});
+
+test('#156 : toggleLoadoutBonus deselectionne, reselectionne, et evince le plus ancien au 4e choix (FIFO)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.toggleLoadoutBonus('turret'))).toBe(true);   // deselectionne
+  expect(await page.evaluate(() => __game.debug.selectedLoadout())).toEqual(['mine','airstrike']);
+  expect(await page.evaluate(() => __game.debug.toggleLoadoutBonus('carepackage'))).toBe(true); // ajoute (3/3)
+  expect(await page.evaluate(() => __game.debug.selectedLoadout())).toEqual(['mine','airstrike','carepackage']);
+  expect(await page.evaluate(() => __game.debug.toggleLoadoutBonus('turret'))).toBe(true);   // 4e -> evince 'mine' (le plus ancien)
+  expect(await page.evaluate(() => __game.debug.selectedLoadout())).toEqual(['airstrike','carepackage','turret']);
+});
+
+test('#156 : loadoutReady vrai seulement si selectionne ET palier atteint', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.loadoutThreshold('mine'))).toBe(600);
+  for (let i=0;i<5;i++) await page.evaluate(() => __game.debug.registerLoadoutKill());   // 500 pts
+  expect(await page.evaluate(() => __game.debug.loadoutReady('mine'))).toBe(false);
+  await page.evaluate(() => __game.debug.registerLoadoutKill());                        // 600 pts
+  expect(await page.evaluate(() => __game.debug.loadoutReady('mine'))).toBe(true);
+  await page.evaluate(() => __game.debug.toggleLoadoutBonus('mine'));                   // deselectionne
+  expect(await page.evaluate(() => __game.debug.loadoutReady('mine'))).toBe(false);
+});
+
+test('#156 : les points se remettent a zero au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.registerLoadoutKill());
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('turret'))).toBe(100);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('turret'))).toBe(0);
+});
+
+test('#156 : triggerLoadoutBonus refuse si pas selectionne ou points insuffisants', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('turret'))).toBe(false);   // 0 pts
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('carepackage'))).toBe(false); // pas selectionne (defaut)
+});
+
+test('#156 : tourelle prete via points se deploie meme si l ancien cooldown serait bloquant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { __game.debug.deployTurret(); });     // pose une 1ere tourelle "classique" -> future pose bloquee par le vieux cooldown normalement
+  await page.evaluate(() => { for(let i=0;i<12;i++) __game.debug.registerLoadoutKill(); }); // 1200 pts = palier turret
+  expect(await page.evaluate(() => __game.debug.loadoutReady('turret'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.turretActive())).toBe(true);   // la 1ere tourelle est deja active -> triggerLoadoutBonus doit echouer (max 1 active), pas a cause du cooldown
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('turret'))).toBe(false);
+});
+
+test('#156 : mine prete via points se pose sans consommer le stock claymore', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const stockBefore = await page.evaluate(() => __game.debug.mineStock());
+  await page.evaluate(() => { for(let i=0;i<6;i++) __game.debug.registerLoadoutKill(); }); // 600 pts = palier mine
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('mine'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.mineCount())).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => __game.debug.mineStock())).toBe(stockBefore);   // stock inchange
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('mine'))).toBe(0);   // consomme les points
+});
+
+test('#156 : bonus non selectionne (4e) reste inerte meme a points eleves', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());   // carepackage n est pas dans le loadout par defaut
+  await page.evaluate(() => { for(let i=0;i<20;i++) __game.debug.registerLoadoutKill(); });
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('carepackage'))).toBe(0);   // jamais alimente
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('carepackage'))).toBe(false);
+});
+
+test('#156 : la touche L declenche triggerLoadoutBonus turret quand pret', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { for(let i=0;i<12;i++) __game.debug.registerLoadoutKill(); });
+  await page.evaluate(() => __game.debug.setInput({}));
+  await page.keyboard.press('KeyL');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.turretActive())).toBe(true);
+});
+
+test('#156 : frappe aerienne 10 kills en 8s ne se declenche plus automatiquement, mais 3/5/7 fonctionnent toujours', async ({ page }) => {
+  await startPlaying(page);
+  for(let i=0;i<10;i++){
+    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+    await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  }
+  expect(await page.evaluate(() => __game.debug.ksRewardFired(10))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.ksRewardFired(3))).toBe(true);
+});
+
+test('#156 : caisse de ravitaillement ne spawn plus automatiquement toutes les 4 vagues', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(4));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.carePackageActive())).toBe(false);
+});
+
+test('#156 : caisse prete via touche I apparait a la position du joueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.toggleLoadoutBonus('carepackage'));   // l ajoute (evince le plus ancien -> 'turret')
+  await page.evaluate(() => { for(let i=0;i<10;i++) __game.debug.registerLoadoutKill(); }); // 1000 pts
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('carepackage'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.carePackageActive())).toBe(true);
+});
+
+test('#156 : recompense caisse bonus_turret octroie une tourelle gratuite sans palier', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.forceCarePackageReward('bonus_turret'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.turretActive())).toBe(true);
+});
+
+test('#156 : recompense caisse bonus_mine octroie une claymore gratuite sans consommer le stock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const stockBefore = await page.evaluate(() => __game.debug.mineStock());
+  await page.evaluate(() => __game.debug.forceCarePackageReward('bonus_mine'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.mineCount())).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => __game.debug.mineStock())).toBe(stockBefore);
+});
+
+test('#156 : recompense caisse bonus_airstrike declenche la frappe aerienne gratuitement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.forceCarePackageReward('bonus_airstrike'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.airstrikeHitCount())).toBeGreaterThanOrEqual(1);
+});
+
+test('#156 : la barre HUD du bonus selectionne est visible en partie, masquee si non selectionne', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const turretHidden = await page.evaluate(() => document.getElementById('ls-turret-hud').classList.contains('hidden'));
+  const carepackageHidden = await page.evaluate(() => document.getElementById('ls-carepackage-hud').classList.contains('hidden'));
+  expect(turretHidden).toBe(false);      // dans le loadout par defaut
+  expect(carepackageHidden).toBe(true);  // pas dans le loadout par defaut
+});
+
+test('#156 : la barre se remplit avec les points et devient ready a 100%', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { for(let i=0;i<12;i++) __game.debug.registerLoadoutKill(); }); // 1200 = palier turret
+  const width = await page.evaluate(() => document.getElementById('ls-turret-fill').style.width);
+  const ready = await page.evaluate(() => document.getElementById('ls-turret-fill').classList.contains('ready'));
+  expect(width).toBe('100%');
+  expect(ready).toBe(true);
+});
+
+test('#156 : les barres loadout sont masquees au retour au menu', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => document.getElementById('ls-turret-hud').classList.contains('hidden'))).toBe(true);
+});
+
+test('#156 : le panneau loadout s ouvre depuis le lobby et affiche 4 cartes', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
+  await page.evaluate(() => document.getElementById('btn-loadout').click());
+  const hidden = await page.evaluate(() => document.getElementById('loadout-panel').classList.contains('hidden'));
+  expect(hidden).toBe(false);
+  const cardCount = await page.evaluate(() => document.querySelectorAll('#loadout-panel .icard[data-loadout]').length);
+  expect(cardCount).toBe(4);
+});
+
+test('#156 : cliquer une carte du panneau loadout appelle toggleLoadoutBonus et persiste', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
+  await page.evaluate(() => { __game.debug.save.reset(); document.getElementById('btn-loadout').click(); });
+  await page.evaluate(() => document.querySelector('[data-loadout="carepackage"]').click());
+  expect(await page.evaluate(() => __game.debug.selectedLoadout())).toContain('carepackage');
+  await page.reload(); await page.waitForFunction(() => window.__game?.booted);
+  expect(await page.evaluate(() => __game.debug.save.get().selectedLoadout)).toContain('carepackage');
+});
