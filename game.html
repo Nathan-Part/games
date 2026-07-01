@@ -4305,6 +4305,19 @@ G.debug.enemiesForWave = enemiesForWave;
 G.debug.enemyHpForWave = enemyHpForWave;
 G.debug.waveComposition = waveComposition;
 G.debug.isBossWave = isBossWave;
+// ====== #140 Ennemi VIP (cible à haute valeur) ======
+const VIP_MULT = 2, VIP_MIN_WAVE = 3;
+function maybeMarkVip(w){
+  if(w < VIP_MIN_WAVE || isBossWave(w)) return;
+  const candidates = enemies.filter(e => e.alive && e.type !== 'boss');
+  if(!candidates.length) return;
+  const e = candidates[Math.floor(Math.random()*candidates.length)];
+  e.isVip = true;
+  for(const m of e.mats){ m.base.setHex(0xffd700); m.mat.emissive.copy(m.base); }
+}
+G.debug.enemyIsVip = (i) => { const e = enemies[i]; return !!(e && e.isVip); };
+G.debug.forceVip = (i) => { const e = enemies[i]; if(!e) return;
+  e.isVip = true; for(const m of e.mats){ m.base.setHex(0xffd700); m.mat.emissive.copy(m.base); } };
 let enemyAccOverride = null;                   // pour les tests (précision forcée)
 const ENEMY_FOOT_Y = 0;                       // pieds au sol (modèle ennemi centré dans un groupe)
 const FLASH_COLOR = new THREE.Color(0xff2222);
@@ -4941,7 +4954,8 @@ function killEnemy(e){
   if(e.lastHitMelee){ challengeMeleeKills++; checkChallenges('melee', challengeMeleeKills); }
   checkAchievements(mult);                             // succès (#44)
   flashHitMarker(); playSound('enemyDie');
-  addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money));   // argent par kill × combo × difficulté (#46)
+  const vipMult = e.isVip ? VIP_MULT : 1;                          // #140 : cible VIP
+  addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money * vipMult));   // argent par kill × combo × difficulté (#46) × VIP
   if(e.type === 'boss') addMoney(BOSS_BONUS);          // gros bonus à la mort d'un boss (#31)
   maybeDropHealth(e);                                  // chance de pack de soin (#32 ; boss garanti)
   maybeDropAmmo(e);                                    // chance de pack de munitions (#117)
@@ -4949,9 +4963,10 @@ function killEnemy(e){
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
   killCallout(e);                                       // annonce HEADSHOT/multi-kill/BOSS DOWN (#38)
+  if(e.isVip) showCallout('VIP ÉLIMINÉ!');              // #140
   addKillFeedEntry(e);                                  // journal kill (#54)
   registerKsKill();                                     // récompenses killstreak (#58)
-  addXp(XP_KILL + (e.lastHitHead ? XP_HEAD : 0));      // XP par kill (#60)
+  addXp((XP_KILL + (e.lastHitHead ? XP_HEAD : 0)) * vipMult);      // XP par kill (#60) × VIP (#140)
   onStreakKill();                                         // streak counter (#72)
   spawnMoneyOrb(e.root.position.x, e.root.position.z, MONEY_PER_KILL); // orbe argent (#79)
   addLifetimeStat('kills', 1); if(e.lastHitHead) addLifetimeStat('headshots', 1); // lifetime stats (#80)
@@ -4968,6 +4983,7 @@ function startWave(w){
   wave = w; G.wave = w; checkAchievements();          // succès (#44) : survivant à la vague 5
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
+  maybeMarkVip(w);                                                          // marque un ennemi VIP (#140)
   dmgThisWave = 0; waveState = 'active'; refillGrenades(); spawnBarrels();    // grenades + barils (#33/#41) ; reset dmgThisWave (#55)
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
