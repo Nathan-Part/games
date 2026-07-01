@@ -5492,3 +5492,47 @@ test('#150 piercing : piercedHitCount incremente quand un 2e ennemi est perfore'
   const after = await page.evaluate(() => __game.debug.piercedHitCount());
   expect(after).toBe(before + 1);
 });
+
+// ====== #151 — Ennemi commandant (aura de buff) ======
+test('#151 commander : enemyIsCommander detecte le type', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'commander', 5, 0));
+  expect(await page.evaluate(() => __game.debug.enemyIsCommander(0))).toBe(true);
+});
+
+test('#151 commander : commanderAliveMult 1 sans commandant, 1.2 avec un commandant vivant', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.commanderAliveMult())).toBe(1);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'commander', 5, 0));
+  expect(await page.evaluate(() => __game.debug.commanderAliveMult())).toBe(1.2);
+});
+
+test('#151 commander : les degats de tir ennemi sont plus eleves avec un commandant vivant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setEnemyAccuracy(1)); // tir garanti au but
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0); __game.debug.moveEnemy(1,40,40); __game.debug.moveEnemy(2,40,40); });
+  const hpBefore1 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.forceEnemyShoot(0));
+  const normalDmg = hpBefore1 - (await page.evaluate(() => __game.debug.playerHealth()));
+  expect(normalDmg).toBeGreaterThan(0);
+
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  await page.evaluate(() => __game.debug.setEnemyAccuracy(1));
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0); __game.debug.spawnEnemyTypeAt(1, 'commander', 8, 0); __game.debug.moveEnemy(2,40,40); });
+  const hpBefore2 = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.forceEnemyShoot(0));
+  const buffedDmg = hpBefore2 - (await page.evaluate(() => __game.debug.playerHealth()));
+  expect(buffedDmg).toBeGreaterThan(normalDmg);
+});
+
+test('#151 commander : waveComposition alterne commander/berserker au slot commun des la vague 9', async ({ page }) => {
+  await startPlaying(page);
+  const comp12 = await page.evaluate(() => __game.debug.waveComposition(12));
+  const comp13 = await page.evaluate(() => __game.debug.waveComposition(13));
+  expect(comp12).toContain('commander');
+  expect(comp13).not.toContain('commander');
+  expect(comp13).toContain('berserker'); // le berserker n'a pas disparu (alternance, pas remplacement)
+});

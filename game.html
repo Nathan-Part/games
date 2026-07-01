@@ -4387,6 +4387,7 @@ const ENEMY_TYPES = {
   juggernaut:{ id:'juggernaut',hpMult:5.0, speedMult:0.45, scale:1.5, melee:true,  damageMult:2.2, burst:1, glow:0x888899 },         // #131 élite blindé, armure intégrale, vague 10+
   toxic:     { id:'toxic',    hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.9, burst:2, glow:0x33cc33 },         // #141 nuage de poison à la mort
   cryo:      { id:'cryo',     hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.8, burst:2, glow:0x66ccff },         // #146 zone de gel à la mort
+  commander: { id:'commander',hpMult:1.3, speedMult:0.8,  scale:1.1,  melee:false, damageMult:1.0, burst:2, glow:0xffaa00 },         // #151 aura : buffe les dégâts alliés
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -4407,6 +4408,7 @@ function waveComposition(w){
     else if(w>=7 && i%6===5) out.push(w%2===0 ? 'cryo' : 'stunner');            // v7+ : alternance cryo (pair) / stunner (impair) (#146/#121)
     else if(w>=8 && i%7===6) out.push(w%2===0 ? 'grenadier' : 'sniper');        // v8+ : alternance grenadier (pair) / sniper (impair) par parité (#128/#111)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper v5-7 (#111)
+    else if(w>=9 && i%5===4) out.push(w%2===0 ? 'commander' : 'berserker');     // v9+ : alternance commandant (pair) / berserker (impair) (#151/#104)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
     else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
     else if(w>=6 && i%3===2) out.push(w%2===0 ? 'toxic' : 'bomber');           // v6+ : alternance toxique (pair) / kamikaze (impair) (#141/#37)
@@ -4559,7 +4561,7 @@ function enemyTryShoot(e, dt){
   const smokeAcc = enemyInSmoke(enemies.indexOf(e)) ? SMOKE_ACC : 1;
   const acc = enemyAccOverride != null ? enemyAccOverride
             : ENEMY_ACCURACY * Math.max(0.4, Math.min(1, 1 - dist / SHOOT_RANGE * 0.4)) * smokeAcc;
-  if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1))); damageDirFromEnemy(e); if(e.type==='stunner') applyStun(); } // dir indicator (#63) stun (#121)
+  if(Math.random() < acc){ damagePlayer(Math.round(ENEMY_DAMAGE * (e.spec ? e.spec.damageMult : 1) * commanderAliveMult())); damageDirFromEnemy(e); if(e.type==='stunner') applyStun(); } // dir indicator (#63) stun (#121) commandant (#151)
   else { // tir manqué → étincelles sur le sol/mur entre ennemi et joueur (#73)
     const pp=G.position(), ex=e.root.position.x, ez=e.root.position.z;
     const t=0.5+Math.random()*0.4;
@@ -4577,8 +4579,11 @@ function enemyMeleeAttack(e, dt){
   if(e.meleeCd > 0 || dist > MELEE_RANGE) return;
   if(e.type === 'bomber'){ killEnemy(e); return; }             // bomber : explose au contact (#37)
   e.meleeCd = MELEE_CD;
-  damagePlayer(Math.round(MELEE_DAMAGE * (e.spec ? e.spec.damageMult : 1)));
+  damagePlayer(Math.round(MELEE_DAMAGE * (e.spec ? e.spec.damageMult : 1) * commanderAliveMult()));
 }
+function commanderAliveMult(){ return enemies.some(e => e.alive && e.type === 'commander') ? 1.2 : 1; }   // #151
+G.debug.enemyIsCommander = (i) => { const e = enemies[i]; return !!e && e.type==='commander'; };
+G.debug.commanderAliveMult = () => commanderAliveMult();
 G.debug.hasLineOfSight = (ax, az, bx, bz) => hasLineOfSight(ax, az, bx, bz);
 G.debug.setEnemyAccuracy = (a) => { enemyAccOverride = a; };
 G.debug.forceEnemyShoot = (i) => { const e = enemies[i]; if(e){ e.shootCd = 0; enemyTryShoot(e, 0); } };
