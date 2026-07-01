@@ -5536,3 +5536,33 @@ test('#151 commander : waveComposition alterne commander/berserker au slot commu
   expect(comp13).not.toContain('commander');
   expect(comp13).toContain('berserker'); // le berserker n'a pas disparu (alternance, pas remplacement)
 });
+
+// ====== #152 — Power-up Munitions incendiaires ======
+test('#152 incendiary : spawn puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnIncendiaryAmmo(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.incendiaryAmmoActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.incendiaryAmmoTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#152 incendiary : un impact sur un ennemi allume une zone de feu active', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnIncendiaryAmmo(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => __game.debug.fireZoneActive())).toBe(false);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.fireZoneActive())).toBe(true);
+});
+
+test('#152 incendiary : sans le power, aucune zone de feu n est allumee par un tir', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.tryFire());
+  expect(await page.evaluate(() => __game.debug.fireZoneActive())).toBe(false);
+});
