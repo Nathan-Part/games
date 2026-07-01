@@ -5189,3 +5189,46 @@ test('#142 dash iframes : les degats reprennent normalement une fois le dash ter
   const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
   expect(hpAfter).toBeLessThan(hpBefore);
 });
+
+// ====== #143 — Caisse de ravitaillement (care package) ======
+test('#143 care package : aucune caisse en vague non multiple de 4', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.forceWave(5));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.carePackageActive())).toBe(false);
+});
+
+test('#143 care package : spawnCarePackageAt cree une caisse active a la position donnee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnCarePackageAt(3, 3));
+  expect(await page.evaluate(() => __game.debug.carePackageActive())).toBe(true);
+  const pos = await page.evaluate(() => __game.debug.carePackagePos());
+  expect(pos.x).toBeCloseTo(3, 1);
+  expect(pos.z).toBeCloseTo(3, 1);
+});
+
+test('#143 care package : ramassage par proximite applique la recompense argent et retire la caisse', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.debug.runMoney());
+  await page.evaluate(() => __game.debug.forceCarePackageReward('money'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.carePackageActive())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.runMoney())).toBeGreaterThan(moneyBefore);
+});
+
+test('#143 care package : ramassage recompense munitions recharge le chargeur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.tryFire()); // consomme au moins 1 munition
+  const ammoAfterFire = await page.evaluate(() => __game.ammo);
+  await page.evaluate(() => __game.debug.forceCarePackageReward('ammo'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.ammo)).toBeGreaterThan(ammoAfterFire);
+});
+
+test('#143 care package : aucune caisse ne plante la boucle de jeu', async ({ page }) => {
+  await startPlaying(page);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => __game.phase)).toBe('playing');
+});

@@ -4136,6 +4136,43 @@ function updateAmmoPacks(dt){
 G.debug.ammoPackCount = () => ammoPacks.length;
 G.debug.spawnAmmoPack = (x,z) => spawnAmmoPack(x,z);
 G.debug.forceAmmoDrop = (b) => { forceAmmoDrop_ = !!b; };
+// ====== #143 Caisse de ravitaillement (care package) ======
+const CARE_PACKAGE_WAVE_INTERVAL = 4, CARE_PACKAGE_PICKUP_R = 1.8, CARE_PACKAGE_MONEY = 150;
+const CARE_PACKAGE_REWARDS = ['money', 'grenades', 'ammo'];
+let carePackage = null, carePackageForcedReward_ = null;
+function buildCarePackageMesh(){
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.5,0.6), new THREE.MeshStandardMaterial({ color:0x5a5a2a, roughness:0.7 }));
+  box.position.y = 0.25; g.add(box); g.traverse(o => { if(o.isMesh) o.castShadow = true; }); return g;
+}
+function spawnCarePackage(x, z){
+  if(carePackage) return;
+  const m = buildCarePackageMesh(); m.position.set(x, 0, z); scene.add(m);
+  carePackage = { mesh:m, x, z };
+}
+function maybeSpawnCarePackage(w){
+  if(w % CARE_PACKAGE_WAVE_INTERVAL !== 0) return;
+  const sp = randomSpawn(); spawnCarePackage(sp.x, sp.z);
+}
+function applyCarePackageReward(type){
+  if(type === 'money'){ addMoney(CARE_PACKAGE_MONEY); }
+  else if(type === 'grenades'){ refillGrenades(); }
+  else if(type === 'ammo'){ ammo = curMag; G.ammo = ammo; }
+  showCallout('RAVITAILLEMENT!'); flashHeal(); playSound('reload');
+}
+function updateCarePackage(dt){
+  if(!carePackage || !model) return;
+  if(Math.hypot(model.position.x - carePackage.x, model.position.z - carePackage.z) <= CARE_PACKAGE_PICKUP_R){
+    const type = carePackageForcedReward_ || CARE_PACKAGE_REWARDS[Math.floor(Math.random()*CARE_PACKAGE_REWARDS.length)];
+    applyCarePackageReward(type);
+    scene.remove(carePackage.mesh); carePackage = null; carePackageForcedReward_ = null;
+  }
+}
+function clearCarePackage(){ if(carePackage){ scene.remove(carePackage.mesh); carePackage = null; } }
+G.debug.carePackageActive = () => !!carePackage;
+G.debug.carePackagePos = () => carePackage ? { x:carePackage.x, z:carePackage.z } : null;
+G.debug.spawnCarePackageAt = (x,z) => spawnCarePackage(x,z);
+G.debug.forceCarePackageReward = (type) => { carePackageForcedReward_ = type; };
 const healthPacks = []; let forceHealthDrop = false;
 function buildHealthPack(){
   const g = new THREE.Group();
@@ -4586,7 +4623,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); clearCarePackage(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -5010,6 +5047,7 @@ function startWave(w){
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
   maybeMarkVip(w);                                                          // marque un ennemi VIP (#140)
+  maybeSpawnCarePackage(w);                                                 // caisse de ravitaillement (#143)
   dmgThisWave = 0; waveState = 'active'; refillGrenades(); spawnBarrels();    // grenades + barils (#33/#41) ; reset dmgThisWave (#55)
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
@@ -5519,7 +5557,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
