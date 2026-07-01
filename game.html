@@ -1694,7 +1694,7 @@ function updateController(dt){
     if(canRun){ stamina = Math.max(0, stamina - STAMINA_DRAIN*dt); if(stamina===0) staminaDepleted=true; }
     else { stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN*dt); if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; }
     updateStaminaHud();
-    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1) * (rampageActive() ? RAMPAGE_SPEED : 1) * (activePower==='speed_boost' ? 2 : 1); // stun (#121) rampage (#125) speed boost (#127)
+    speed = (canRun ? RUN_SPEED : WALK_SPEED) * speedMult * (isStunned() ? STUN_SPEED_MULT : 1) * (rampageActive() ? RAMPAGE_SPEED : 1) * (activePower==='speed_boost' ? 2 : 1) * (playerSlowedByFrost() ? FROST_SLOW_MULT : 1); // stun (#121) rampage (#125) speed boost (#127) gel (#146)
     lastMoveSpeed_ = speed;                                   // vitesse effective (pour tests #127)
     model.position.x += vx*speed*dt;
     model.position.z += vz*speed*dt;
@@ -2607,6 +2607,26 @@ G.debug.poisonZoneActive = () => poisonZones.length > 0;
 G.debug.playerInPoisonZone = () => { if(!model) return false;
   return poisonZones.some(pz => Math.hypot(model.position.x-pz.x, model.position.z-pz.z) <= POISON_R); };
 G.debug.spawnPoisonZoneAt = (x,z) => spawnPoisonZone(x,z);
+// ====== #146 Ennemi cryo : zone de gel au sol à sa mort (ralentit le joueur, sans dégâts) ======
+const FROST_R = 3, FROST_DUR = 4, FROST_SLOW_MULT = 0.5;
+const frostZones = [];
+function spawnFrostZone(x, z){
+  const geo = new THREE.CircleGeometry(FROST_R, 24);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0x66ccff, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
+  mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
+  frostZones.push({ mesh, x, z, expireAt: nowS() + FROST_DUR });
+}
+function updateFrostZones(){ const t = nowS();
+  for(let i=frostZones.length-1;i>=0;i--){ const fz = frostZones[i];
+    if(t >= fz.expireAt){ scene.remove(fz.mesh); frostZones.splice(i,1); } }
+}
+function playerSlowedByFrost(){ if(!model) return false;
+  return frostZones.some(fz => Math.hypot(model.position.x-fz.x, model.position.z-fz.z) <= FROST_R); }
+function clearFrostZones(){ for(const fz of frostZones) scene.remove(fz.mesh); frostZones.length = 0; }
+G.debug.enemyIsCryo = (i) => { const e = enemies[i]; return !!e && e.type==='cryo'; };
+G.debug.frostZoneActive = () => frostZones.length > 0;
+G.debug.playerInFrostZone = () => playerSlowedByFrost();
+G.debug.spawnFrostZoneAt = (x,z) => spawnFrostZone(x,z);
 // ====== #136 Grenade EMP (désactive le tir ennemi à distance) ======
 const EMP_R = 6, EMP_DURATION = 4, EMP_STOCK_MAX = 1, EMP_GRAV = 9.81;
 let empStockCount = EMP_STOCK_MAX;
@@ -4341,6 +4361,7 @@ const ENEMY_TYPES = {
   grenadier: { id:'grenadier',hpMult:1.2, speedMult:0.7,  scale:1.05, melee:false, damageMult:0.8, burst:1, glow:0xaaff00 },         // #128 lance des grenades
   juggernaut:{ id:'juggernaut',hpMult:5.0, speedMult:0.45, scale:1.5, melee:true,  damageMult:2.2, burst:1, glow:0x888899 },         // #131 élite blindé, armure intégrale, vague 10+
   toxic:     { id:'toxic',    hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.9, burst:2, glow:0x33cc33 },         // #141 nuage de poison à la mort
+  cryo:      { id:'cryo',     hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.8, burst:2, glow:0x66ccff },         // #146 zone de gel à la mort
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -4358,7 +4379,7 @@ function waveComposition(w){
   for(let i=0;i<n;i++){
     if(w>=10 && i%4===3) out.push('juggernaut');                                   // v10+ : élite blindé remplace le tank (#131)
     else if(w>=3 && i%4===3) out.push('tank');
-    else if(w>=7 && i%6===5) out.push('stunner');                               // stunner dès v7 (slot libéré : ghost supprimé) (#121)
+    else if(w>=7 && i%6===5) out.push(w%2===0 ? 'cryo' : 'stunner');            // v7+ : alternance cryo (pair) / stunner (impair) (#146/#121)
     else if(w>=8 && i%7===6) out.push(w%2===0 ? 'grenadier' : 'sniper');        // v8+ : alternance grenadier (pair) / sniper (impair) par parité (#128/#111)
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper v5-7 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
@@ -4632,7 +4653,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); clearCarePackage(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); clearCarePackage(); clearFrostZones(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -4995,6 +5016,7 @@ G.debug.forceCompleteChallenge = (i) => { const c = sessionChallenges[i]; if(c &
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   if(e.type === 'toxic') spawnPoisonZone(e.root.position.x, e.root.position.z);   // nuage de poison à la mort (#141)
+  if(e.type === 'cryo') spawnFrostZone(e.root.position.x, e.root.position.z);     // zone de gel à la mort (#146)
   const prevAction = e.actions[e.loco];                        // action de locomotion en cours (avant bascule en 'dead')
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
   e.frozenPose = null;
@@ -5566,7 +5588,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

@@ -5282,3 +5282,46 @@ test('#145 steady aim : neutralise le malus de spread en course', async ({ page 
   await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
   expect(await page.evaluate(() => __game.debug.currentSpread())).toBe(1);
 });
+
+// ====== #146 — Ennemi cryo (zone de gel a la mort) ======
+test('#146 cryo : enemyIsCryo detecte le type', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'cryo', 5, 0));
+  expect(await page.evaluate(() => __game.debug.enemyIsCryo(0))).toBe(true);
+});
+
+test('#146 cryo : sa mort cree une zone de gel active', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'cryo', 5, 0));
+  expect(await page.evaluate(() => __game.debug.frostZoneActive())).toBe(false);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.frostZoneActive())).toBe(true);
+});
+
+test('#146 cryo : la zone ralentit le joueur dedans (vitesse effective reduite)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setPos(2, 0));
+  await page.evaluate(() => __game.debug.spawnFrostZoneAt(2, 0));
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.waitForFunction(() => window.__game.locomotion === 'walk', null, { timeout:5000 });
+  const speedFrost = await page.evaluate(() => __game.debug.playerMoveSpeed());
+  await page.evaluate(() => __game.debug.setInput({}));
+  await page.evaluate(() => __game.debug.setPos(40, 40)); // hors zone
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.waitForFunction(() => window.__game.locomotion === 'walk', null, { timeout:5000 });
+  const speedNormal = await page.evaluate(() => __game.debug.playerMoveSpeed());
+  expect(speedFrost).toBeLessThan(speedNormal);
+});
+
+test('#146 cryo : aucun ralentissement hors de la zone', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.playerInFrostZone())).toBe(false);
+});
+
+test('#146 cryo : waveComposition alterne cryo/stunner au slot commun des la vague 7', async ({ page }) => {
+  await startPlaying(page);
+  const comp8 = await page.evaluate(() => __game.debug.waveComposition(8));
+  const comp9 = await page.evaluate(() => __game.debug.waveComposition(9));
+  expect(comp8).toContain('cryo');
+  expect(comp9).not.toContain('cryo');
+});
