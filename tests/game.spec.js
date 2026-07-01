@@ -4973,3 +4973,56 @@ test('#136 grenade EMP : stock recharge a chaque vague', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.empStock())).toBe(1);
 });
+
+// ====== #137 — Dernier souffle (second wind) ======
+test('#137 second wind : disponible en debut de partie', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.secondWindAvailable())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(false);
+});
+
+test('#137 second wind : un coup fatal laisse 1 PV au lieu de tuer, une seule fois', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(99999)); // coup normalement fatal
+  expect(await page.evaluate(() => __game.phase)).toBe('playing'); // pas mort
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(true);
+});
+
+test('#137 second wind : invincibilite 2s bloque les degats juste apres', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(99999)); // déclenche le dernier souffle
+  expect(await page.evaluate(() => __game.debug.secondWindInvulnActive())).toBe(true);
+  await page.evaluate(() => __game.debug.damagePlayer(50)); // devrait être totalement ignoré
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(1);
+});
+
+test('#137 second wind : un 2e coup fatal (apres expiration invincibilite) tue vraiment', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(99999)); // 1er coup fatal → survit
+  await page.waitForTimeout(2200); // laisse expirer les 2s d'invincibilité
+  await page.evaluate(() => __game.debug.damagePlayer(99999)); // 2e coup fatal → mort pour de vrai
+  expect(await page.evaluate(() => __game.phase)).toBe('dead');
+});
+
+test('#137 second wind : desactive en mode hardcore', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setHardcore(true));
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(99999));
+  expect(await page.evaluate(() => __game.phase)).toBe('dead');
+  await page.evaluate(() => __game.debug.setHardcore(false));
+});
+
+test('#137 second wind : se reinitialise au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(99999));
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(true);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(false);
+});
