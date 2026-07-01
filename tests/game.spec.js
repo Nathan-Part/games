@@ -4796,3 +4796,45 @@ test('#132 turret : ignore un ennemi hors de portee', async ({ page }) => {
   const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
   expect(hpAfter).toBe(hpBefore);
 });
+
+// ====== #133 — Orbe vampire (lifesteal) ======
+test('#133 vampire : spawnVampireOrb puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnVampireOrb(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.vampireActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.vampireTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#133 vampire : damageEnemy soigne le joueur pendant l effet actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnVampireOrb(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.damagePlayer(40)); // baisse les PV pour laisser de la marge au heal
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 3, 0); __game.debug.damageEnemy(0, 50); });
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBeGreaterThan(hpBefore);
+});
+
+test('#133 vampire : pas de heal hors effet actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(40));
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 3, 0); __game.debug.damageEnemy(0, 50); });
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+});
+
+test('#133 vampire : pas de heal en mode hardcore', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setHardcore(true));
+  await page.evaluate(() => { __game.debug.spawnVampireOrb(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.damagePlayer(40));
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 3, 0); __game.debug.damageEnemy(0, 50); });
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+  await page.evaluate(() => __game.debug.setHardcore(false));
+});
