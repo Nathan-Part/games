@@ -4838,3 +4838,51 @@ test('#133 vampire : pas de heal en mode hardcore', async ({ page }) => {
   expect(hpAfter).toBe(hpBefore);
   await page.evaluate(() => __game.debug.setHardcore(false));
 });
+
+// ====== #134 — Adrenaline (bonus degats a PV bas) ======
+test('#134 adrenaline : inactif a PV pleins', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.adrenalineActive())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.adrenalineMult())).toBe(1);
+});
+
+test('#134 adrenaline : actif quand PV <= 25%', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0)); // le bouclier absorbe sinon les PV ne baissent pas
+  await page.evaluate(() => __game.debug.damagePlayer(80)); // 100 -> 20 PV (<=25%)
+  expect(await page.evaluate(() => __game.debug.adrenalineActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.adrenalineMult())).toBe(1.2);
+});
+
+test('#134 adrenaline : multiplie les degats reels infliges par un tir (meme zone visee)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
+  await page.evaluate(() => __game.debug.setPitch(0)); // re-fige le pitch juste avant le tir (annule un éventuel recul résiduel)
+  const hpBefore1 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.tryFire());
+  const hpAfter1 = await page.evaluate(() => __game.debug.enemyHp(0));
+  const normalDmg = hpBefore1 - hpAfter1;
+  expect(normalDmg).toBeGreaterThan(0);
+
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(80)); // PV <= 25% => adrénaline active
+  await page.evaluate(() => __game.debug.spawnEnemyInFront(8)); // revit enemies[0] (hp/pos remis à neuf)
+  await page.waitForTimeout(400); // laisse expirer le cooldown de tir entre les deux essais
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); }); // même zone visée que le 1er tir
+  const hpBefore2 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.tryFire());
+  const hpAfter2 = await page.evaluate(() => __game.debug.enemyHp(0));
+  const adrDmg = hpBefore2 - hpAfter2;
+  expect(adrDmg).toBeGreaterThan(normalDmg);
+});
+
+test('#134 adrenaline : HUD visible/masque selon les PV', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => document.getElementById('adrenaline-hud').classList.contains('hidden'))).toBe(true);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(80));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => document.getElementById('adrenaline-hud').classList.contains('hidden'))).toBe(false);
+});

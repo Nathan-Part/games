@@ -292,6 +292,8 @@
   .flank-left,.flank-right{position:fixed;top:50%;transform:translateY(-50%);color:#f44;font-weight:900;font-size:1.4rem;text-shadow:0 0 12px #f44;pointer-events:none;letter-spacing:.1em}
   .flank-left{left:18px} .flank-right{right:18px}
   #hardcore-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#f44;font-weight:900;font-size:.85rem;letter-spacing:.15em;text-shadow:0 0 8px #f44;pointer-events:none}
+  #adrenaline-hud{position:fixed;top:80px;left:50%;transform:translateX(-50%);color:#ff2244;font-weight:900;font-size:.95rem;letter-spacing:.15em;text-shadow:0 0 10px #ff2244;pointer-events:none;animation:adrenalinePulse .5s infinite alternate}
+  @keyframes adrenalinePulse{0%{opacity:.6}100%{opacity:1}}
   .go-rank{text-align:center;font-size:1.1rem;letter-spacing:.2em;color:#aaa;margin-top:8px}
   .go-rank-letter{font-size:2.8rem;font-weight:900;color:#ffd700;text-shadow:0 0 16px #ffd700}
   .hud-ammo.low-ammo{animation:lowAmmoBlink .5s infinite alternate}
@@ -668,6 +670,7 @@
 <div id="flank-hud" class="hidden"></div>
 <div id="overheat-hud" class="hidden" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none"></div>
 <div id="hardcore-hud" class="hidden">☠ HARDCORE</div>
+<div id="adrenaline-hud" class="hidden">⚠ ADRÉNALINE</div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
 <div id="semiauto-hud" class="hidden">SEMI</div>
 <div id="wave-countdown" class="hidden"></div>
@@ -2295,7 +2298,8 @@ function fireRay(sx, sy){                                    // un plomb / rayon
         const relY = hits[0].point.y - e.root.position.y, hz = hitZoneDamage(relY);
         const bsMult = isBackstab(enemies.indexOf(e)) ? BACKSTAB_MULT : 1;
         const armorM = enemyArmorMult(e, hz.zone);
-        let dmg = Math.round(hz.damage * curDmgMult * bsMult * armorM);
+        const adrMult = isAdrenaline() ? ADRENALINE_MULT : 1;
+        let dmg = Math.round(hz.damage * curDmgMult * bsMult * armorM * adrMult);
         if(isPrecisionShot()){ dmg = Math.round(dmg*PRECISION_MULT); registerPrecisionHit(); } else { lastWasPrecision_=false; }
         e.lastHitHead = (hz.zone === 'head');                  // pour l'annonce HEADSHOT (#38)
         _fireConnected = true;                                 // tir au but : précision (#43)
@@ -4005,9 +4009,16 @@ function updateHealth(dt){
   if(!hardcore_ && health < maxHealth && nowS() - lastDamageAt > REGEN_DELAY){
     health = Math.min(maxHealth, health + regenRate * dt); G.health = health; updateHealthHud();
   }
+  updateAdrenalineHud();
 }
 G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
+// ====== #134 Adrénaline : bonus dégâts joueur à PV bas ======
+const ADRENALINE_THRESHOLD = 0.25, ADRENALINE_MULT = 1.2;
+function isAdrenaline(){ return health > 0 && health <= maxHealth * ADRENALINE_THRESHOLD; }
+function updateAdrenalineHud(){ const el = document.getElementById('adrenaline-hud'); if(el) el.classList.toggle('hidden', !isAdrenaline()); }
+G.debug.adrenalineActive = () => isAdrenaline();
+G.debug.adrenalineMult = () => isAdrenaline() ? ADRENALINE_MULT : 1;
 // ====== Packs de soin (#32) : drop d'ennemis, ramassage par proximité ======
 const HEALTH_DROP_CHANCE = 0.25, HEALTH_PICKUP_R = 1.6, HEALTH_PACK_AMOUNT = 30;
 // ====== #117 Ammo packs ======
@@ -4158,7 +4169,7 @@ function backToHome(){
   flushLifetimeTime();                                         // #80 : comptabilise le temps de session avant de quitter (sinon perdu via pause→menu)
   resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
   resetCallouts();                                             // vide kill-feed + callouts résiduels (sinon persistent dans le lobby)
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud'])
     document.getElementById(id).classList.add('hidden');
   clearEnemies(); clearTargets();
   setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
