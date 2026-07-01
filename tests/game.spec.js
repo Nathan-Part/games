@@ -857,6 +857,35 @@ test('accueil : Reglages ouvre un panneau puis Retour le ferme', async ({ page }
   await expect(page.locator('#settings-panel')).toBeHidden();
 });
 
+test('accueil : Echap ferme le panneau Reglages ouvert', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await page.locator('#btn-settings').click();
+  await expect(page.locator('#settings-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#settings-panel')).toBeHidden();
+});
+
+test('accueil : Comment jouer ouvre un panneau a onglets, Echap le ferme', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, { timeout:20000 });
+  await expect(page.locator('#howto-panel')).toBeHidden();
+  await page.locator('#btn-howto').click();
+  await expect(page.locator('#howto-panel')).toBeVisible();
+  // l'onglet Contrôles est actif par défaut
+  await expect(page.locator('.howto-page[data-howto-page="controles"]')).toBeVisible();
+  await expect(page.locator('.howto-page[data-howto-page="ennemis"]')).toBeHidden();
+  // changer d'onglet affiche le bon contenu et masque les autres
+  await page.locator('.howto-tab[data-howto="ennemis"]').click();
+  await expect(page.locator('.howto-page[data-howto-page="ennemis"]')).toBeVisible();
+  await expect(page.locator('.howto-page[data-howto-page="controles"]')).toBeHidden();
+  // Echap ferme le panneau
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#howto-panel')).toBeHidden();
+});
+
 test('accueil : on revient au menu apres un Game Over', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.setShield(0)); // #67 : vider le bouclier pour que 100 dégâts tuent

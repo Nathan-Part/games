@@ -275,7 +275,7 @@
     opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;--ch:8px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #challenge-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #stamina-hud{position:fixed;left:16px;bottom:104px;width:240px;z-index:10}
+  #stamina-hud{position:fixed;left:16px;bottom:90px;width:240px;z-index:10}
   #stamina-label{display:flex;align-items:center;gap:5px;font-family:var(--font-display);font-size:var(--t-xs);
     text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--accent);margin-bottom:3px}
   #stamina-label .ico{width:13px;height:13px}
@@ -370,7 +370,7 @@
   #scope-overlay::before,#scope-overlay::after{content:'';position:absolute;background:rgba(0,0,0,.85)}
   #scope-overlay::before{width:1px;height:100%;left:50%;transform:translateX(-50%)}
   #scope-overlay::after{width:100%;height:1px;top:50%;transform:translateY(-50%)}
-  #xp-hud{position:fixed;left:16px;bottom:76px;z-index:10;width:240px}
+  #xp-hud{position:fixed;left:16px;bottom:54px;z-index:10;width:240px}
   #xp-label{font-family:var(--font-display);font-size:var(--t-xs);text-transform:uppercase;letter-spacing:.05em;
     color:var(--text-2);font-weight:700;margin-bottom:3px}
   #xp-track{height:4px;background:var(--bg-600);border-radius:2px;overflow:hidden}
@@ -471,6 +471,24 @@
   .howto-keys kbd{font-family:var(--font-display);font-weight:700;color:var(--text);background:var(--bg-600);
     box-shadow:inset 0 0 0 1px var(--line-2);padding:2px 8px;border-radius:3px;font-size:.82em;white-space:nowrap;letter-spacing:.02em}
   .howto-card .panel-back{margin-top:18px}
+  .howto-intro{color:var(--text-2);line-height:1.6;font-size:var(--t-sm);margin:0 0 16px}
+  .howto-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .howto-tab{font-family:var(--font-display);font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.03em;
+    padding:7px 12px;cursor:pointer;border:0;color:var(--text-2);background:var(--bg-600);box-shadow:inset 0 0 0 1px var(--line-2);transition:.15s;--ch:5px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .howto-tab:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+  .howto-tab.active{color:var(--accent-ink);background:var(--accent);box-shadow:none}
+  .howto-page{display:none}
+  .howto-page.active{display:block}
+  .hw-list{display:flex;flex-direction:column;gap:7px}
+  .hw-item{padding:8px 10px;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);border-radius:4px}
+  .hw-item-h{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+  .hw-dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--c);box-shadow:0 0 6px var(--c)}
+  .hw-item b{color:var(--text);font-weight:700;font-size:.95em}
+  .hw-item .hw-desc{color:var(--text-2);font-size:.88em;line-height:1.5}
+  .hw-grp{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent-2);
+    font-size:11px;margin:14px 0 6px}
+  .hw-grp:first-child{margin-top:0}
   /* ====== Boutique « ARMURERIE » (refonte) ====== */
   #shop-panel{position:fixed;inset:0;z-index:45;background:transparent}   /* transparent : laisse voir la vitrine 3D (arme/perso) rendue sur le canvas */
   .shop-bg{position:absolute;inset:0;pointer-events:none;
@@ -781,69 +799,205 @@
 <div id="howto-panel" class="panel hidden"><div class="panel-card howto-card">
   <div class="eyebrow">// Manuel de campagne</div>
   <h2>Comment jouer</h2>
+  <p class="howto-intro">Survivez à des vagues d'ennemis infinies et de plus en plus difficiles. Chaque kill et chaque vague nettoyée rapporte de l'argent et de l'XP, à réinvestir pour tenir plus longtemps et battre votre record de vague.</p>
 
-  <div class="howto-sec">
-    <div class="howto-h">Objectif</div>
-    <p>Survivez à des vagues d'ennemis infinies et de plus en plus difficiles. Chaque kill et chaque vague nettoyée rapporte de l'argent et de l'XP, réinvestis pour tenir plus longtemps et battre votre record de vague.</p>
+  <div class="howto-tabs">
+    <button class="howto-tab active" data-howto="controles">Contrôles</button>
+    <button class="howto-tab" data-howto="combat">Combat &amp; Armes</button>
+    <button class="howto-tab" data-howto="ennemis">Ennemis</button>
+    <button class="howto-tab" data-howto="powerups">Power-ups</button>
+    <button class="howto-tab" data-howto="gadgets">Grenades &amp; Gadgets</button>
+    <button class="howto-tab" data-howto="boutique">Boutique</button>
+    <button class="howto-tab" data-howto="vagues">Vagues &amp; Survie</button>
   </div>
 
-  <div class="howto-sec">
-    <div class="howto-h">Contrôles</div>
-    <div class="howto-keys">
-      <div><span>Bouger</span><kbd>ZQSD / flèches</kbd></div>
-      <div><span>Courir</span><kbd>R / Shift</kbd></div>
-      <div><span>Sauter · double-saut</span><kbd>Espace ×1 / ×2</kbd></div>
-      <div><span>Dash</span><kbd>C</kbd></div>
-      <div><span>Tirer</span><kbd>E / clic gauche</kbd></div>
-      <div><span>Viser (ADS)</span><kbd>A / clic droit</kbd></div>
-      <div><span>Recharger</span><kbd>F</kbd></div>
-      <div><span>Couteau</span><kbd>X</kbd></div>
-      <div><span>Auto / rafale</span><kbd>T</kbd></div>
-      <div><span>Semi-auto</span><kbd>P</kbd></div>
-      <div><span>Grenade (viser l'arc)</span><kbd>B (maintenir)</kbd></div>
-      <div><span>Flashbang</span><kbd>N</kbd></div>
-      <div><span>Fumigène</span><kbd>H</kbd></div>
-      <div><span>Grenade collante</span><kbd>J</kbd></div>
-      <div><span>Claymore</span><kbd>Y</kbd></div>
-      <div><span>Molotov</span><kbd>K</kbd></div>
-      <div><span>Grenade EMP</span><kbd>O</kbd></div>
-      <div><span>Tourelle sentinelle</span><kbd>L</kbd></div>
-      <div><span>Ramasser arme</span><kbd>G</kbd></div>
-      <div><span>Danses</span><kbd>1 / 2 / 3</kbd></div>
-      <div><span>Vue 1re/3e personne</span><kbd>V</kbd></div>
-      <div><span>Son</span><kbd>M</kbd></div>
-      <div><span>Pause</span><kbd>Échap</kbd></div>
+  <div class="howto-body">
+    <div class="howto-page active" data-howto-page="controles">
+      <div class="howto-keys">
+        <div><span>Bouger</span><kbd>ZQSD / flèches</kbd></div>
+        <div><span>Courir</span><kbd>R / Shift</kbd></div>
+        <div><span>Sauter · double-saut</span><kbd>Espace ×1 / ×2</kbd></div>
+        <div><span>Dash</span><kbd>C</kbd></div>
+        <div><span>Tirer</span><kbd>E / clic gauche</kbd></div>
+        <div><span>Viser (ADS)</span><kbd>A / clic droit</kbd></div>
+        <div><span>Recharger</span><kbd>F</kbd></div>
+        <div><span>Couteau</span><kbd>X</kbd></div>
+        <div><span>Auto / rafale</span><kbd>T</kbd></div>
+        <div><span>Semi-auto</span><kbd>P</kbd></div>
+        <div><span>Grenade (viser l'arc)</span><kbd>B (maintenir)</kbd></div>
+        <div><span>Flashbang</span><kbd>N</kbd></div>
+        <div><span>Fumigène</span><kbd>H</kbd></div>
+        <div><span>Grenade collante</span><kbd>J</kbd></div>
+        <div><span>Claymore</span><kbd>Y</kbd></div>
+        <div><span>Molotov</span><kbd>K</kbd></div>
+        <div><span>Grenade EMP</span><kbd>O</kbd></div>
+        <div><span>Tourelle sentinelle</span><kbd>L</kbd></div>
+        <div><span>Ramasser arme</span><kbd>G</kbd></div>
+        <div><span>Danses</span><kbd>1 / 2 / 3</kbd></div>
+        <div><span>Vue 1re/3e personne</span><kbd>V</kbd></div>
+        <div><span>Son</span><kbd>M</kbd></div>
+        <div><span>Pause</span><kbd>Échap</kbd></div>
+      </div>
     </div>
-  </div>
 
-  <div class="howto-sec">
-    <div class="howto-h">Combat</div>
-    <ul>
-      <li>Visez avec <b>A</b> / clic droit pour plus de précision ; rester <b>immobile en visée</b> déclenche un bonus <b>PRECISION</b> (+30% dégâts).</li>
-      <li>Les dégâts dépendent de la zone touchée : <b>tête</b> = critique, <b>torse</b> = normal, <b>jambes</b> = réduit.</li>
-      <li>Le corps-à-corps (couteau, <b>X</b>) frappe à courte portée devant vous, dégâts élevés et sans munitions.</li>
-      <li>Rechargez avant que le chargeur soit vide (<b>F</b>) pour gagner une munition bonus (rechargement tactique).</li>
-    </ul>
-  </div>
+    <div class="howto-page" data-howto-page="combat">
+      <ul>
+        <li>Visez avec <b>A</b> / clic droit pour plus de précision ; rester <b>immobile en visée</b> déclenche un bonus <b>PRECISION</b> (+30% dégâts).</li>
+        <li>Les dégâts dépendent de la zone touchée : <b>tête</b> = critique, <b>torse</b> = normal, <b>jambes</b> = réduit.</li>
+        <li>Le corps-à-corps (couteau, <b>X</b>) frappe à courte portée devant vous, dégâts élevés et sans munitions.</li>
+        <li>Rechargez avant que le chargeur soit vide (<b>F</b>) pour un rechargement tactique (+1 munition bonus).</li>
+        <li><b>T</b> bascule auto/rafale, <b>P</b> bascule le mode semi-auto sur une arme automatique.</li>
+      </ul>
+      <div class="hw-grp">Fusils d'assaut</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Viper-AR</b> <span class="hw-desc">— gratuit, arme de départ équilibrée.</span></div>
+        <div class="hw-item"><b>Raptor X5</b> <span class="hw-desc">— 900$, rare, un peu plus de dégâts et de cadence.</span></div>
+        <div class="hw-item"><b>Cyclone MK3</b> <span class="hw-desc">— 2000$, épique, gros chargeur (30) et bons dégâts.</span></div>
+      </div>
+      <div class="hw-grp">Mitraillettes (SMG)</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Hornet PDW</b> <span class="hw-desc">— 700$, rare, cadence très élevée, portée courte.</span></div>
+        <div class="hw-item"><b>Storm-9</b> <span class="hw-desc">— 1400$, épique, encore plus rapide, chargeur de 32.</span></div>
+      </div>
+      <div class="hw-grp">Snipers</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Eclipse SR</b> <span class="hw-desc">— 1500$, épique, dégâts ×3, portée 160m.</span></div>
+        <div class="hw-item"><b>Phantom L115</b> <span class="hw-desc">— 2800$, légendaire, dégâts ×4.5, quasi one-shot, portée 200m.</span></div>
+      </div>
+      <div class="hw-grp">Fusils à pompe</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Devastator 870</b> <span class="hw-desc">— 1100$, épique, 8 plombs par tir, dévastateur au contact.</span></div>
+        <div class="hw-item"><b>Breacher MK2</b> <span class="hw-desc">— 1700$, rare, 10 plombs, encore plus large.</span></div>
+      </div>
+      <div class="hw-grp">Pistolets</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Specter-P</b> <span class="hw-desc">— 300$, commun, arme de secours fiable.</span></div>
+        <div class="hw-item"><b>Jackal-45</b> <span class="hw-desc">— 600$, rare, plus de dégâts, tir semi-auto par défaut.</span></div>
+      </div>
+      <div class="hw-grp">Mitrailleuse lourde</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Thunderer LMG</b> <span class="hw-desc">— 1800$, légendaire, chargeur de 50, surchauffe si vous tirez trop longtemps.</span></div>
+      </div>
+      <div class="hw-grp">Corps-à-corps</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Lame franche</b> <span class="hw-desc">— gratuite, couteau de base.</span></div>
+        <div class="hw-item"><b>Bowie sanglante</b> <span class="hw-desc">— 650$, rare, dégâts ×4.</span></div>
+        <div class="hw-item"><b>Lame Fantôme</b> <span class="hw-desc">— 1200$, épique, dégâts ×5, la plus tranchante.</span></div>
+      </div>
+      <p class="howto-intro">Chaque arme équipée s'améliore en boutique : dégâts, cadence de tir, recul et taille de chargeur, sur 5 niveaux chacun.</p>
+    </div>
 
-  <div class="howto-sec">
-    <div class="howto-h">Ennemis</div>
-    <p>Plusieurs types apparaissent selon la vague : tireur, fonceur au corps-à-corps, tank blindé, sniper à distance, et un boss toutes les 5 vagues. Des types spéciaux ajoutent des effets (bouclier frontal, soin d'allié, ralentissement, poison, gel, buff d'équipe...). La couleur de leur lueur aide à les identifier au premier coup d'œil — observez-la avant d'engager.</p>
-  </div>
+    <div class="howto-page" data-howto-page="ennemis">
+      <div class="hw-grp">Ennemis de base</div>
+      <div class="hw-list">
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#9aa3b2"></span><b>Tireur</b></div><span class="hw-desc">Ennemi standard, tire en rafale de 3 balles.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#6b1414"></span><b>Fonceur</b></div><span class="hw-desc">Rapide et fragile, charge droit sur vous au corps-à-corps.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#3a1250"></span><b>Tank</b></div><span class="hw-desc">Lourd et armuré (torse résistant), dégâts élevés au contact.</span></div>
+      </div>
+      <div class="hw-grp">Ennemis spéciaux</div>
+      <div class="hw-list">
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ff1e1e"></span><b>Bombardier</b></div><span class="hw-desc">Kamikaze : explose au contact ou à sa mort (zone 3.5m).</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#00aacc"></span><b>Bouclier</b></div><span class="hw-desc">Bloque les tirs de face (cône ±60°) — visez son dos ou ses flancs.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#cc0033"></span><b>Sniper</b></div><span class="hw-desc">Engage à longue portée (28m), dégâts ×2.5, tire toutes les 4s.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#cc4400"></span><b>Berserker</b></div><span class="hw-desc">Rapide et violent ; sous 25% PV entre en rage 2s (invincibilité levée, encore plus véloce).</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#00cc55"></span><b>Médecin</b></div><span class="hw-desc">Soigne un allié blessé à proximité (5m) — priorité de cible.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ffdd00"></span><b>Étourdisseur</b></div><span class="hw-desc">Son tir vous ralentit brièvement (0.5s, vitesse ×0.3).</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#aaff00"></span><b>Grenadier</b></div><span class="hw-desc">Lance des grenades à distance (60 dégâts, zone 3.5m).</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#33cc33"></span><b>Toxique</b></div><span class="hw-desc">Laisse un nuage de poison à sa mort (4s) — ne restez pas dedans.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#66ccff"></span><b>Cryo</b></div><span class="hw-desc">Laisse une zone de gel à sa mort (4s) — vous ralentit de moitié, sans dégâts.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ffaa00"></span><b>Commandant</b></div><span class="hw-desc">Tant qu'il est vivant, buff les dégâts de TOUS les ennemis (+20%) — à éliminer en priorité.</span></div>
+      </div>
+      <div class="hw-grp">Élite &amp; Boss</div>
+      <div class="hw-list">
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#888899"></span><b>Juggernaut</b></div><span class="hw-desc">Élite blindé (vague 10+), armure intégrale sur tout le corps, très lent mais dévastateur.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ff5a1e"></span><b>Boss</b></div><span class="hw-desc">Apparaît toutes les 5 vagues, PV ×8, très résistant — grosse récompense à la clé (+300$).</span></div>
+      </div>
+      <div class="hw-grp">Leurre</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Decoy</b> <span class="hw-desc">— clone rouge translucide d'un tireur, aucun danger réel, sert à vous distraire (vague 9+).</span></div>
+      </div>
+      <p class="howto-intro">La couleur de la lueur de chaque ennemi permet de l'identifier au premier coup d'œil — observez-la avant d'engager.</p>
+    </div>
 
-  <div class="howto-sec">
-    <div class="howto-h">Économie</div>
-    <p>L'argent gagné par kill et par vague se dépense à l'<b>Armurerie</b> : armes, personnages, accessoires et boosts d'équipement, tous améliorant vos statistiques (dégâts, cadence, vie, vitesse, régénération...).</p>
-  </div>
+    <div class="howto-page" data-howto-page="powerups">
+      <div class="hw-list">
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ff8a2a"></span><b>×2 Dégâts</b></div><span class="hw-desc">8s — double vos dégâts.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#2ad6ff"></span><b>Tir rapide</b></div><span class="hw-desc">8s — cadence de tir fortement augmentée.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#9a6aff"></span><b>Slow-mo</b></div><span class="hw-desc">8s — ralentit tous les ennemis à 40% de leur vitesse.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#3dff7a"></span><b>Chargeur ×2</b></div><span class="hw-desc">15s — double la capacité du chargeur.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#4488ff"></span><b>Bouclier Max</b></div><span class="hw-desc">Instantané — recharge immédiatement le bouclier au maximum.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#dd66ff"></span><b>×2 XP</b></div><span class="hw-desc">12s — double toute l'XP gagnée.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ff4400"></span><b>Balles Explosives</b></div><span class="hw-desc">8s — chaque impact déclenche une explosion de zone (40 dégâts).</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#22ffcc"></span><b>Sprint ×2</b></div><span class="hw-desc">6s — double votre vitesse de déplacement.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#aa0044"></span><b>Vampire</b></div><span class="hw-desc">10s — soigne 20% des dégâts infligés (inactif en hardcore).</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#66e0ff"></span><b>Visée stable</b></div><span class="hw-desc">8s — annule la perte de précision en mouvement/course.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#7dffb0"></span><b>Régén ×2</b></div><span class="hw-desc">10s — double votre régénération de vie passive.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#dde6ee"></span><b>Munitions perforantes</b></div><span class="hw-desc">8s — vos tirs traversent un premier ennemi et touchent un second aligné.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ff6600"></span><b>Munitions incendiaires</b></div><span class="hw-desc">8s — chaque impact allume une zone de feu au sol.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ffd700"></span><b>Tir chanceux</b></div><span class="hw-desc">10s — 25% de chance par tir d'infliger le double des dégâts.</span></div>
+        <div class="hw-item"><div class="hw-item-h"><span class="hw-dot" style="--c:#ff2222"></span><b>Full-auto</b></div><span class="hw-desc">10s — n'importe quelle arme (même semi-auto) tire en continu tant que le clic est maintenu.</span></div>
+      </div>
+    </div>
 
-  <div class="howto-sec">
-    <div class="howto-h">Progression</div>
-    <p>Chaque kill donne de l'XP et fait progresser votre niveau (avec titre associé). Complétez les <b>contrats quotidiens</b> et débloquez des <b>succès</b> pour des récompenses supplémentaires. Votre meilleure vague atteinte reste affichée comme record.</p>
-  </div>
+    <div class="howto-page" data-howto-page="gadgets">
+      <div class="hw-grp">Grenades (rechargées chaque vague)</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Grenade classique</b> <kbd>B (maintenir)</kbd> <span class="hw-desc">— 3 en stock, 120 dégâts en zone (rayon 4m), rebondit sur les murs.</span></div>
+        <div class="hw-item"><b>Flashbang</b> <kbd>N</kbd> <span class="hw-desc">— 2 en stock, aveugle les ennemis dans un rayon de 9m pendant 2s.</span></div>
+        <div class="hw-item"><b>Fumigène</b> <kbd>H</kbd> <span class="hw-desc">— 2 en stock, nuage de 4m pendant 5s qui réduit fortement la précision ennemie à l'intérieur.</span></div>
+        <div class="hw-item"><b>Grenade collante</b> <kbd>J</kbd> <span class="hw-desc">— 1 en stock, se colle à un ennemi ou au sol, explose après 2s pour 180 dégâts (zone 3m).</span></div>
+        <div class="hw-item"><b>Molotov</b> <kbd>K</kbd> <span class="hw-desc">— 1 en stock, embrase une zone au sol pendant 5s (dégâts périodiques).</span></div>
+        <div class="hw-item"><b>Grenade EMP</b> <kbd>O</kbd> <span class="hw-desc">— 1 en stock, désactive le tir à distance des ennemis dans un rayon de 6m pendant 4s.</span></div>
+      </div>
+      <div class="hw-grp">Déployables</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Claymore</b> <kbd>Y</kbd> <span class="hw-desc">— 2 en stock, se déclenche si un ennemi passe à moins de 2m, 200 dégâts (zone 4m).</span></div>
+        <div class="hw-item"><b>Tourelle sentinelle</b> <kbd>L</kbd> <span class="hw-desc">— se pose et tire seule (12 dégâts/tir, portée 15m) pendant 20s, puis 25s avant de pouvoir la redéployer.</span></div>
+      </div>
+      <div class="hw-grp">Pickups au sol</div>
+      <div class="hw-list">
+        <div class="hw-item"><b>Pack de soin</b> <span class="hw-desc">— +30 PV, peut tomber d'un cadavre (25%, garanti sur un boss).</span></div>
+        <div class="hw-item"><b>Pack de munitions</b> <span class="hw-desc">— recharge 50% du chargeur, peut tomber d'un cadavre (20%).</span></div>
+        <div class="hw-item"><b>Orbe d'argent</b> <span class="hw-desc">— apparaît à chaque kill, ramassez-la pour l'argent.</span></div>
+        <div class="hw-item"><b>Caisse de ravitaillement</b> <span class="hw-desc">— apparaît toutes les 4 vagues à un endroit aléatoire, récompense aléatoire (argent, résupply de grenades, ou recharge complète).</span></div>
+      </div>
+    </div>
 
-  <div class="howto-sec">
-    <div class="howto-h">Survie</div>
-    <p>Vos PV se régénèrent après un court délai sans dégât. Un <b>bouclier</b> rechargeable absorbe les coups avant vos PV. Le <b>mode hardcore</b> (Réglages) désactive régénération et soins pour un défi plus punitif.</p>
+    <div class="howto-page" data-howto-page="boutique">
+      <div class="hw-grp">Rareté</div>
+      <p>Du plus commun au plus rare (généralement plus cher et plus fort) : <span class="hw-dot" style="--c:#9aa3b2"></span> Commun · <span class="hw-dot" style="--c:#4f9dff"></span> Rare · <span class="hw-dot" style="--c:#b066ff"></span> Épique · <span class="hw-dot" style="--c:#ffb02e"></span> Légendaire.</p>
+      <div class="hw-grp">Armurerie</div>
+      <p>15 armes réparties en 6 catégories (assaut, SMG, sniper, pompe, pistolet, LMG) + 3 couteaux, achetables et équipables. Chaque arme équipée s'améliore : dégâts, cadence, recul, taille de chargeur (niveaux 1 à 5).</p>
+      <div class="hw-grp">Personnages</div>
+      <p>Plusieurs personnages jouables aux statistiques de base différentes (vie, régénération, vitesse) — achetables et équipables comme les armes.</p>
+      <div class="hw-grp">Accessoires (cosmétiques)</div>
+      <p>Casques (Visière, Couronne, Halo) et costumes (Plastron, Cape, Ailes), visibles sur votre personnage.</p>
+      <div class="hw-grp">Boosts d'équipement</div>
+      <p>Gilet (+vie), Bottes (+vitesse), Médaille (+régénération) — 2 niveaux chacun, cumulables, désactivables sans les perdre.</p>
+      <div class="hw-grp">Difficulté (Réglages)</div>
+      <p>Facile, Normal, Difficile — modifie les PV ennemis, les dégâts subis et l'argent gagné.</p>
+      <div class="hw-grp">XP &amp; niveaux</div>
+      <p>25 XP par kill (+25 bonus sur headshot), 100×vague à chaque vague nettoyée, jusqu'au niveau 50 avec 10 titres (Recrue → Légende).</p>
+      <div class="hw-grp">Contrats &amp; succès</div>
+      <p>Des contrats quotidiens renouvelés chaque jour et des succès permanents à débloquer, tous deux récompensés en argent.</p>
+    </div>
+
+    <div class="howto-page" data-howto-page="vagues">
+      <div class="hw-grp">Vagues</div>
+      <p>Le nombre et les PV des ennemis augmentent à chaque vague. Un boss apparaît toutes les 5 vagues (PV ×8, +300$ à sa mort).</p>
+      <div class="hw-grp">Combo</div>
+      <p>Enchaînez les kills (fenêtre de 3.5s) pour monter un multiplicateur d'argent/score, jusqu'à ×5.</p>
+      <div class="hw-grp">Killstreaks</div>
+      <p>Sur une fenêtre glissante de 8 secondes : <b>3 kills</b> = rechargement instantané · <b>5 kills</b> = bouclier qui réduit de moitié les dégâts subis pendant 5s · <b>7 kills</b> = argent ×2 pendant 10s · <b>10 kills</b> = frappe aérienne sur 3 ennemis (150 dégâts chacun).</p>
+      <div class="hw-grp">Zone de danger</div>
+      <p>Passé un certain point, une zone sûre au sol rétrécit par paliers (tous les 3 vagues) — rester en dehors inflige des dégâts continus.</p>
+      <div class="hw-grp">Vie &amp; bouclier</div>
+      <p>Vos PV se régénèrent après un court délai sans dégât. Un bouclier rechargeable absorbe les coups avant vos PV.</p>
+      <div class="hw-grp">Mode hardcore (Réglages)</div>
+      <p>Désactive toute régénération et tout soin (PV, bouclier, packs, vampire) — un défi bien plus punitif.</p>
+      <div class="hw-grp">Pluie (Réglages)</div>
+      <p>Purement esthétique (ambiance orageuse), aucun effet sur le gameplay.</p>
+    </div>
   </div>
 
   <button class="panel-back" data-panel="howto-panel">◀ Retour</button>
@@ -1576,6 +1730,10 @@ document.getElementById('shop-next').onclick = () => shopNav(1);
 for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShopTab(t.dataset.tab);
 document.getElementById('btn-settings').onclick = () => openSettings();
 document.getElementById('btn-howto').onclick = () => openPanel('howto-panel');
+for(const t of document.querySelectorAll('.howto-tab')) t.onclick = () => {
+  for(const x of document.querySelectorAll('.howto-tab')) x.classList.toggle('active', x === t);
+  for(const p of document.querySelectorAll('.howto-page')) p.classList.toggle('active', p.dataset.howtoPage === t.dataset.howto);
+};
 for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
 // ====== Panneau Réglages (#18) : remplit les contrôles depuis la save, applique + persiste à chaque changement ======
 function renderSettings(){
@@ -1607,6 +1765,10 @@ addEventListener('keydown', e => {
     else if((shopTab==='weapons'||shopTab==='player') && e.code==='ArrowLeft') shopNav(-1);
     else if((shopTab==='weapons'||shopTab==='player') && e.code==='ArrowRight') shopNav(1);
     return;
+  }
+  if(e.code==='Escape'){                                          // ferme n'importe quel panneau ouvert (Réglages, Comment jouer...)
+    const openPanelEl = document.querySelector('.panel:not(.hidden)');
+    if(openPanelEl){ closePanel(openPanelEl.id); return; }
   }
   if(e.code==='ArrowLeft' || e.code==='KeyA') cycleCharacter(-1);
   else if(e.code==='ArrowRight' || e.code==='KeyD') cycleCharacter(1);
