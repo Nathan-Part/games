@@ -6047,3 +6047,141 @@ test('#156b : annuler le ciblage (Echap) ne consomme pas les points', async ({ p
   const hidden = await page.evaluate(() => document.getElementById('airstrike-map-panel').classList.contains('hidden'));
   expect(hidden).toBe(true);
 });
+
+// ====== #157 — Classement local (leaderboard) ======
+test('#157 : leaderboard() est vide sur une save neuve', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.leaderboard())).toEqual([]);
+});
+
+test('#157 : submitScore insere une entree, triee par score decroissant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.submitScore({score:100, wave:2, kills:5, headshots:1, accuracy:50}));
+  await page.evaluate(() => __game.debug.submitScore({score:300, wave:4, kills:10, headshots:3, accuracy:60}));
+  const lb = await page.evaluate(() => __game.debug.leaderboard());
+  expect(lb.length).toBe(2);
+  expect(lb[0].score).toBe(300);
+  expect(lb[1].score).toBe(100);
+});
+
+test('#157 : seules les 5 meilleures entrees sont conservees', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  for (const s of [50, 200, 10, 400, 300, 150]) {
+    await page.evaluate((sc) => __game.debug.submitScore({score:sc, wave:1, kills:0, headshots:0, accuracy:0}), s);
+  }
+  const lb = await page.evaluate(() => __game.debug.leaderboard());
+  expect(lb.length).toBe(5);
+  expect(lb.map(e => e.score)).toEqual([400, 300, 200, 150, 50]);
+});
+
+test('#157 : une entree plus faible que le top 5 plein n est pas ajoutee et retourne -1', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  for (const s of [500, 400, 300, 200, 100]) {
+    await page.evaluate((sc) => __game.debug.submitScore({score:sc, wave:1, kills:0, headshots:0, accuracy:0}), s);
+  }
+  const rank = await page.evaluate(() => __game.debug.submitScore({score:50, wave:1, kills:0, headshots:0, accuracy:0}));
+  expect(rank).toBe(-1);
+  expect(await page.evaluate(() => __game.debug.leaderboard().length)).toBe(5);
+});
+
+test('#157 : clearLeaderboard vide le tableau et persiste', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.submitScore({score:100, wave:1, kills:0, headshots:0, accuracy:0}));
+  await page.evaluate(() => __game.debug.clearLeaderboard());
+  expect(await page.evaluate(() => __game.debug.leaderboard())).toEqual([]);
+  expect(await page.evaluate(() => __game.debug.save.get().leaderboard)).toEqual([]);
+});
+
+test('#157 : mourir soumet automatiquement une entree au classement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.damagePlayer(9999)); // 1er hit = dernier souffle (#137)
+  await page.waitForTimeout(2200); // laisse expirer l'invulnerabilite post-dernier-souffle
+  await page.evaluate(() => __game.debug.damagePlayer(9999)); // 2e hit = mort reelle
+  await page.waitForFunction(() => window.__game.phase === 'dead');
+  const lb = await page.evaluate(() => __game.debug.leaderboard());
+  expect(lb.length).toBe(1);
+  expect(lb[0].wave).toBeGreaterThanOrEqual(1);
+});
+
+test('#157 : le panneau Game Over affiche le classement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await page.waitForTimeout(2200);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await page.waitForFunction(() => window.__game.phase === 'dead');
+  const html = await page.evaluate(() => document.getElementById('go-score').innerHTML);
+  expect(html).toContain('go-leaderboard');
+});
+
+test('#157 : l accueil affiche le meilleur score du classement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.submitScore({score:777, wave:3, kills:1, headshots:0, accuracy:10}); __game.debug.backToHome(); });
+  await page.waitForFunction(() => window.__game.phase === 'lobby');
+  const text = await page.evaluate(() => document.getElementById('intel-bestscore')?.textContent);
+  expect(text).toBe('777');
+});
+
+// ====== #158 — Mode Entrainement ======
+test('#158 : startTraining active le flag, munitions infinies, aucun ennemi', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.startTraining());
+  await page.waitForFunction(() => window.__game.phase === 'playing');
+  expect(await page.evaluate(() => __game.debug.trainingActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.infiniteAmmoActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(0);
+});
+
+test('#158 : forceNextWave ne fait rien en entrainement', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.startTraining());
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(0);
+});
+
+test('#158 : tirer au-dela du chargeur normal ne vide jamais les munitions', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.startTraining());
+  await page.evaluate(() => { for (let i=0;i<40;i++) __game.debug.tryFire(); });
+  expect(await page.evaluate(() => __game.ammo)).toBeGreaterThan(0);
+});
+
+test('#158 : backToHome desactive le flag et les munitions infinies', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.startTraining());
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => __game.debug.trainingActive())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.infiniteAmmoActive())).toBe(false);
+});
+
+test('#158 : recommencer en entrainement relance l entrainement (pas une vraie vague)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.startTraining());
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.trainingActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyCount())).toBe(0);
+});
+
+test('#158 : le bouton Entrainement est visible dans le lobby et lance le mode', async ({ page }) => {
+  await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
+  await expect(page.locator('#btn-training')).toBeVisible();
+  await page.evaluate(() => document.getElementById('btn-training').click());
+  await page.waitForFunction(() => window.__game.phase === 'playing');
+  expect(await page.evaluate(() => __game.debug.trainingActive())).toBe(true);
+});
+
+test('#158 : le HUD entrainement est visible en entrainement, masque au retour menu', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.startTraining());
+  expect(await page.evaluate(() => document.getElementById('training-hud').classList.contains('hidden'))).toBe(false);
+  await page.evaluate(() => __game.debug.backToHome());
+  expect(await page.evaluate(() => document.getElementById('training-hud').classList.contains('hidden'))).toBe(true);
+});

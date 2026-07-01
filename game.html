@@ -310,10 +310,15 @@
   .flank-left,.flank-right{position:fixed;top:50%;transform:translateY(-50%);color:#f44;font-weight:900;font-size:1.4rem;text-shadow:0 0 12px #f44;pointer-events:none;letter-spacing:.1em}
   .flank-left{left:18px} .flank-right{right:18px}
   #hardcore-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#f44;font-weight:900;font-size:.85rem;letter-spacing:.15em;text-shadow:0 0 8px #f44;pointer-events:none}
+  #training-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#2ad6ff;font-weight:900;font-size:.85rem;letter-spacing:.1em;text-shadow:0 0 8px #2ad6ff;pointer-events:none;text-transform:uppercase}
   #adrenaline-hud{position:fixed;top:80px;left:50%;transform:translateX(-50%);color:#ff2244;font-weight:900;font-size:.95rem;letter-spacing:.15em;text-shadow:0 0 10px #ff2244;pointer-events:none;animation:adrenalinePulse .5s infinite alternate}
   @keyframes adrenalinePulse{0%{opacity:.6}100%{opacity:1}}
   .go-rank{text-align:center;font-size:1.1rem;letter-spacing:.2em;color:#aaa;margin-top:8px}
   .go-rank-letter{font-size:2.8rem;font-weight:900;color:#ffd700;text-shadow:0 0 16px #ffd700}
+  .go-leaderboard{margin-top:14px;max-width:280px;margin-left:auto;margin-right:auto}
+  .go-lb-h{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--text-3);margin-bottom:4px;text-align:center}
+  .go-lb-row{display:flex;justify-content:space-between;gap:10px;padding:3px 10px;font-size:var(--t-sm);color:var(--text-2)}
+  .go-lb-row.gold{color:#ffd700;font-weight:700}
   .hud-ammo.low-ammo{animation:lowAmmoBlink .5s infinite alternate}
   @keyframes lowAmmoBlink{from{color:var(--text)}to{color:#f44;text-shadow:0 0 10px #f44}}
   #semiauto-hud{position:fixed;right:16px;bottom:120px;z-index:10;background:var(--bg-700);
@@ -672,6 +677,7 @@
         <div class="intel-h">// Intel</div>
         <div class="intel-row"><span>Record vague</span><b id="intel-wave">0</b></div>
         <div class="intel-row"><span>Meilleur combo</span><b id="intel-combo">x1</b></div>
+        <div class="intel-row"><span>Meilleur score</span><b id="intel-bestscore">0</b></div>
         <div class="intel-row"><span>Crédits</span><b id="intel-money" class="gold">0</b></div>
       </div>
       <div class="intel-card tac"><span class="br tr"></span><span class="br bl"></span>
@@ -698,6 +704,7 @@
       <button id="btn-settings" class="btn btn--ghost"><svg class="ico"><use href="#i-gear"></use></svg> Réglages</button>
       <button id="btn-howto" class="btn btn--ghost"><svg class="ico"><use href="#i-help"></use></svg> Comment jouer</button>
       <button id="btn-loadout" class="btn btn--ghost"><svg class="ico"><use href="#i-grenade"></use></svg> Série de points</button>
+      <button id="btn-training" class="btn btn--ghost"><svg class="ico"><use href="#i-sprint"></use></svg> Entraînement</button>
     </div>
     <button id="play-btn" class="btn btn--primary deploy-btn"><svg class="ico"><use href="#i-play"></use></svg>
       <span class="deploy-lbl">Déployer<small>// Survie — vagues infinies</small></span></button>
@@ -751,6 +758,7 @@
 <div id="flank-hud" class="hidden"></div>
 <div id="overheat-hud" class="hidden" style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none"></div>
 <div id="hardcore-hud" class="hidden">☠ HARDCORE</div>
+<div id="training-hud" class="hidden">🎯 ENTRAÎNEMENT · Munitions illimitées</div>
 <div id="adrenaline-hud" class="hidden">⚠ ADRÉNALINE</div>
 <div id="smoke-hud" class="hidden">🌫 <b>2</b></div>
 <div id="semiauto-hud" class="hidden">SEMI</div>
@@ -1116,7 +1124,8 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false, rain:false },
   lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 },
   consumables:{ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 },   // #155 : stock persistant, migration auto via Object.assign(defaultSave(), p)
-  selectedLoadout:['turret','mine','airstrike'] }; }   // #156 : killstreak loadout, migration auto
+  selectedLoadout:['turret','mine','airstrike'],   // #156 : killstreak loadout, migration auto
+  leaderboard:[] }; }   // #157 : classement local top 5, migration auto
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -1140,6 +1149,20 @@ G.debug.difficulty = () => curDiff().id;
 G.debug.setDifficulty = (id) => { if(DIFFICULTIES[id]){ save.settings.difficulty = id; persist(); if(typeof renderSettings === 'function') renderSettings(); } };
 function addMoney(n){ n = Math.round(n * ksMoneyMultiplier()); save.money += n; runMoney_ += n; G.money = save.money; addLifetimeStat('moneyEarned', n); persist(); updateMoneyHud(); }   // #80 : moneyEarned cumulé ; runMoney_ = gagné cette partie
 function recordScore(){ if(score > save.bestScore){ save.bestScore = score; persist(); } }
+// ====== #157 Classement local (leaderboard top 5) ======
+const LEADERBOARD_MAX = 5;
+function submitScore(entry){
+  const withDate = Object.assign({ date: new Date().toISOString() }, entry);
+  save.leaderboard.push(withDate);
+  save.leaderboard.sort((a,b) => b.score - a.score);
+  const rank = save.leaderboard.indexOf(withDate);
+  save.leaderboard = save.leaderboard.slice(0, LEADERBOARD_MAX);
+  persist();
+  return rank < LEADERBOARD_MAX ? rank + 1 : -1;
+}
+G.debug.leaderboard = () => JSON.parse(JSON.stringify(save.leaderboard));
+G.debug.submitScore = (entry) => submitScore(entry);
+G.debug.clearLeaderboard = () => { save.leaderboard = []; persist(); };
 function updateMoneyHud(){ const el = document.getElementById('money-hud'); if(el) el.innerHTML = `${ico('coin')} ${save.money}`; }
 function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b> internes, garde l'icône SVG)
   const set = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
@@ -1148,6 +1171,7 @@ function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b
   set('hub-rank-v', Math.floor(bw / 2) + 1);                                  // rang dérivé du record
   const xf = document.getElementById('hub-xp-fill'); if(xf) xf.style.width = ((bw % 2) / 2 * 100) + '%';
   set('intel-wave', bw);
+  set('intel-bestscore', (save.leaderboard[0] && save.leaderboard[0].score) || 0);   // #157
   let combo = 1; try { combo = comboMultiplier(save.bestCombo || 0); } catch(e){}
   set('intel-combo', 'x' + combo);
   set('intel-money', save.money);
@@ -1760,6 +1784,18 @@ async function startGame(){
   updateLoadoutHud();   // affiche les barres du loadout choisi (#156)
 }
 G.debug.start = async (index=0) => { await previewCharacter(index); await startGame(); };
+// ====== #158 Mode Entraînement ======
+let trainingActive_ = false;
+async function startTraining(){
+  await startGame();
+  trainingActive_ = true;
+  clearEnemies();
+  infiniteAmmo_ = true;
+  updateTrainingHud();
+}
+function updateTrainingHud(){ const el = document.getElementById('training-hud'); if(el) el.classList.toggle('hidden', !trainingActive_); }
+G.debug.trainingActive = () => trainingActive_;
+G.debug.startTraining = () => startTraining();
 
 // boutons + clavier du lobby (slide gauche/droite, Entrée/Espace = jouer)
 document.getElementById('prev').onclick = () => cycleCharacter(-1);
@@ -1777,6 +1813,7 @@ for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShop
 document.getElementById('btn-settings').onclick = () => openSettings();
 document.getElementById('btn-howto').onclick = () => openPanel('howto-panel');
 document.getElementById('btn-loadout').onclick = () => { renderLoadoutPanel(); openPanel('loadout-panel'); };
+document.getElementById('btn-training').onclick = () => startTraining();
 function renderLoadoutPanel(){
   const el = document.getElementById('loadout-grid'); if(!el) return;
   const LOADOUT_ICON = { turret:'grenade', mine:'sticky', airstrike:'flash', carepackage:'molotov' };
@@ -4826,20 +4863,26 @@ function playerDie(){
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   document.getElementById('scope-overlay')?.classList.remove('show'); // lunette sniper masquée à la mort (sinon viseur résiduel sur Game Over/accueil #61)
   if(document.pointerLockElement) document.exitPointerLock?.();
+  const accuracy_ = runShots ? Math.round(runHits/runShots*100) : 0;
+  const lbRank = submitScore({ score, wave, kills:runKills, headshots:runHeadshots, accuracy:accuracy_ });   // #157 : classement local
   document.getElementById('go-score').innerHTML =          // G-4 tuiles + stats de partie (#43 : kills/headshots/précision)
     `<div class="go-tiles">`
     + `<div class="go-tile"><span>Vague</span><b>${wave}</b></div>`
     + `<div class="go-tile"><span>Score</span><b>${score}</b></div>`
     + `<div class="go-tile"><span>Kills</span><b>${runKills}</b></div>`
     + `<div class="go-tile"><span>Headshots</span><b>${runHeadshots}</b></div>`
-    + `<div class="go-tile"><span>Précision</span><b>${runShots ? Math.round(runHits/runShots*100) : 0}%</b></div>`
+    + `<div class="go-tile"><span>Précision</span><b>${accuracy_}%</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
     + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
-    + `<div class="go-rank">RANG <span class="go-rank-letter">${runRank()}</span></div>`;
+    + `<div class="go-rank">RANG <span class="go-rank-letter">${runRank()}</span></div>`
+    + `<div id="go-leaderboard" class="go-leaderboard"><div class="go-lb-h">// Classement local</div>`
+    + save.leaderboard.map((e,i) => `<div class="go-lb-row${(i===lbRank-1)?' gold':''}"><span>#${i+1}</span><b>${e.score}</b><span>Vague ${e.wave}</span></div>`).join('')
+    + `</div>`;
   document.getElementById('gameover').classList.remove('hidden');
 }
 function restartGame(){
+  if(trainingActive_){ startTraining(); return; }   // #158 : recommencer en entrainement relance l'entrainement, pas une vraie vague
   document.getElementById('gameover').classList.add('hidden');
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
@@ -4863,8 +4906,9 @@ function backToHome(){
   flushLifetimeTime();                                         // #80 : comptabilise le temps de session avant de quitter (sinon perdu via pause→menu)
   resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
   resetCallouts();                                             // vide kill-feed + callouts résiduels (sinon persistent dans le lobby)
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud','ls-turret-hud','ls-mine-hud','ls-airstrike-hud','ls-carepackage-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud','ls-turret-hud','ls-mine-hud','ls-airstrike-hud','ls-carepackage-hud','training-hud'])
     document.getElementById(id).classList.add('hidden');
+  trainingActive_ = false; infiniteAmmo_ = false;   // #158 : quitter l'entrainement desactive munitions infinies
   clearEnemies(); clearTargets();
   setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
   if(viewModel) viewModel.visible = false;                     // garantie : pas de mains/arme FPS sur la page d'accueil
@@ -5631,6 +5675,7 @@ G.debug.forceOverkill = (i) => { const e = enemies[i]; if(e) damageEnemy(e, e.hp
 // ====== Wave director : enchaîne les vagues, tient le record ======
 let waveStartTime = 0;
 function startWave(w){
+  if(trainingActive_) return;   // #158 : aucune vague en mode entrainement
   wave = w; G.wave = w; checkAchievements();          // succès (#44) : survivant à la vague 5
   if(w > bestWave){ bestWave = w; G.bestWave = bestWave; save.bestWave = w; persist(); }   // record persistant
   createEnemies(enemiesForWave(w), enemyHpForWave(w), waveComposition(w));   // nettoie les corps + crée la vague (composition par type)
@@ -5646,6 +5691,7 @@ G.debug.ageWaveStart = (seconds) => { waveStartTime -= seconds; };   // #149 : r
 const SPEED_CLEAR_THRESHOLD = 15, SPEED_CLEAR_BONUS = 100;
 let speedClearCount_ = 0, lastSpeedClear_ = false;
 function checkWaveCleared(){
+  if(trainingActive_) return;   // #158 : aucune progression de vague en entrainement
   if(waveState !== 'active' || enemies.some(e => e.alive && !e.isDecoy)) return; // decoys excluded (#124)
   waveState = 'cleared'; nextWaveAt = nowS() + WAVE_INTERMISSION;
   if(dmgThisWave === 0) checkChallenges('nodmg', 1);
@@ -5660,7 +5706,7 @@ function checkWaveCleared(){
 G.debug.speedClearCount = () => speedClearCount_;
 G.debug.lastSpeedClear = () => lastSpeedClear_;
 function updateWaves(dt){
-  if(G.phase !== 'playing') return;
+  if(G.phase !== 'playing' || trainingActive_) return;
   if(waveState === 'cleared' && nowS() >= nextWaveAt) startWave(wave + 1);
   updateWaveCountdown(); // countdown inter-vague (#76)
 }
