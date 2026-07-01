@@ -4886,3 +4886,50 @@ test('#134 adrenaline : HUD visible/masque selon les PV', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => document.getElementById('adrenaline-hud').classList.contains('hidden'))).toBe(false);
 });
+
+// ====== #135 — Double saut ======
+test('#135 double saut : doubleJumpAvailable false au sol avant tout saut', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.doubleJumpAvailable())).toBe(false);
+});
+
+test('#135 double saut : sauter au sol arme le double saut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.jump());
+  expect(await page.evaluate(() => __game.debug.doubleJumpAvailable())).toBe(true);
+});
+
+test('#135 double saut : un 2e saut en l air relance le perso vers le haut', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.jump());
+  await page.waitForFunction(() => !window.__game.debug.doubleJumpAvailable() === false, null, { timeout: 3000 }).catch(()=>{});
+  // laisse la vélocité redescendre un peu avant le 2e saut
+  await page.waitForTimeout(300);
+  const vyBefore = await page.evaluate(() => __game.debug.velY());
+  await page.evaluate(() => __game.debug.airJump());
+  const vyAfter = await page.evaluate(() => __game.debug.velY());
+  expect(vyAfter).toBeGreaterThan(vyBefore);
+  expect(await page.evaluate(() => __game.debug.doubleJumpAvailable())).toBe(false);
+});
+
+test('#135 double saut : refuse un 3e saut avant d avoir retouche le sol', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.jump());
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.airJump()); // consomme le double saut
+  const vyBefore = await page.evaluate(() => __game.debug.velY());
+  await page.evaluate(() => __game.debug.airJump()); // refusé : plus de saut dispo
+  const vyAfter = await page.evaluate(() => __game.debug.velY());
+  expect(vyAfter).toBeLessThanOrEqual(vyBefore);
+});
+
+test('#135 double saut : se rearme apres avoir retouche le sol', async ({ page }) => {
+  await startPlaying(page);
+  const y0 = (await page.evaluate(() => __game.position())).y;
+  await page.evaluate(() => __game.debug.jump());
+  await page.waitForFunction(y => window.__game.position().y > y + 0.2, y0, { timeout: 3000 }); // décolle
+  await page.waitForFunction(y => Math.abs(window.__game.position().y - y) < 0.05, y0, { timeout: 6000 }); // retombe
+  expect(await page.evaluate(() => __game.debug.doubleJumpAvailable())).toBe(false);
+  await page.evaluate(() => __game.debug.jump());
+  expect(await page.evaluate(() => __game.debug.doubleJumpAvailable())).toBe(true);
+});

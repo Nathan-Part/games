@@ -1053,7 +1053,7 @@ const loader = new GLTFLoader();
 
 // ====== État partagé (rempli par les tasks suivantes) ======
 let model = null, mixer = null, lobbyIdle = false;
-let velY = 0, grounded = true, groundY = 0;
+let velY = 0, grounded = true, groundY = 0, doubleJumpAvailable = false;   // #135
 const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
 const EYE_HEIGHT = 1.62;                       // hauteur des yeux (vue 1re personne)
@@ -1322,7 +1322,7 @@ async function spawnModel(char){
   lobbyIdle = false;
   if(model){ scene.remove(model); heldWeapon = null; }   // nouveau modèle => l'arme se ré-attache à la partie suivante
   model = m; model.userData.charId = char.id; scene.add(model);   // tag : quel perso ce modèle représente (vérif sélection)
-  groundY = m.position.y; velY = 0; grounded = true;
+  groundY = m.position.y; velY = 0; grounded = true; doubleJumpAvailable = false;
   applyShopVisibility();   // si la boutique (vitrine d'arme) est ouverte, masque ce nouveau perso
 }
 // joue une anim idle sur le perso du lobby (plus de T-pose) — non-bloquant ; sauté en mode test rapide
@@ -1521,7 +1521,10 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyR') input.sprint=true; // R ou Shift = courir
   if(e.code==='KeyQ') input.aim=true;                                                 // A (AZERTY) = viser
   if(e.code==='KeyE') input.fire=true;                                                // E = tirer
-  if(e.code==='Space' && G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; e.preventDefault(); }
+  if(e.code==='Space' && G.phase==='playing'){
+    if(grounded){ velY = JUMP_SPEED; grounded = false; doubleJumpAvailable = true; e.preventDefault(); }        // saut normal (arme le double saut)
+    else if(doubleJumpAvailable){ velY = JUMP_SPEED; doubleJumpAvailable = false; e.preventDefault(); }         // double saut (#135)
+  }
   if(e.code==='KeyF' && G.phase==='playing') reload();                                // F = recharger
   if(e.code==='KeyG' && G.phase==='playing') pickupWeapon();                          // G = ramasser l'arme d'un cadavre (#23)
   if(e.code==='KeyB' && G.phase==='playing' && grenades > 0) showGrenadeArc(true);    // B (maintien) = viser l'arc de grenade (#33/#97)
@@ -1551,7 +1554,12 @@ G.debug.setYaw = (r) => { camYaw = r; };
 G.debug.setView = (v) => setView(v);
 G.debug.toggleView = () => toggleView();
 G.debug.modelVisible = () => !!(model && model.visible);
-G.debug.jump = () => { if(G.phase==='playing' && grounded){ velY = JUMP_SPEED; grounded = false; } };
+G.debug.jump = () => { if(G.phase!=='playing') return;
+  if(grounded){ velY = JUMP_SPEED; grounded = false; doubleJumpAvailable = true; }
+  else if(doubleJumpAvailable){ velY = JUMP_SPEED; doubleJumpAvailable = false; } };
+G.debug.airJump = () => G.debug.jump();   // #135 : alias explicite pour les tests (même logique sol/air)
+G.debug.doubleJumpAvailable = () => doubleJumpAvailable;
+G.debug.velY = () => velY;
 
 // ====== Caméra 3e personne (pointer lock + repli) ======
 const canvasEl = renderer.domElement;
@@ -1709,7 +1717,7 @@ function updateController(dt){
   if(!grounded){
     velY -= GRAVITY*dt;
     model.position.y += velY*dt;
-    if(model.position.y <= groundY){ model.position.y = groundY; velY = 0; grounded = true; }
+    if(model.position.y <= groundY){ model.position.y = groundY; velY = 0; grounded = true; doubleJumpAvailable = false; }   // #135 : réarmé seulement par un nouveau saut au sol
   }
   setLoco(locomotionState(speed, input.sprint && !staminaDepleted));
 }
@@ -4150,7 +4158,7 @@ function restartGame(){
   document.getElementById('gameover').classList.add('hidden');
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
-  if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; }
+  if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; doubleJumpAvailable = false; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
   resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
   score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
