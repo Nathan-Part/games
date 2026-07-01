@@ -5026,3 +5026,36 @@ test('#137 second wind : se reinitialise au restart', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(false);
 });
+
+// ====== #138 — Frappe aerienne (killstreak tier 10) ======
+test('#138 airstrike : 10 kills en fenetre declenche le palier', async ({ page }) => {
+  await startPlaying(page);
+  for(let i=0;i<10;i++) await page.evaluate(() => __game.debug.registerKsKill());
+  expect(await page.evaluate(() => __game.debug.ksRewardFired(10))).toBe(true);
+});
+
+test('#138 airstrike : triggerAirstrikeNow inflige des degats a des ennemis vivants', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0); __game.debug.spawnEnemyTypeAt(1, 'shooter', 8, 0); });
+  const hp0Before = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp1Before = await page.evaluate(() => __game.debug.enemyHp(1));
+  await page.evaluate(() => __game.debug.triggerAirstrikeNow());
+  const hp0After = await page.evaluate(() => __game.debug.enemyHp(0));
+  const hp1After = await page.evaluate(() => __game.debug.enemyHp(1));
+  expect(hp0After + hp1After).toBeLessThan(hp0Before + hp1Before);
+  expect(await page.evaluate(() => __game.debug.airstrikeHitCount())).toBeGreaterThan(0);
+});
+
+test('#138 airstrike : ne depasse jamais 3 cibles touchees', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.triggerAirstrikeNow());
+  const hitCount = await page.evaluate(() => __game.debug.airstrikeHitCount());
+  expect(hitCount).toBeLessThanOrEqual(3);
+});
+
+test('#138 airstrike : ne plante pas sans ennemis vivants', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.evaluate(() => __game.debug.triggerAirstrikeNow());
+  expect(await page.evaluate(() => __game.debug.airstrikeHitCount())).toBe(0);
+});

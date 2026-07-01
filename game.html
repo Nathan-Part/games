@@ -3662,7 +3662,7 @@ function showHitMarker(headshot){
 }
 G.debug.showHitMarker = (hs) => showHitMarker(hs);
 // ====== #58 Killstreak Rewards ======
-const KS_WINDOW = 8, KS_THRESHOLDS = [3, 5, 7];
+const KS_WINDOW = 8, KS_THRESHOLDS = [3, 5, 7, 10];
 let ksKillTimes = [], ksAwarded = new Set();
 let ksShieldUntil = 0, ksMoneyMultUntil = 0;
 function registerKsKill(){
@@ -3675,7 +3675,20 @@ function fireKsReward(thr){
   if(thr === 3){ ammo = curMag; G.ammo = ammo; showKsBanner('TRIPLE KILL  ⚡ Rechargé', '#f0c040'); }
   else if(thr === 5){ ksShieldUntil = nowS() + 5; showKsBanner('RAMPAGE  🛡 Bouclier actif', '#4fc3f7'); }
   else if(thr === 7){ ksMoneyMultUntil = nowS() + 10; showKsBanner('UNSTOPPABLE  💰 ×2 Argent', '#81c784'); }
+  else if(thr === 10){ triggerAirstrike(); showKsBanner('AIRSTRIKE  💥 Frappe aérienne', '#ff6a1a'); }   // #138
 }
+// ====== #138 Frappe aérienne (killstreak tier 10) ======
+const AIRSTRIKE_TARGETS = 3, AIRSTRIKE_DMG = 150;
+let airstrikeHitCount_ = 0;
+function triggerAirstrike(){
+  const alive = enemies.filter(e => e.alive);
+  for(let i = alive.length - 1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [alive[i],alive[j]] = [alive[j],alive[i]]; }
+  const targets = alive.slice(0, AIRSTRIKE_TARGETS);
+  airstrikeHitCount_ = targets.length;
+  for(const e of targets){ spawnExplosionFx(new THREE.Vector3(e.root.position.x, 1, e.root.position.z)); damageEnemy(e, AIRSTRIKE_DMG); }
+}
+G.debug.triggerAirstrikeNow = () => triggerAirstrike();
+G.debug.airstrikeHitCount = () => airstrikeHitCount_;
 function showKsBanner(txt, color){
   let el = document.getElementById('ks-banner'); if(!el) return;
   el.textContent = txt; el.style.color = color; el.classList.remove('hidden','ks-pop');
