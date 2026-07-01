@@ -311,6 +311,7 @@
   .flank-left{left:18px} .flank-right{right:18px}
   #hardcore-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#f44;font-weight:900;font-size:.85rem;letter-spacing:.15em;text-shadow:0 0 8px #f44;pointer-events:none}
   #training-hud{position:fixed;top:60px;left:50%;transform:translateX(-50%);color:#2ad6ff;font-weight:900;font-size:.85rem;letter-spacing:.1em;text-shadow:0 0 8px #2ad6ff;pointer-events:none;text-transform:uppercase}
+  #prestige-btn{display:block;margin:6px auto 0;padding:4px 14px;background:#ffd54f;color:#241a00;font-weight:900;font-size:.75rem;letter-spacing:.06em;border:none;box-shadow:0 0 10px #ffd54f;cursor:pointer;text-transform:uppercase;pointer-events:auto}
   #adrenaline-hud{position:fixed;top:80px;left:50%;transform:translateX(-50%);color:#ff2244;font-weight:900;font-size:.95rem;letter-spacing:.15em;text-shadow:0 0 10px #ff2244;pointer-events:none;animation:adrenalinePulse .5s infinite alternate}
   @keyframes adrenalinePulse{0%{opacity:.6}100%{opacity:1}}
   .go-rank{text-align:center;font-size:1.1rem;letter-spacing:.2em;color:#aaa;margin-top:8px}
@@ -678,6 +679,7 @@
         <div class="intel-row"><span>Record vague</span><b id="intel-wave">0</b></div>
         <div class="intel-row"><span>Meilleur combo</span><b id="intel-combo">x1</b></div>
         <div class="intel-row"><span>Meilleur score</span><b id="intel-bestscore">0</b></div>
+        <div class="intel-row"><span>Prestige</span><b id="intel-prestige">—</b></div>
         <div class="intel-row"><span>Crédits</span><b id="intel-money" class="gold">0</b></div>
       </div>
       <div class="intel-card tac"><span class="br tr"></span><span class="br bl"></span>
@@ -777,7 +779,7 @@
 <div id="dmgdir-lft" class="dmgdir"></div>
 <div id="dmgdir-rgt" class="dmgdir"></div>
 <div id="scope-overlay"></div>
-<div id="xp-hud" class="hidden"><div id="xp-label">Niv. 1  Recrue</div><div id="xp-track"><div id="xp-fill"></div></div></div>
+<div id="xp-hud" class="hidden"><div id="xp-label">Niv. 1  Recrue</div><div id="xp-track"><div id="xp-fill"></div></div><button id="prestige-btn" class="hidden">🌟 Prestige</button></div>
 <div id="hit-marker" class="hidden"></div>
 <div id="ks-banner" class="hidden"></div>
 <div id="flashbang-hud" class="hidden">⚡ 2</div>
@@ -1125,7 +1127,8 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 },
   consumables:{ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 },   // #155 : stock persistant, migration auto via Object.assign(defaultSave(), p)
   selectedLoadout:['turret','mine','airstrike'],   // #156 : killstreak loadout, migration auto
-  leaderboard:[] }; }   // #157 : classement local top 5, migration auto
+  leaderboard:[],   // #157 : classement local top 5, migration auto
+  prestige:0 }; }   // #159 : compteur de prestige, migration auto
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -1172,6 +1175,7 @@ function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b
   const xf = document.getElementById('hub-xp-fill'); if(xf) xf.style.width = ((bw % 2) / 2 * 100) + '%';
   set('intel-wave', bw);
   set('intel-bestscore', (save.leaderboard[0] && save.leaderboard[0].score) || 0);   // #157
+  set('intel-prestige', (save.prestige||0) > 0 ? '★'+save.prestige : '—');            // #159
   let combo = 1; try { combo = comboMultiplier(save.bestCombo || 0); } catch(e){}
   set('intel-combo', 'x' + combo);
   set('intel-money', save.money);
@@ -4096,12 +4100,29 @@ function updateXpHud(){
   const xp=save.xp||0, lv=playerLevel(), nxt=xpNextLevel(), prev=xpForLevel(lv-1);
   const frac = lv>=50 ? 1 : Math.max(0, Math.min(1,(xp-prev)/(nxt-prev)));
   const fill = el.querySelector('#xp-fill'); if(fill) fill.style.width = (frac*100)+'%';
-  const label = el.querySelector('#xp-label'); if(label) label.textContent = `Niv. ${lv}  ${playerTitle()}`;
+  const stars = (save.prestige||0) > 0 ? '★'.repeat(Math.min(save.prestige,5)) + ' ' : '';   // #159
+  const label = el.querySelector('#xp-label'); if(label) label.textContent = `Niv. ${lv}  ${stars}${playerTitle()}`;
+  const pb = document.getElementById('prestige-btn'); if(pb) pb.classList.toggle('hidden', !canPrestige());
 }
 G.debug.xpTotal = () => save.xp||0;
 G.debug.playerLevel = () => playerLevel();
 G.debug.playerTitle = () => playerTitle();
 G.debug.addXp = (n) => addXp(n);
+// ====== #159 Prestige ======
+function canPrestige(){ return playerLevel() >= 50; }
+function doPrestige(){
+  if(!canPrestige()) return false;
+  save.prestige = (save.prestige||0) + 1;
+  save.xp = 0;
+  persist();
+  updateXpHud();
+  showKsBanner('PRESTIGE ★' + save.prestige + ' !', '#ffd54f');
+  return true;
+}
+G.debug.prestigeLevel = () => save.prestige || 0;
+G.debug.canPrestige = () => canPrestige();
+G.debug.doPrestige = () => doPrestige();
+document.getElementById('prestige-btn')?.addEventListener('click', () => doPrestige());
 // ====== #59 Hit-marker ======
 let hmTimer = null;
 function showHitMarker(headshot){

@@ -6185,3 +6185,83 @@ test('#158 : le HUD entrainement est visible en entrainement, masque au retour m
   await page.evaluate(() => __game.debug.backToHome());
   expect(await page.evaluate(() => document.getElementById('training-hud').classList.contains('hidden'))).toBe(true);
 });
+
+// ====== #159 — Prestige ======
+test('#159 : prestigeLevel demarre a 0, canPrestige faux sous le niveau 50', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.prestigeLevel())).toBe(0);
+  await page.evaluate(() => __game.debug.addXp(500));
+  expect(await page.evaluate(() => __game.debug.canPrestige())).toBe(false);
+});
+
+test('#159 : canPrestige devient vrai au niveau 50', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(1000000));
+  expect(await page.evaluate(() => __game.debug.playerLevel())).toBe(50);
+  expect(await page.evaluate(() => __game.debug.canPrestige())).toBe(true);
+});
+
+test('#159 : doPrestige au niveau 50 reussit et remet le niveau a 1', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(1000000));
+  const ok = await page.evaluate(() => __game.debug.doPrestige());
+  expect(ok).toBe(true);
+  expect(await page.evaluate(() => __game.debug.prestigeLevel())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.playerLevel())).toBe(1);
+});
+
+test('#159 : doPrestige sous le niveau 50 echoue et ne change rien', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(100));
+  const ok = await page.evaluate(() => __game.debug.doPrestige());
+  expect(ok).toBe(false);
+  expect(await page.evaluate(() => __game.debug.prestigeLevel())).toBe(0);
+});
+
+test('#159 : doPrestige ne touche pas argent/armes possedees', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(500); });
+  await page.evaluate(() => __game.debug.addXp(1000000));
+  await page.evaluate(() => __game.debug.doPrestige());
+  const s = await page.evaluate(() => __game.debug.save.get());
+  expect(s.money).toBeGreaterThanOrEqual(500);
+  expect(s.ownedWeapons).toContain('default');
+});
+
+test('#159 : deux prestiges successifs cumulent le compteur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.addXp(1000000));
+  await page.evaluate(() => __game.debug.doPrestige());
+  await page.evaluate(() => __game.debug.addXp(1000000));
+  await page.evaluate(() => __game.debug.doPrestige());
+  expect(await page.evaluate(() => __game.debug.prestigeLevel())).toBe(2);
+});
+
+test('#159 : le titre XP affiche les etoiles de prestige', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { __game.debug.addXp(1000000); __game.debug.doPrestige(); });
+  const label = await page.evaluate(() => document.getElementById('xp-label').textContent);
+  expect(label).toContain('★');
+});
+
+test('#159 : le bouton prestige n apparait qu au niveau 50', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => document.getElementById('prestige-btn').classList.contains('hidden'))).toBe(true);
+  await page.evaluate(() => __game.debug.addXp(1000000));
+  expect(await page.evaluate(() => document.getElementById('prestige-btn').classList.contains('hidden'))).toBe(false);
+});
+
+test('#159 : l accueil affiche le compteur de prestige', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.addXp(1000000); __game.debug.doPrestige(); __game.debug.backToHome(); });
+  await page.waitForFunction(() => window.__game.phase === 'lobby');
+  const text = await page.evaluate(() => document.getElementById('intel-prestige').textContent);
+  expect(text).toBe('★1');
+});
