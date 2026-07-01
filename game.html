@@ -1535,6 +1535,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
   if(e.code==='KeyJ' && G.phase==='playing') throwSticky();                           // J = grenade collante (#118)
   if(e.code==='KeyK' && G.phase==='playing') throwMolotov();                          // K = molotov, zone de feu (#130)
+  if(e.code==='KeyO' && G.phase==='playing') throwEmp();                              // O = grenade EMP (#136)
   if(e.code==='KeyP' && G.phase==='playing'){ semiAuto = !semiAuto; updateSemiAutoHud(); } // P = toggle semi-auto (#78)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
   if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
@@ -2494,7 +2495,7 @@ function updateGrenades(dt){ const t = nowS();
     f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
 function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
   for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
-function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); refillSticky(); refillMolotov(); }
+function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); refillSticky(); refillMolotov(); refillEmp(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
@@ -2584,6 +2585,39 @@ G.debug.fireZoneActive = () => fireZones.length > 0;
 G.debug.enemyInFire = (i) => { const e = enemies[i]; if(!e) return false;
   return fireZones.some(fz => Math.hypot(e.root.position.x-fz.x, e.root.position.z-fz.z) <= MOLOTOV_R); };
 G.debug.igniteFireZoneAt = (x,z) => igniteFireZone(x,z);
+// ====== #136 Grenade EMP (désactive le tir ennemi à distance) ======
+const EMP_R = 6, EMP_DURATION = 4, EMP_STOCK_MAX = 1, EMP_GRAV = 9.81;
+let empStockCount = EMP_STOCK_MAX;
+const empProjs = [];
+function buildEmpMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8),
+  new THREE.MeshStandardMaterial({ color:0x2ad6ff, emissive:0x2ad6ff, emissiveIntensity:0.9, roughness:0.3 })); }
+function throwEmp(){
+  if(G.phase !== 'playing' || empStockCount <= 0) return false;
+  empStockCount--;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const m = buildEmpMesh(); scene.add(m);
+  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
+  const vel = dir.multiplyScalar(9); vel.y += 3;
+  empProjs.push({ mesh:m, vel });
+  return true;
+}
+function triggerEmpBlast(x, z){
+  for(const e of enemies){ if(!e.alive || (e.spec && e.spec.melee)) continue;
+    if(Math.hypot(e.root.position.x - x, e.root.position.z - z) <= EMP_R) e.empUntil = nowS() + EMP_DURATION; }
+  spawnShockwave(x, 0.5, z);
+}
+function updateEmpProjs(dt){
+  for(let i=empProjs.length-1;i>=0;i--){ const p = empProjs[i];
+    p.vel.y -= EMP_GRAV*dt; p.mesh.position.addScaledVector(p.vel, dt);
+    if(p.mesh.position.y <= 0.12){ triggerEmpBlast(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); empProjs.splice(i,1); } }
+}
+function clearEmp(){ for(const p of empProjs) scene.remove(p.mesh); empProjs.length = 0; }
+function refillEmp(){ empStockCount = EMP_STOCK_MAX; }
+G.debug.empStock = () => empStockCount;
+G.debug.empCount = () => empProjs.length;
+G.debug.throwEmp = () => throwEmp();
+G.debug.enemyEmpDisabled = (i) => { const e = enemies[i]; return !!(e && e.empUntil && e.empUntil > nowS()); };
+G.debug.triggerEmpBlastAt = (x,z) => triggerEmpBlast(x,z);
 // ====== #116 Suppression fire ======
 const SUPPRESS_RANGE = 2.0, SUPPRESS_DUR = 1.5;
 let lastSuppressCount_ = 0;
@@ -4359,6 +4393,7 @@ function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
   if(enemySuppressed(e)) return;  // suppressed (#116)
+  if(e.empUntil && nowS() < e.empUntil) return;  // EMP : tir désactivé (#136)
   let from;
   if(e.muzzle){ e.muzzle.updateMatrixWorld(true); from = e.muzzle.getWorldPosition(new THREE.Vector3()); }
   else from = new THREE.Vector3(e.root.position.x, e.root.position.y + 1.4, e.root.position.z);
@@ -4488,7 +4523,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -5409,7 +5444,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

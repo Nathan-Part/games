@@ -4933,3 +4933,43 @@ test('#135 double saut : se rearme apres avoir retouche le sol', async ({ page }
   await page.evaluate(() => __game.debug.jump());
   expect(await page.evaluate(() => __game.debug.doubleJumpAvailable())).toBe(true);
 });
+
+// ====== #136 — Grenade EMP ======
+test('#136 grenade EMP : stock initial = 1, throwEmp le decremente', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(1);
+  await page.evaluate(() => __game.debug.throwEmp());
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.empCount())).toBe(1);
+});
+
+test('#136 grenade EMP : throwEmp refuse si stock epuise', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwEmp());
+  const ok = await page.evaluate(() => __game.debug.throwEmp());
+  expect(ok).toBe(false);
+});
+
+test('#136 grenade EMP : triggerEmpBlastAt desactive le tir d un ennemi shooter proche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 3, 0));
+  expect(await page.evaluate(() => __game.debug.enemyEmpDisabled(0))).toBe(false);
+  await page.evaluate(() => __game.debug.triggerEmpBlastAt(3, 0));
+  expect(await page.evaluate(() => __game.debug.enemyEmpDisabled(0))).toBe(true);
+});
+
+test('#136 grenade EMP : un ennemi hors rayon n est pas affecte', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 40, 40));
+  await page.evaluate(() => __game.debug.triggerEmpBlastAt(0, 0));
+  expect(await page.evaluate(() => __game.debug.enemyEmpDisabled(0))).toBe(false);
+});
+
+test('#136 grenade EMP : stock recharge a chaque vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwEmp());
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.empStock())).toBe(1);
+});
