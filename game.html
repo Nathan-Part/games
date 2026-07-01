@@ -3787,13 +3787,18 @@ function spawnBarrel(x, z){
 }
 function clearBarrels(){ for(const b of barrels){ scene.remove(b.mesh); scene.remove(b.hitbox); } barrels.length = 0; }
 function spawnBarrels(){ clearBarrels(); for(const s of BARREL_SPOTS) spawnBarrel(s.x, s.z); }
-function explodeBarrel(b){
+let barrelChainCount_ = 0;
+function explodeBarrel(b, isChained){
   for(const e of enemies){ if(!e.alive) continue;
     const d = Math.hypot(e.root.position.x-b.x, e.root.position.z-b.z);
     if(d < BARREL_R) damageEnemy(e, Math.max(1, Math.round(BARREL_DAMAGE*(1-d/BARREL_R)))); }
   spawnExplosionFx(new THREE.Vector3(b.x, 0.6, b.z));
   scene.remove(b.mesh); scene.remove(b.hitbox); const i = barrels.indexOf(b); if(i>=0) barrels.splice(i,1);
+  if(isChained) barrelChainCount_++;
+  const neighbors = barrels.filter(n => Math.hypot(n.x-b.x, n.z-b.z) < BARREL_R);   // #144 : réaction en chaîne
+  for(const n of neighbors) explodeBarrel(n, true);
 }
+G.debug.barrelChainCount = () => barrelChainCount_;
 G.debug.barrelCount = () => barrels.length;
 G.debug.explodeBarrelNow = (i) => { if(barrels[i]) explodeBarrel(barrels[i]); };
 G.debug.spawnBarrelInFront = (dist=8) => { _ray.setFromCamera({x:0,y:0}, camera);

@@ -5232,3 +5232,33 @@ test('#143 care package : aucune caisse ne plante la boucle de jeu', async ({ pa
   await page.waitForTimeout(200);
   expect(await page.evaluate(() => __game.phase)).toBe('playing');
 });
+
+// ====== #144 — Reaction en chaine des barils ======
+// Note : la map a déjà 4 barils par défaut (BARREL_SPOTS) → on raisonne en delta, pas en compte absolu.
+test('#144 barils chaine : un baril voisin proche explose aussi', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.barrelCount());
+  const idx = await page.evaluate(() => { __game.debug.spawnBarrelInFront(5); return __game.debug.spawnBarrelInFront(5); }); // 2 barils quasi au meme endroit
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(before + 2);
+  await page.evaluate(i => __game.debug.explodeBarrelNow(i), idx);
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(before); // les 2 nouveaux ont explose en chaine
+});
+
+test('#144 barils chaine : un baril eloigne (hors rayon) n explose pas', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.barrelCount());
+  const closeIdx = await page.evaluate(() => __game.debug.spawnBarrelInFront(5));
+  await page.evaluate(() => __game.debug.spawnBarrelInFront(40)); // hors du rayon BARREL_R=4 du 1er
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(before + 2);
+  await page.evaluate(i => __game.debug.explodeBarrelNow(i), closeIdx);
+  expect(await page.evaluate(() => __game.debug.barrelCount())).toBe(before + 1); // seul l'eloigne (+ les defauts) reste
+});
+
+test('#144 barils chaine : barrelChainCount incremente uniquement pour les explosions en cascade', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.barrelChainCount());
+  const idx = await page.evaluate(() => { __game.debug.spawnBarrelInFront(5); return __game.debug.spawnBarrelInFront(5); });
+  await page.evaluate(i => __game.debug.explodeBarrelNow(i), idx);
+  const after = await page.evaluate(() => __game.debug.barrelChainCount());
+  expect(after).toBe(before + 1); // 1 seule explosion en cascade (le 1er declenchement n'est pas compte)
+});
