@@ -5693,10 +5693,16 @@ function killEnemy(e){
   checkLongShot(e);                                           // long shot bonus (#102)
   lastOverkill_ = !!e.lastOverkillFlag;
   if(lastOverkill_){ overkillCount_++; addMoney(OVERKILL_BONUS); showCallout('OVERKILL!'); }   // #139
+  lastFirstBlood_ = !firstBloodDone_;                          // #161 : premier kill de la vague
+  if(lastFirstBlood_){ firstBloodDone_ = true; firstBloodCount_++; addMoney(FIRST_BLOOD_MONEY); addXp(FIRST_BLOOD_XP); showCallout('PREMIER SANG!'); }
 }
 G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;
 G.debug.forceOverkill = (i) => { const e = enemies[i]; if(e) damageEnemy(e, e.hp + OVERKILL_THRESHOLD + 10); };
+const FIRST_BLOOD_MONEY = 15, FIRST_BLOOD_XP = 20;   // #161
+let firstBloodDone_ = false, firstBloodCount_ = 0, lastFirstBlood_ = false;
+G.debug.firstBloodCount = () => firstBloodCount_;
+G.debug.lastWasFirstBlood = () => lastFirstBlood_;
 // ====== Wave director : enchaîne les vagues, tient le record ======
 let waveStartTime = 0;
 function startWave(w){
@@ -5707,6 +5713,7 @@ function startWave(w){
   maybeMarkVip(w);                                                          // marque un ennemi VIP (#140)
   // #156 : plus d'auto-spawn caisse toutes les 4 vagues, remplacé par la touche loadout I
   dmgThisWave = 0; waveState = 'active'; spawnBarrels();    // barils (#41) ; reset dmgThisWave (#55) ; plus de refill grenades par vague (#155)
+  firstBloodDone_ = false;   // #161 : reactive le bonus premier sang pour cette vague
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));

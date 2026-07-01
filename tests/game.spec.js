@@ -6285,3 +6285,34 @@ test('#160 : un orbe a 4m est collecte avec l aimant actif, pas sans', async ({ 
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(0);   // dans le rayon elargi (6m) -> collecte
 });
+
+// ====== #161 — Bonus premier sang ======
+test('#161 : le premier kill d une vague declenche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.firstBloodCount())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.lastWasFirstBlood())).toBe(true);
+});
+
+test('#161 : le 2e kill de la meme vague ne redeclenche pas le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(1, 'shooter', 4, -4));
+  await page.evaluate(() => __game.debug.damageEnemy(1, 99999));
+  expect(await page.evaluate(() => __game.debug.firstBloodCount())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.lastWasFirstBlood())).toBe(false);
+});
+
+test('#161 : une nouvelle vague reactive le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.firstBloodCount())).toBe(1);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.firstBloodCount())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.lastWasFirstBlood())).toBe(true);
+});
