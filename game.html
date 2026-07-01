@@ -2231,7 +2231,7 @@ let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 // stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
 let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; }
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; }   // #139
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
@@ -4743,8 +4743,11 @@ G.debug.moveEnemy = (i, x, z) => { const e = enemies[i]; if(e){ e.root.position.
 function setEnemyEmissive(e, on){
   for(const m of e.mats) m.mat.emissive.copy(on ? FLASH_COLOR : m.base);
 }
+const OVERKILL_THRESHOLD = 50, OVERKILL_BONUS = 25;
+let overkillCount_ = 0, lastOverkill_ = false;
 function damageEnemy(e, amount = DMG_TORSO){
   if(!e || !e.alive) return;
+  e.lastOverkillFlag = (amount - e.hp) >= OVERKILL_THRESHOLD;   // #139 : excédent avant application des dégâts
   e.hp -= amount; playSound('hit');                    // #129 : le berserker en frenzy est désormais TUABLE (plus d'invincibilité)
   if(activePower === 'vampire' && !hardcore_ && model){ health = Math.min(maxHealth, health + Math.round(amount * 0.2)); G.health = health; updateHealthHud(); } // #133 lifesteal
   tryTriggerFrenzy(e);                                 // #129 : vérifie si frenzy se déclenche
@@ -4954,7 +4957,12 @@ function killEnemy(e){
   addLifetimeStat('kills', 1); if(e.lastHitHead) addLifetimeStat('headshots', 1); // lifetime stats (#80)
   trackDailyKill('kills'); if(e.lastHitHead) trackDailyKill('headshots'); if(e.lastHitMelee) trackDailyKill('melee'); // contrats (#62)
   checkLongShot(e);                                           // long shot bonus (#102)
+  lastOverkill_ = !!e.lastOverkillFlag;
+  if(lastOverkill_){ overkillCount_++; addMoney(OVERKILL_BONUS); showCallout('OVERKILL!'); }   // #139
 }
+G.debug.overkillCount = () => overkillCount_;
+G.debug.lastOverkill = () => lastOverkill_;
+G.debug.forceOverkill = (i) => { const e = enemies[i]; if(e) damageEnemy(e, e.hp + OVERKILL_THRESHOLD + 10); };
 // ====== Wave director : enchaîne les vagues, tient le record ======
 function startWave(w){
   wave = w; G.wave = w; checkAchievements();          // succès (#44) : survivant à la vague 5

@@ -5059,3 +5059,31 @@ test('#138 airstrike : ne plante pas sans ennemis vivants', async ({ page }) => 
   await page.evaluate(() => __game.debug.triggerAirstrikeNow());
   expect(await page.evaluate(() => __game.debug.airstrikeHitCount())).toBe(0);
 });
+
+// ====== #139 — Bonus overkill ======
+test('#139 overkill : forceOverkill declenche le bonus et le callout', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
+  const moneyBefore = await page.evaluate(() => __game.debug.runMoney());
+  await page.evaluate(() => __game.debug.forceOverkill(0));
+  expect(await page.evaluate(() => __game.debug.lastOverkill())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.runMoney())).toBeGreaterThan(moneyBefore);
+});
+
+test('#139 overkill : un kill juste suffisant (sans gros excedent) ne declenche pas le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
+  await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, hp); }); // exactement les PV restants, pas d'excédent
+  expect(await page.evaluate(() => __game.debug.lastOverkill())).toBe(false);
+});
+
+test('#139 overkill : overkillCount incremente et se reinitialise au restart', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
+  const before = await page.evaluate(() => __game.debug.overkillCount());
+  await page.evaluate(() => __game.debug.forceOverkill(0));
+  expect(await page.evaluate(() => __game.debug.overkillCount())).toBe(before + 1);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.overkillCount())).toBe(0);
+});
