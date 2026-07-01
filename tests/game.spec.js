@@ -6265,3 +6265,23 @@ test('#159 : l accueil affiche le compteur de prestige', async ({ page }) => {
   const text = await page.evaluate(() => document.getElementById('intel-prestige').textContent);
   expect(text).toBe('★1');
 });
+
+// ====== #160 — Power-up Aimant a argent ======
+test('#160 : spawn puis pickup active le power money_magnet', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnMoneyMagnet(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.moneyMagnetActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.moneyMagnetTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#160 : un orbe a 4m est collecte avec l aimant actif, pas sans', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  await page.evaluate(() => __game.debug.spawnMoneyOrb(4, 0, 10));
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(1);   // hors du rayon normal (1.5m) -> pas collecte
+  await page.evaluate(() => { __game.debug.spawnMoneyMagnet(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.moneyOrbCount())).toBe(0);   // dans le rayon elargi (6m) -> collecte
+});
