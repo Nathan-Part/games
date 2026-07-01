@@ -684,6 +684,22 @@ test('mort : l ennemi a une anim de mort (Dead) jouee au kill', async ({ page })
   expect(await page.evaluate(() => __game.debug.enemyAlive())).toBe(2);
 });
 
+test('mort : tuer un ennemi melee en pleine attaque desactive bien l anim d attaque residuelle', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'rusher', 1, 1));
+  await page.evaluate(() => __game.debug.setPos(0, 0));
+  await page.waitForFunction(() => __game.debug.enemyState(0) === 'melee', null, { timeout:8000 });
+  await page.waitForTimeout(150);   // laisse l anim d attaque demarrer avant de tuer
+  const before = await page.evaluate(() => __game.debug.enemyAnimDiag(0));
+  expect(before.loco).toBe('attack');
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  await page.waitForTimeout(500);   // largement plus que le fondu (0.18s) + le filet de securite (220ms)
+  const diag = await page.evaluate(() => __game.debug.enemyAnimDiag(0));
+  const attack = diag.actions.find(a => a.key === 'attack');
+  expect(attack.enabled).toBe(false);
+  expect(attack.weight).toBe(0);   // l anim d attaque ne contribue plus au cadavre (#156c)
+});
+
 test('tranche9 : chaque ennemi tient une arme visible (RightHand) avec un canon a hauteur de main', async ({ page }) => {
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.weapon?.held?.() === true, null, { timeout:20000 });
@@ -1784,7 +1800,9 @@ test('combo : enchainer monte le combo et booste l argent', async ({ page }) => 
   await page.evaluate(() => { for(let i=0;i<3;i++){ __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 99999); } });
   expect(await page.evaluate(() => __game.debug.combo())).toBe(3);
   expect(await page.evaluate(() => __game.debug.comboMult())).toBe(2);
-  expect(await page.evaluate(() => __game.money) - m0).toBe(perKill * (1 + 1 + 2));   // mult des 3 kills
+  // #139 (pre-existant, corrige ici) : damageEnemy(0, 99999) declenche aussi le bonus overkill (+25$) sur chacun des 3 kills
+  const overkillTotal = await page.evaluate(() => __game.debug.overkillCount() * 25);
+  expect(await page.evaluate(() => __game.money) - m0).toBe(perKill * (1 + 1 + 2) + overkillTotal);   // mult des 3 kills + bonus overkill
   expect(await page.evaluate(() => __game.debug.bestCombo())).toBeGreaterThanOrEqual(3);
 });
 
@@ -5157,10 +5175,11 @@ test('#137 second wind : se reinitialise au restart', async ({ page }) => {
 });
 
 // ====== #138 — Frappe aerienne (killstreak tier 10) ======
-test('#138 airstrike : 10 kills en fenetre declenche le palier', async ({ page }) => {
+test('#138 -> #156 : 10 kills en fenetre ne declenche plus la frappe aerienne (remplace par le systeme de points loadout)', async ({ page }) => {
   await startPlaying(page);
   for(let i=0;i<10;i++) await page.evaluate(() => __game.debug.registerKsKill());
-  expect(await page.evaluate(() => __game.debug.ksRewardFired(10))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.ksRewardFired(10))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.ksRewardFired(7))).toBe(true);   // les autres paliers (3/5/7) restent inchanges
 });
 
 test('#138 airstrike : triggerAirstrikeNow inflige des degats a des ennemis vivants', async ({ page }) => {
@@ -5979,4 +5998,52 @@ test('#156 : cliquer une carte du panneau loadout appelle toggleLoadoutBonus et 
   expect(await page.evaluate(() => __game.debug.selectedLoadout())).toContain('carepackage');
   await page.reload(); await page.waitForFunction(() => window.__game?.booted);
   expect(await page.evaluate(() => __game.debug.save.get().selectedLoadout)).toContain('carepackage');
+});
+
+// ====== #156b — Ciblage manuel de la frappe aérienne ======
+test('#156b : declencher la frappe aerienne prete ouvre le ciblage sans consommer les points', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { for(let i=0;i<18;i++) __game.debug.registerLoadoutKill(); }); // 1800 = palier airstrike
+  expect(await page.evaluate(() => __game.debug.triggerLoadoutBonus('airstrike'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.airstrikeTargetingActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('airstrike'))).toBe(1800);   // pas encore consomme
+  const hidden = await page.evaluate(() => document.getElementById('airstrike-map-panel').classList.contains('hidden'));
+  expect(hidden).toBe(false);
+});
+
+test('#156b : confirmer une cible frappe les ennemis proches et consomme les points', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 5));
+  await page.evaluate(() => { for(let i=0;i<18;i++) __game.debug.registerLoadoutKill(); });
+  await page.evaluate(() => __game.debug.triggerLoadoutBonus('airstrike'));
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(await page.evaluate(() => __game.debug.confirmAirstrikeTargetAt(5, 5))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBeLessThan(hpBefore);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('airstrike'))).toBe(0);
+  expect(await page.evaluate(() => __game.debug.airstrikeTargetingActive())).toBe(false);
+});
+
+test('#156b : un ennemi hors zone de frappe n est pas touche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 20, 20));
+  await page.evaluate(() => { for(let i=0;i<18;i++) __game.debug.registerLoadoutKill(); });
+  await page.evaluate(() => __game.debug.triggerLoadoutBonus('airstrike'));
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.confirmAirstrikeTargetAt(0, 0));   // loin de l ennemi (20,20)
+  expect(await page.evaluate(() => __game.debug.enemyHp(0))).toBe(hpBefore);
+});
+
+test('#156b : annuler le ciblage (Echap) ne consomme pas les points', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => { for(let i=0;i<18;i++) __game.debug.registerLoadoutKill(); });
+  await page.evaluate(() => __game.debug.triggerLoadoutBonus('airstrike'));
+  expect(await page.evaluate(() => __game.debug.cancelAirstrikeTargeting())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.airstrikeTargetingActive())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.loadoutPoints('airstrike'))).toBe(1800);   // intact
+  const hidden = await page.evaluate(() => document.getElementById('airstrike-map-panel').classList.contains('hidden'));
+  expect(hidden).toBe(true);
 });

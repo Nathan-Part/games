@@ -285,13 +285,18 @@
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
   .ls-hud{position:fixed;right:16px;width:200px;z-index:10}
-  #ls-turret-hud{bottom:90px} #ls-mine-hud{bottom:126px} #ls-airstrike-hud{bottom:162px} #ls-carepackage-hud{bottom:198px}
+  #ls-mine-hud{bottom:90px} #ls-carepackage-hud{bottom:126px} #ls-turret-hud{bottom:162px} #ls-airstrike-hud{bottom:198px}
   .ls-label{display:flex;justify-content:space-between;font-family:var(--font-display);font-size:var(--t-xs);
     text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--text-2);margin-bottom:3px}
   .ls-track{height:6px;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);overflow:hidden;--ch:3px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   .ls-fill{height:100%;width:0%;background:var(--accent-2);transition:width .15s}
   .ls-fill.ready{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  #airstrike-map-panel{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,7,9,.85)}
+  .airstrike-map-box{background:var(--bg-800);box-shadow:inset 0 0 0 1px var(--line);padding:20px;text-align:center}
+  .airstrike-map-box h2{font-family:var(--font-display);text-transform:uppercase;margin:2px 0 12px;color:var(--text)}
+  #airstrike-map-canvas{background:#12141a;box-shadow:inset 0 0 0 1px var(--line-2);cursor:crosshair;display:block;margin:0 auto}
   #hud-ammo-flash{position:fixed;bottom:58px;right:18px;width:80px;height:50px;pointer-events:none;border-radius:6px;opacity:0}
   #hud-ammo-flash.empty-flash{animation:emptyFlash 0.3s}
   @keyframes emptyFlash{0%{opacity:.7;background:#f44}100%{opacity:0;background:#f44}}
@@ -709,6 +714,14 @@
   <button id="pause-restart">Recommencer</button>
   <button id="pause-menu">Menu</button>
 </div></div>
+<div id="airstrike-map-panel" class="hidden">
+  <div class="airstrike-map-box">
+    <div class="eyebrow">// Frappe aérienne — ciblage</div>
+    <h2>Choisis la zone de frappe</h2>
+    <canvas id="airstrike-map-canvas" width="520" height="520"></canvas>
+    <p class="howto-intro">Clique sur la carte pour frapper cette zone. Échap pour annuler.</p>
+  </div>
+</div>
 <div id="overlay" class="hidden"><div id="overlay-msg"></div></div>
 <div id="crosshair" class="hidden"></div>
 <div id="scope"></div>
@@ -1828,7 +1841,9 @@ initLobby();
 const input = { forward:false, back:false, left:false, right:false, sprint:false, fire:false, aim:false };
 const CODE = { KeyW:'forward', ArrowUp:'forward', KeyS:'back', ArrowDown:'back',
                KeyA:'left', ArrowLeft:'left', KeyD:'right', ArrowRight:'right' };
-addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e.preventDefault(); }
+addEventListener('keydown', e => {
+  if(e.code==='Escape' && G.phase==='playing' && airstrikeTargeting){ closeAirstrikeTargeting(); return; }   // #156b annule le ciblage
+  if(CODE[e.code]){ input[CODE[e.code]]=true; e.preventDefault(); }
   if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyR') input.sprint=true; // R ou Shift = courir
   if(e.code==='KeyQ') input.aim=true;                                                 // A (AZERTY) = viser
   if(e.code==='KeyE') input.fire=true;                                                // E = tirer
@@ -2053,7 +2068,7 @@ function showOverlay(msg){
     `⚠️ ${msg}<br><br>Lance via un serveur local :<br><code>python -m http.server 8123</code><br>puis <code>http://localhost:8123/game.html</code>`;
 }
 let paused = false;   // #40 : vrai gel de la partie
-function setPaused(b){ paused = !!b && G.phase==='playing'; document.getElementById('pause').classList.toggle('hidden', !paused); }
+function setPaused(b){ paused = !!b && G.phase==='playing'; if(!airstrikeTargeting) document.getElementById('pause').classList.toggle('hidden', !paused); }
 G.debug.setPaused = (b) => setPaused(b);
 G.debug.pauseOpen = () => paused;
 document.getElementById('pause-resume').addEventListener('click', e => { e.stopPropagation(); canvasEl.requestPointerLock?.(); setPaused(false); });
@@ -4145,10 +4160,10 @@ G.debug.loadoutReady = (key) => loadoutReady(key);
 G.debug.registerLoadoutKill = () => registerLoadoutKill();
 function triggerLoadoutBonus(key){
   if(!loadoutReady(key)) return false;
+  if(key === 'airstrike') return openAirstrikeTargeting();   // #156b : ciblage manuel, consommation différée à la confirmation
   let ok = false;
   if(key === 'turret') ok = deployTurretFree();
   else if(key === 'mine') ok = placeMineFree();
-  else if(key === 'airstrike'){ triggerAirstrike(); ok = true; }
   else if(key === 'carepackage'){ if(!model || carePackage) return false;
     const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
     spawnCarePackage(model.position.x + dir.x*3, model.position.z + dir.z*3); ok = true; }
@@ -4156,6 +4171,54 @@ function triggerLoadoutBonus(key){
   return ok;
 }
 G.debug.triggerLoadoutBonus = (key) => triggerLoadoutBonus(key);
+// ====== #156b Ciblage manuel de la frappe aérienne (carte cliquable) ======
+const AIRSTRIKE_TARGET_R = 5;
+let airstrikeTargeting = false;
+function worldToMapCanvas(x, z, cv){ return { x:(x+MAP_HALF)/(MAP_HALF*2)*cv.width, y:(z+MAP_HALF)/(MAP_HALF*2)*cv.height }; }
+function mapCanvasToWorld(px, py, cv){ return { x: px/cv.width*(MAP_HALF*2)-MAP_HALF, z: py/cv.height*(MAP_HALF*2)-MAP_HALF }; }
+function drawAirstrikeMap(){
+  const cv = document.getElementById('airstrike-map-canvas'); if(!cv) return;
+  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = '#12141a'; ctx.fillRect(0, 0, cv.width, cv.height);
+  if(model){ const p = worldToMapCanvas(model.position.x, model.position.z, cv);
+    ctx.fillStyle = '#4fc3f7'; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill(); }
+  for(const e of enemies){ if(!e.alive) continue;
+    const q = worldToMapCanvas(e.root.position.x, e.root.position.z, cv);
+    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(q.x, q.y, 5, 0, Math.PI*2); ctx.fill(); }
+}
+function openAirstrikeTargeting(){
+  if(G.phase !== 'playing' || airstrikeTargeting) return false;
+  airstrikeTargeting = true;
+  document.getElementById('airstrike-map-panel').classList.remove('hidden');
+  if(document.pointerLockElement) document.exitPointerLock?.();
+  drawAirstrikeMap();
+  return true;
+}
+function closeAirstrikeTargeting(){
+  airstrikeTargeting = false;
+  document.getElementById('airstrike-map-panel').classList.add('hidden');
+  if(G.phase === 'playing') canvasEl.requestPointerLock?.();
+}
+function confirmAirstrikeTarget(x, z){
+  if(!airstrikeTargeting) return false;
+  closeAirstrikeTargeting();
+  const targets = enemies.filter(e => e.alive && Math.hypot(e.root.position.x - x, e.root.position.z - z) <= AIRSTRIKE_TARGET_R);
+  airstrikeHitCount_ = targets.length;
+  for(const e of targets){ spawnExplosionFx(new THREE.Vector3(e.root.position.x, 1, e.root.position.z)); damageEnemy(e, AIRSTRIKE_DMG); }
+  spawnShockwave(x, 0.5, z);
+  loadoutPoints.airstrike = 0; updateLoadoutHud();
+  showCallout('FRAPPE AÉRIENNE!');
+  return true;
+}
+document.getElementById('airstrike-map-canvas').addEventListener('click', (e) => {
+  const cv = document.getElementById('airstrike-map-canvas'), r = cv.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (cv.width / r.width), py = (e.clientY - r.top) * (cv.height / r.height);
+  const w = mapCanvasToWorld(px, py, cv);
+  confirmAirstrikeTarget(w.x, w.z);
+});
+G.debug.airstrikeTargetingActive = () => airstrikeTargeting;
+G.debug.confirmAirstrikeTargetAt = (x, z) => confirmAirstrikeTarget(x, z);
+G.debug.cancelAirstrikeTargeting = () => { if(!airstrikeTargeting) return false; closeAirstrikeTargeting(); return true; };
 // ====== #57 Flashbang ======
 const MAX_FLASHBANGS = 2, FLASH_FUSE = 1.5, FLASH_BLIND_R = 9, FLASH_BLIND_DUR = 2.0, FLASH_PLAYER_R = 10;
 let flashbangs = MAX_FLASHBANGS, flashbangProjs = [], flashScreenT = null;
@@ -5266,6 +5329,11 @@ G.debug.enemyAlive = () => enemies.filter(e=>e.alive).length;
 G.debug.enemyState = (i) => enemies[i]?.state;
 G.debug.enemyLoco  = (i) => enemies[i]?.loco;
 G.debug.enemyBoneSig = (i) => { const e=enemies[i]; if(!e) return null; let s=0,n=0; e.root.traverse(o=>{ if(o.isBone){ s+=o.quaternion.x+o.quaternion.y+o.quaternion.z+o.quaternion.w+o.position.x+o.position.y+o.position.z; n++; } }); return n?+(s.toFixed(4)):null; }; // signature pose : change si l'anim joue
+G.debug.enemyAnimDiag = (i) => { const e = enemies[i]; if(!e) return null;
+  const da = e.actions.dead;
+  return { frozen: !!e.frozenPose, loco: e.loco, state: e.state,
+    dead: da ? { time: da.time, paused: da.paused, enabled: da.enabled, weight: da.getEffectiveWeight(), duration: da.getClip().duration } : null,
+    actions: Object.entries(e.actions).filter(([k,a]) => !!a).map(([k,a]) => ({ key:k, enabled:a.enabled, weight:+a.getEffectiveWeight().toFixed(3) })) }; };
 G.debug.enemyHp    = (i) => enemies[i]?.hp;
 G.debug.enemyPos   = (i) => { const e = enemies[i]; return e ? { x:e.root.position.x, y:e.root.position.y, z:e.root.position.z } : null; };
 G.debug.enemyLabel  = () => enemyLabel;
@@ -5510,7 +5578,14 @@ function killEnemy(e){
     dead.reset().setLoop(THREE.LoopOnce, 1); dead.clampWhenFinished = true; dead.enabled = true; dead.setEffectiveWeight(1);
     dead.play();
     // crossfade DEPUIS la pose vivante en cours -> évite le saut "se met debout" (snap vers la frame 0 de l'anim de mort)
-    if(prevAction && prevAction !== dead){ prevAction.crossFadeTo(dead, 0.18, false); }
+    if(prevAction && prevAction !== dead){
+      prevAction.crossFadeTo(dead, 0.18, false);
+      // filet de sécurité : certaines transitions (mort en plein milieu d'une autre transition déjà en fondu,
+      // ex. mêlée 'attack' interrompue) laissent le crossfade three.js ne jamais totalement retomber à poids 0 ;
+      // ça se voit comme l'anim précédente (souvent l'attaque en boucle) qui continue de jouer sous le cadavre.
+      // On force la coupure après la durée du fondu, quoi qu'il arrive.
+      setTimeout(() => { prevAction.enabled = false; }, 220);
+    }
     // coupe les autres actions (ni la précédente ni dead) sans reset() (qui rebasculerait en T-pose)
     Object.values(e.actions).forEach(a => { if(a && a !== dead && a !== prevAction) a.enabled = false; });
   } else {
