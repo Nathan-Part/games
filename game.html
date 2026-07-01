@@ -1527,6 +1527,7 @@ addEventListener('keydown', e => { if(CODE[e.code]){ input[CODE[e.code]]=true; e
   if(e.code==='KeyY' && G.phase==='playing') placeMine();                              // Y = poser une claymore (#65)
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
   if(e.code==='KeyJ' && G.phase==='playing') throwSticky();                           // J = grenade collante (#118)
+  if(e.code==='KeyK' && G.phase==='playing') throwMolotov();                          // K = molotov, zone de feu (#130)
   if(e.code==='KeyP' && G.phase==='playing'){ semiAuto = !semiAuto; updateSemiAutoHud(); } // P = toggle semi-auto (#78)
   if(e.code==='KeyC' && G.phase==='playing') dash();                                  // C = dash / esquive (#35)
   if(e.code==='KeyX' && G.phase==='playing') playerMelee();                           // X = corps-à-corps (#45)
@@ -2480,7 +2481,7 @@ function updateGrenades(dt){ const t = nowS();
     f.mesh.scale.setScalar(0.5 + e*7); f.mesh.material.opacity = 0.85*(1-e); } }
 function clearGrenades(){ for(const g of grenadeProjs) scene.remove(g.mesh); grenadeProjs.length = 0;
   for(const f of grenadeFx) scene.remove(f.mesh); grenadeFx.length = 0; }
-function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); refillSticky(); }
+function refillGrenades(){ grenades = MAX_GRENADES; updateGrenadeHud(); refillFlashbangs(); refillSmokes(); refillSticky(); refillMolotov(); }
 function updateGrenadeHud(){ const el = document.getElementById('grenade-hud'); if(el) el.textContent = `💣 ${grenades}`; }
 G.debug.throwGrenade = () => throwGrenade();
 G.debug.grenadeBouncedCount = () => grenadeProjs.reduce((s,g)=>s+g.bounces,0);
@@ -2525,6 +2526,51 @@ G.debug.stickyStock = () => stickyStockCount;
 G.debug.stickyCount = () => stickyProjs.length;
 G.debug.throwSticky = () => throwSticky();
 G.debug.stickyAttachedEnemy = (i) => { const s = stickyProjs[i]; return s ? (s.attachedEnemy ? s.attachedEnemy.id : null) : null; };
+// ====== #130 Molotov cocktail (zone de feu persistante) ======
+const MOLOTOV_STOCK_MAX = 1, MOLOTOV_ZONE_DUR = 5, MOLOTOV_R = 3, MOLOTOV_TICK = 0.5, MOLOTOV_TICK_DMG = 6, MOLOTOV_GRAV = 9.81;
+let molotovStockCount = MOLOTOV_STOCK_MAX;
+const molotovProjs = [], fireZones = [];
+function buildMolotovMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8),
+  new THREE.MeshStandardMaterial({ color:0xff6a1a, emissive:0xff3300, emissiveIntensity:0.9, roughness:0.4 })); }
+function throwMolotov(){
+  if(G.phase !== 'playing' || molotovStockCount <= 0) return false;
+  molotovStockCount--;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const m = buildMolotovMesh(); scene.add(m);
+  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
+  const vel = dir.multiplyScalar(9); vel.y += 3;
+  molotovProjs.push({ mesh:m, vel });
+  return true;
+}
+function igniteFireZone(x, z){
+  const geo = new THREE.CircleGeometry(MOLOTOV_R, 24);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0xff5500, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
+  mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
+  fireZones.push({ mesh, x, z, expireAt: nowS() + MOLOTOV_ZONE_DUR, lastTick: nowS() });
+  spawnExplosionFx(new THREE.Vector3(x, 0.3, z));
+}
+function updateMolotovs(dt){
+  for(let i=molotovProjs.length-1;i>=0;i--){ const p = molotovProjs[i];
+    p.vel.y -= MOLOTOV_GRAV*dt; p.mesh.position.addScaledVector(p.vel, dt);
+    if(p.mesh.position.y <= 0.12){ igniteFireZone(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); molotovProjs.splice(i,1); } }
+}
+function updateFireZones(dt){ const t = nowS();
+  for(let i=fireZones.length-1;i>=0;i--){ const fz = fireZones[i];
+    if(t >= fz.expireAt){ scene.remove(fz.mesh); fireZones.splice(i,1); continue; }
+    if(t - fz.lastTick >= MOLOTOV_TICK){ fz.lastTick = t;
+      for(const e of enemies){ if(!e.alive) continue;
+        if(Math.hypot(e.root.position.x-fz.x, e.root.position.z-fz.z) <= MOLOTOV_R) damageEnemy(e, MOLOTOV_TICK_DMG); } } }
+}
+function clearMolotovs(){ for(const p of molotovProjs) scene.remove(p.mesh); molotovProjs.length = 0;
+  for(const fz of fireZones) scene.remove(fz.mesh); fireZones.length = 0; }
+function refillMolotov(){ molotovStockCount = MOLOTOV_STOCK_MAX; }
+G.debug.molotovStock = () => molotovStockCount;
+G.debug.molotovCount = () => molotovProjs.length;
+G.debug.throwMolotov = () => throwMolotov();
+G.debug.fireZoneActive = () => fireZones.length > 0;
+G.debug.enemyInFire = (i) => { const e = enemies[i]; if(!e) return false;
+  return fireZones.some(fz => Math.hypot(e.root.position.x-fz.x, e.root.position.z-fz.z) <= MOLOTOV_R); };
+G.debug.igniteFireZoneAt = (x,z) => igniteFireZone(x,z);
 // ====== #116 Suppression fire ======
 const SUPPRESS_RANGE = 2.0, SUPPRESS_DUR = 1.5;
 let lastSuppressCount_ = 0;
@@ -4385,7 +4431,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -5305,7 +5351,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

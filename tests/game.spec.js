@@ -4663,3 +4663,54 @@ test('argent partie : runMoney compte l argent gagne CETTE partie (pas le total)
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.runMoney())).toBe(0);
 });
+
+// ====== #130 — Molotov cocktail (zone de feu) ======
+test('#130 molotov : stock initial = 1, throwMolotov le decremente', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(1);
+  await page.evaluate(() => __game.debug.throwMolotov());
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.molotovCount())).toBe(1); // en vol
+});
+
+test('#130 molotov : throwMolotov refuse si stock epuise', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwMolotov());
+  const ok = await page.evaluate(() => __game.debug.throwMolotov());
+  expect(ok).toBe(false);
+  expect(await page.evaluate(() => __game.debug.molotovCount())).toBe(1);
+});
+
+test('#130 molotov : igniteFireZoneAt cree une zone active detectee par enemyInFire', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 2, 0));
+  await page.evaluate(() => __game.debug.igniteFireZoneAt(2, 0));
+  expect(await page.evaluate(() => __game.debug.fireZoneActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.enemyInFire(0))).toBe(true);
+});
+
+test('#130 molotov : un ennemi hors zone n est pas affecte', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 30, 30));
+  await page.evaluate(() => __game.debug.igniteFireZoneAt(0, 0));
+  expect(await page.evaluate(() => __game.debug.enemyInFire(0))).toBe(false);
+});
+
+test('#130 molotov : la zone inflige des degats periodiques a l ennemi dedans', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 1, 0));
+  const hpBefore = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.igniteFireZoneAt(1, 0));
+  await page.waitForTimeout(700); // > 1 tick (0.5s)
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hpAfter).toBeLessThan(hpBefore);
+});
+
+test('#130 molotov : stock recharge a chaque vague', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwMolotov());
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(0);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.molotovStock())).toBe(1);
+});
