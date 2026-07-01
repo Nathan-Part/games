@@ -5262,3 +5262,23 @@ test('#144 barils chaine : barrelChainCount incremente uniquement pour les explo
   const after = await page.evaluate(() => __game.debug.barrelChainCount());
   expect(after).toBe(before + 1); // 1 seule explosion en cascade (le 1er declenchement n'est pas compte)
 });
+
+// ====== #145 — Power-up Visee stable (spread nul) ======
+test('#145 steady aim : spawn puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnSteadyAim(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.steadyAimActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.steadyAimTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#145 steady aim : neutralise le malus de spread en course', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
+  const spreadNormal = await page.evaluate(() => __game.debug.currentSpread());
+  expect(spreadNormal).toBeGreaterThan(1);
+  await page.evaluate(() => { __game.debug.spawnSteadyAim(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
+  expect(await page.evaluate(() => __game.debug.currentSpread())).toBe(1);
+});

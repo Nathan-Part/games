@@ -3039,6 +3039,7 @@ G.debug.rainParticleCount = () => rainActive_ ? RAIN_COUNT : 0;
 let spreadOverride = null;
 function currentSpread(){
   if(spreadOverride !== null) return spreadOverride;
+  if(activePower === 'steady_aim') return 1;   // #145 : neutralise le malus de mouvement/course
   if(input.aim) return 1;
   const moving = input.forward || input.back || input.left || input.right;
   if(!moving) return 1;
@@ -4208,7 +4209,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s)
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s)
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -4256,6 +4257,9 @@ G.debug.speedBoostTimeLeft = () => activePower === 'speed_boost' ? Math.max(0, p
 G.debug.vampireActive = () => activePower === 'vampire';                        // #133
 G.debug.vampireTimeLeft = () => activePower === 'vampire' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnVampireOrb = (x,z) => spawnPowerUp('vampire', x, z);
+G.debug.steadyAimActive = () => activePower === 'steady_aim';                    // #145
+G.debug.steadyAimTimeLeft = () => activePower === 'steady_aim' ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.spawnSteadyAim = (x,z) => spawnPowerUp('steady_aim', x, z);
 G.debug.spawnSpeedBoost = (x,z) => spawnPowerUp('speed_boost', x, z);
 G.debug.playerMoveSpeed = () => lastMoveSpeed_;                                 // #127 vitesse effective (inclut le boost)
 
