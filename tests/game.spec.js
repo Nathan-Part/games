@@ -4520,6 +4520,34 @@ test('#155 : a 0 stock, lancer un objet echoue sans exception ni decrementation 
   expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
 });
 
+test('consommables : l onglet boutique affiche les 6 items avec le bon prix', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('consumables'); });
+  const html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
+  expect(html).toContain('Grenade frag');
+  expect(html).toContain('Flashbang');
+  expect(html).toContain('Fumigène');
+  expect(html).toContain('Grenade collante');
+  expect(html).toContain('Molotov');
+  expect(html).toContain('EMP');
+  expect((html.match(/data-buycons=/g) || []).length).toBe(6);
+});
+
+test('consommables : cliquer Acheter incremente le stock affiche et debite l argent', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('consumables'); });
+  const before = await page.evaluate(() => __game.debug.consumables().frag);
+  await page.evaluate(() => document.querySelector('[data-buycons="frag"]').click());
+  const after = await page.evaluate(() => __game.debug.consumables().frag);
+  expect(after).toBe(before + 1);
+  expect(await page.evaluate(() => __game.money)).toBe(950);
+  const html = await page.evaluate(() => document.getElementById('shop-info').innerHTML);
+  expect(html).toContain(String(after));
+});
+
 test('AUDIT fuite scene : sticky + grenades ennemies nettoyees au retour menu (backToHome)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.throwSticky(); });

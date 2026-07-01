@@ -628,6 +628,12 @@
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 5-3 8.3-7 9.5-4-1.2-7-4.5-7-9.5V6l7-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-sprint" viewBox="0 0 24 24"><circle cx="15" cy="4.5" r="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 21l2.5-5-2-2 .5-4 3 2.5 2 3.5 3 1.5M11.5 14l-4-1-2 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.2 9.5a2.8 2.8 0 015.4.9c0 1.8-2.6 2-2.6 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-grenade" viewBox="0 0 24 24"><circle cx="12" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7V4M9 4h6M15 6l2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-flash" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-smoke" viewBox="0 0 24 24"><path d="M4 18c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3M4 12c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-sticky" viewBox="0 0 24 24"><circle cx="12" cy="13" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v4M9 4l1.5 3M15 4l-1.5 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-molotov" viewBox="0 0 24 24"><path d="M10 9V5h4v4l2 2v8a2 2 0 01-2 2h-4a2 2 0 01-2-2v-8l2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M11 3h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-emp" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
 </defs></svg>
 
 <div id="lobby">
@@ -763,6 +769,7 @@
     <button class="shop-tab" data-tab="player"><svg class="ico"><use href="#i-soldier"></use></svg> <span>Personnage</span></button>
     <button class="shop-tab" data-tab="accessories"><svg class="ico"><use href="#i-helmet"></use></svg> <span>Accessoires</span></button>
     <button class="shop-tab" data-tab="boost"><svg class="ico"><use href="#i-vest"></use></svg> <span>Boost</span></button>
+    <button class="shop-tab" data-tab="consumables"><svg class="ico"><use href="#i-grenade"></use></svg> <span>Consommables</span></button>
   </div>
   <div class="shop-topbar">
     <div class="shop-money2"><svg class="ico"><use href="#i-coin"></use></svg> <span id="shop-money-val">0</span></div>
@@ -2337,7 +2344,7 @@ function disposeCharCarousel(){
   shopCharMixers = [];   // #52 : vider les mixers de vitrine
 }
 function setShopTab(name){
-  shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : (name === 'boost') ? 'boost' : 'weapons';
+  shopTab = (name === 'player') ? 'player' : (name === 'accessories') ? 'accessories' : (name === 'boost') ? 'boost' : (name === 'consumables') ? 'consumables' : 'weapons';
   clearAccessoryPreview();                               // changer d'onglet annule tout aperçu d'accessoire
   if(shopTab !== 'player') disposeCharCarousel();        // libère le carrousel perso en quittant l'onglet
   updateShopTabs(); applyShopVisibility(); updateShopScene(); updateShopCamera();
@@ -2435,6 +2442,14 @@ function renderShop(){
       html += itemCard({ rc:rarityInfo(bo.rarity).color, icon:boostIcon(bo.slot), name:bo.name, rarity:bo.rarity, sub:statTxt, foot, on:eq, owned });
     }
     html += `</div>`;
+  } else if(shopTab === 'consumables'){   // onglet Consommables (#155) : achat a l'unite, stock persistant (pas de "possede/equipe")
+    html += `<div class="shop-wname">Consommables</div><div class="shop-grid">`;
+    for(const c of CONSUMABLES){
+      const owned = save.consumables[c.key] || 0;
+      const foot = `<button class="icbtn buy" data-buycons="${c.key}"${save.money >= c.price ? '' : ' disabled'}>${ico('coin')}${c.price}</button>`;
+      html += itemCard({ rc:rarityInfo('commun').color, icon:c.icon, name:c.name, rarity:'commun', sub:`Possédé : ${owned}`, foot });
+    }
+    html += `</div>`;
   } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
     const slot = shopAccSlot;
     html += `<div class="shop-wname">Accessoires</div>`;
@@ -2467,7 +2482,7 @@ function renderShop(){
       html += `</div>`;
     }
   }
-  info.classList.toggle('grid', shopTab === 'accessories' || shopTab === 'boost');   // C-3 : panneau docké à gauche (accessoires/boost), perso 3D visible à droite
+  info.classList.toggle('grid', shopTab === 'accessories' || shopTab === 'boost' || shopTab === 'consumables');   // C-3 : panneau docké à gauche (accessoires/boost/consommables), perso 3D visible à droite
   info.innerHTML = html;
   info.querySelectorAll('[data-wcat]').forEach(b => b.onclick = () => {
     shopWeaponCategory = b.dataset.wcat;   // #49 : reset index à 0 dans la nouvelle catégorie
@@ -2484,6 +2499,7 @@ function renderShop(){
   info.querySelectorAll('[data-buyacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(buyAccessory(b.dataset.buyacc)) renderShop(); });
   info.querySelectorAll('[data-selacc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(selectAccessory(shopAccSlot, b.dataset.selacc)){ shopAccPreview[shopAccSlot] = null; renderShop(); } });
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
+  info.querySelectorAll('[data-buycons]').forEach(b => b.onclick = () => { if(buyConsumable(b.dataset.buycons)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
   info.querySelectorAll('[data-unequiprun]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(unequipBoostRun(b.dataset.unequiprun)) renderShop(); });   // #53 désactiver pour la partie
   info.querySelectorAll('[data-requiprun]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(requipBoostRun(b.dataset.requiprun)) renderShop(); });        // #53 réactiver pour la partie
