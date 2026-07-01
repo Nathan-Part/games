@@ -5119,3 +5119,48 @@ test('#140 vip : tuer un VIP rapporte 2x argent par rapport a un kill normal', a
   const vipGain = await page.evaluate(() => __game.debug.runMoney()) - before2;
   expect(vipGain).toBe(normalGain * 2);
 });
+
+// ====== #141 — Ennemi toxique (nuage de poison a la mort) ======
+test('#141 toxic : enemyIsToxic detecte le type', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'toxic', 5, 0));
+  expect(await page.evaluate(() => __game.debug.enemyIsToxic(0))).toBe(true);
+});
+
+test('#141 toxic : sa mort cree une zone de poison active', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'toxic', 5, 0));
+  expect(await page.evaluate(() => __game.debug.poisonZoneActive())).toBe(false);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.poisonZoneActive())).toBe(true);
+});
+
+test('#141 toxic : la zone inflige des degats periodiques au joueur dedans', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.setPos(2, 0));
+  await page.evaluate(() => __game.debug.spawnPoisonZoneAt(2, 0));
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.waitForTimeout(700);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBeLessThan(hpBefore);
+});
+
+test('#141 toxic : aucun degat si le joueur est hors de la zone', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.setPos(40, 40));
+  await page.evaluate(() => __game.debug.spawnPoisonZoneAt(0, 0));
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.waitForTimeout(700);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+});
+
+test('#141 toxic : waveComposition alterne toxic/bomber au slot commun des la vague 6', async ({ page }) => {
+  await startPlaying(page);
+  const comp6 = await page.evaluate(() => __game.debug.waveComposition(6));
+  const comp7 = await page.evaluate(() => __game.debug.waveComposition(7));
+  expect(comp6).toContain('toxic');
+  expect(comp7).not.toContain('toxic');
+});

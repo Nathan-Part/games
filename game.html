@@ -2585,6 +2585,27 @@ G.debug.fireZoneActive = () => fireZones.length > 0;
 G.debug.enemyInFire = (i) => { const e = enemies[i]; if(!e) return false;
   return fireZones.some(fz => Math.hypot(e.root.position.x-fz.x, e.root.position.z-fz.z) <= MOLOTOV_R); };
 G.debug.igniteFireZoneAt = (x,z) => igniteFireZone(x,z);
+// ====== #141 Ennemi toxique : nuage de poison au sol à sa mort (dégâts joueur) ======
+const POISON_R = 3, POISON_DUR = 4, POISON_TICK = 0.5, POISON_TICK_DMG = 8;
+const poisonZones = [];
+function spawnPoisonZone(x, z){
+  const geo = new THREE.CircleGeometry(POISON_R, 24);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0x33cc33, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
+  mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
+  poisonZones.push({ mesh, x, z, expireAt: nowS() + POISON_DUR, lastTick: nowS() });
+}
+function updatePoisonZones(dt){ const t = nowS();
+  for(let i=poisonZones.length-1;i>=0;i--){ const pz = poisonZones[i];
+    if(t >= pz.expireAt){ scene.remove(pz.mesh); poisonZones.splice(i,1); continue; }
+    if(model && t - pz.lastTick >= POISON_TICK){ pz.lastTick = t;
+      if(Math.hypot(model.position.x-pz.x, model.position.z-pz.z) <= POISON_R) damagePlayer(POISON_TICK_DMG); } }
+}
+function clearPoisonZones(){ for(const pz of poisonZones) scene.remove(pz.mesh); poisonZones.length = 0; }
+G.debug.enemyIsToxic = (i) => { const e = enemies[i]; return !!e && e.type==='toxic'; };
+G.debug.poisonZoneActive = () => poisonZones.length > 0;
+G.debug.playerInPoisonZone = () => { if(!model) return false;
+  return poisonZones.some(pz => Math.hypot(model.position.x-pz.x, model.position.z-pz.z) <= POISON_R); };
+G.debug.spawnPoisonZoneAt = (x,z) => spawnPoisonZone(x,z);
 // ====== #136 Grenade EMP (désactive le tir ennemi à distance) ======
 const EMP_R = 6, EMP_DURATION = 4, EMP_STOCK_MAX = 1, EMP_GRAV = 9.81;
 let empStockCount = EMP_STOCK_MAX;
@@ -4271,6 +4292,7 @@ const ENEMY_TYPES = {
   stunner:   { id:'stunner',  hpMult:0.9, speedMult:1.1,  scale:1.0,  melee:false, damageMult:0.7, burst:2, glow:0xffdd00 },         // #121 éclaire/ralentit le joueur
   grenadier: { id:'grenadier',hpMult:1.2, speedMult:0.7,  scale:1.05, melee:false, damageMult:0.8, burst:1, glow:0xaaff00 },         // #128 lance des grenades
   juggernaut:{ id:'juggernaut',hpMult:5.0, speedMult:0.45, scale:1.5, melee:true,  damageMult:2.2, burst:1, glow:0x888899 },         // #131 élite blindé, armure intégrale, vague 10+
+  toxic:     { id:'toxic',    hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.9, burst:2, glow:0x33cc33 },         // #141 nuage de poison à la mort
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
 // arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
@@ -4293,6 +4315,7 @@ function waveComposition(w){
     else if(w>=5 && i%7===6) out.push('sniper');                                // sniper v5-7 (#111)
     else if(w>=6 && i%5===4) out.push('berserker');                             // berserker dès la v6 (#104)
     else if(w>=4 && w<6 && i%5===4) out.push('shielder');                      // shielder v4-5 (slot %5===4 avant berserker) (#119)
+    else if(w>=6 && i%3===2) out.push(w%2===0 ? 'toxic' : 'bomber');           // v6+ : alternance toxique (pair) / kamikaze (impair) (#141/#37)
     else if(w>=4 && i%3===2) out.push('bomber');                                // kamikaze dès la v4 (#37)
     else if(w>=6 && i%6===1) out.push('medic');                                 // medic dès la v6, i=1 (#120)
     else if(w>=2 && i%2===1) out.push('rusher');
@@ -4561,7 +4584,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -4923,6 +4946,7 @@ G.debug.challengeIds      = () => sessionChallenges.map(c => c.def.id);
 G.debug.forceCompleteChallenge = (i) => { const c = sessionChallenges[i]; if(c && !c.done) completeChallenge(c); updateChallengesHud(); };
 function killEnemy(e){
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
+  if(e.type === 'toxic') spawnPoisonZone(e.root.position.x, e.root.position.z);   // nuage de poison à la mort (#141)
   const prevAction = e.actions[e.loco];                        // action de locomotion en cours (avant bascule en 'dead')
   e.alive = false; e.state = 'dead'; e.loco = 'dead';
   e.frozenPose = null;
@@ -5493,7 +5517,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)
