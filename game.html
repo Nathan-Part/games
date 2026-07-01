@@ -219,7 +219,8 @@
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #wave-hud b{color:var(--accent)}
   #enemy-count-hud{position:fixed;right:16px;bottom:80px;z-index:10;background:rgba(180,20,20,0.82);
-    padding:6px 14px;font-family:var(--font-display);font-size:var(--t-lg);font-weight:700;color:#fff;letter-spacing:.06em;
+    padding:6px 16px;font-family:var(--font-display);font-size:var(--t-sm);font-weight:700;color:#fff;letter-spacing:.05em;
+    white-space:nowrap;text-transform:uppercase;
     clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);}
   #enemy-count-hud.hidden{display:none}
   #money-hud{position:fixed;left:16px;top:14px;z-index:10;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line);
@@ -274,8 +275,11 @@
     opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;--ch:8px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #challenge-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #stamina-hud{position:fixed;left:16px;bottom:104px;width:240px;height:6px;z-index:10;
-    background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);overflow:hidden;--ch:3px;
+  #stamina-hud{position:fixed;left:16px;bottom:104px;width:240px;z-index:10}
+  #stamina-label{display:flex;align-items:center;gap:5px;font-family:var(--font-display);font-size:var(--t-xs);
+    text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--accent);margin-bottom:3px}
+  #stamina-label .ico{width:13px;height:13px}
+  #stamina-track{height:6px;background:var(--bg-700);box-shadow:inset 0 0 0 1px var(--line-2);overflow:hidden;--ch:3px;
     clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   #stamina-fill{height:100%;width:100%;background:var(--accent);transition:width .08s,background .2s}
   #stamina-fill.low{background:#ff6b35}
@@ -333,7 +337,12 @@
   #levelup-toast.lu-show{animation:luPop 3s forwards}
   @keyframes luPop{0%{opacity:0;transform:translateX(-50%) scale(.8)}8%{opacity:1;transform:translateX(-50%) scale(1.05)}
     80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
-  #shield-bar{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:11;width:220px;height:5px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden}
+  #shield-bar{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:11;width:220px}
+  #shield-label{display:flex;align-items:center;gap:5px;font-family:var(--font-display);font-size:var(--t-xs);
+    text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#90caf9;margin-bottom:3px;
+    text-shadow:0 0 8px rgba(30,136,229,.5)}
+  #shield-label .ico{width:13px;height:13px}
+  #shield-track{height:5px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden}
   #shield-fill{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9);border-radius:3px;transition:width .15s}
   #enemy-hp-bars{position:fixed;inset:0;pointer-events:none;z-index:12;overflow:hidden}
   .ehb{position:absolute;transform:translate(-50%,-100%);width:44px}
@@ -445,6 +454,23 @@
   .set-toggle:hover{box-shadow:inset 0 0 0 1px var(--accent)}
   .set-toggle:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
   .settings-card .panel-back{margin-top:14px}
+  .howto-card{max-width:640px;max-height:82vh;overflow-y:auto;text-align:left}
+  .howto-card::-webkit-scrollbar{width:8px}
+  .howto-card::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
+  .howto-card .eyebrow{margin-bottom:4px;display:block}
+  .howto-card h2{margin-bottom:16px}
+  .howto-sec{margin:18px 0}
+  .howto-sec:first-of-type{margin-top:2px}
+  .howto-h{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+    font-size:var(--t-sm);color:var(--accent);margin-bottom:8px;padding-bottom:5px;box-shadow:inset 0 -1px 0 var(--line)}
+  .howto-sec p{color:var(--text-2);line-height:1.6;font-size:var(--t-sm);margin:0 0 6px}
+  .howto-sec ul{margin:0;padding-left:18px;color:var(--text-2);font-size:var(--t-sm);line-height:1.75}
+  .howto-sec ul li b{color:var(--text);font-weight:700}
+  .howto-keys{display:grid;grid-template-columns:1fr 1fr;gap:5px 20px;font-size:var(--t-sm)}
+  .howto-keys div{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--text-2)}
+  .howto-keys kbd{font-family:var(--font-display);font-weight:700;color:var(--text);background:var(--bg-600);
+    box-shadow:inset 0 0 0 1px var(--line-2);padding:2px 8px;border-radius:3px;font-size:.82em;white-space:nowrap;letter-spacing:.02em}
+  .howto-card .panel-back{margin-top:18px}
   /* ====== Boutique « ARMURERIE » (refonte) ====== */
   #shop-panel{position:fixed;inset:0;z-index:45;background:transparent}   /* transparent : laisse voir la vitrine 3D (arme/perso) rendue sur le canvas */
   .shop-bg{position:absolute;inset:0;pointer-events:none;
@@ -581,6 +607,9 @@
   <symbol id="i-mouse" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="i-audio" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M17 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 5-3 8.3-7 9.5-4-1.2-7-4.5-7-9.5V6l7-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-sprint" viewBox="0 0 24 24"><circle cx="15" cy="4.5" r="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 21l2.5-5-2-2 .5-4 3 2.5 2 3.5 3 1.5M11.5 14l-4-1-2 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.2 9.5a2.8 2.8 0 015.4.9c0 1.8-2.6 2-2.6 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1" fill="currentColor"/></symbol>
 </defs></svg>
 
 <div id="lobby">
@@ -629,6 +658,7 @@
     <div class="deploy-side">
       <button id="btn-shop" class="btn btn--ghost"><svg class="ico"><use href="#i-weapon"></use></svg> Armurerie</button>
       <button id="btn-settings" class="btn btn--ghost"><svg class="ico"><use href="#i-gear"></use></svg> Réglages</button>
+      <button id="btn-howto" class="btn btn--ghost"><svg class="ico"><use href="#i-help"></use></svg> Comment jouer</button>
     </div>
     <button id="play-btn" class="btn btn--primary deploy-btn"><svg class="ico"><use href="#i-play"></use></svg>
       <span class="deploy-lbl">Déployer<small>// Survie — vagues infinies</small></span></button>
@@ -663,7 +693,7 @@
 <canvas id="radar" width="150" height="150" class="hidden"></canvas>
 <div id="kill-callout"></div>
 <div id="kill-feed"></div>
-<div id="stamina-hud" class="hidden"><div id="stamina-fill"></div></div>
+<div id="stamina-hud" class="hidden"><div id="stamina-label"><svg class="ico"><use href="#i-sprint"></use></svg> Sprint</div><div id="stamina-track"><div id="stamina-fill"></div></div></div>
 <div id="hud-ammo-flash"></div>
 <div id="precision-hud"></div>
 <div id="longshot-hud"></div>
@@ -679,7 +709,7 @@
 <div id="streak-hud" class="hidden"></div>
 <div id="reload-bar" class="hidden"><svg viewBox="0 0 36 36" width="48" height="48"><circle cx="18" cy="18" r="16"/></svg></div>
 <div id="levelup-toast"></div>
-<div id="shield-bar" class="hidden"><div id="shield-fill"></div></div>
+<div id="shield-bar" class="hidden"><div id="shield-label"><svg class="ico"><use href="#i-shield"></use></svg> Bouclier</div><div id="shield-track"><div id="shield-fill"></div></div></div>
 <div id="enemy-hp-bars"></div>
 <div id="mine-hud" class="hidden">💣mines <b>2</b></div>
 <div id="firemode-hud" class="hidden">AUTO</div>
@@ -746,6 +776,77 @@
   <div class="set-row"><label for="set-rain"><svg class="ico"><use href="#i-gauge"></use></svg> Pluie <span style="opacity:.6;font-size:.78em">(ambiance orageuse)</span></label>
     <button id="set-rain" class="set-toggle"></button></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
+</div></div>
+
+<div id="howto-panel" class="panel hidden"><div class="panel-card howto-card">
+  <div class="eyebrow">// Manuel de campagne</div>
+  <h2>Comment jouer</h2>
+
+  <div class="howto-sec">
+    <div class="howto-h">Objectif</div>
+    <p>Survivez à des vagues d'ennemis infinies et de plus en plus difficiles. Chaque kill et chaque vague nettoyée rapporte de l'argent et de l'XP, réinvestis pour tenir plus longtemps et battre votre record de vague.</p>
+  </div>
+
+  <div class="howto-sec">
+    <div class="howto-h">Contrôles</div>
+    <div class="howto-keys">
+      <div><span>Bouger</span><kbd>ZQSD / flèches</kbd></div>
+      <div><span>Courir</span><kbd>R / Shift</kbd></div>
+      <div><span>Sauter · double-saut</span><kbd>Espace ×1 / ×2</kbd></div>
+      <div><span>Dash</span><kbd>C</kbd></div>
+      <div><span>Tirer</span><kbd>E / clic gauche</kbd></div>
+      <div><span>Viser (ADS)</span><kbd>A / clic droit</kbd></div>
+      <div><span>Recharger</span><kbd>F</kbd></div>
+      <div><span>Couteau</span><kbd>X</kbd></div>
+      <div><span>Auto / rafale</span><kbd>T</kbd></div>
+      <div><span>Semi-auto</span><kbd>P</kbd></div>
+      <div><span>Grenade (viser l'arc)</span><kbd>B (maintenir)</kbd></div>
+      <div><span>Flashbang</span><kbd>N</kbd></div>
+      <div><span>Fumigène</span><kbd>H</kbd></div>
+      <div><span>Grenade collante</span><kbd>J</kbd></div>
+      <div><span>Claymore</span><kbd>Y</kbd></div>
+      <div><span>Molotov</span><kbd>K</kbd></div>
+      <div><span>Grenade EMP</span><kbd>O</kbd></div>
+      <div><span>Tourelle sentinelle</span><kbd>L</kbd></div>
+      <div><span>Ramasser arme</span><kbd>G</kbd></div>
+      <div><span>Danses</span><kbd>1 / 2 / 3</kbd></div>
+      <div><span>Vue 1re/3e personne</span><kbd>V</kbd></div>
+      <div><span>Son</span><kbd>M</kbd></div>
+      <div><span>Pause</span><kbd>Échap</kbd></div>
+    </div>
+  </div>
+
+  <div class="howto-sec">
+    <div class="howto-h">Combat</div>
+    <ul>
+      <li>Visez avec <b>A</b> / clic droit pour plus de précision ; rester <b>immobile en visée</b> déclenche un bonus <b>PRECISION</b> (+30% dégâts).</li>
+      <li>Les dégâts dépendent de la zone touchée : <b>tête</b> = critique, <b>torse</b> = normal, <b>jambes</b> = réduit.</li>
+      <li>Le corps-à-corps (couteau, <b>X</b>) frappe à courte portée devant vous, dégâts élevés et sans munitions.</li>
+      <li>Rechargez avant que le chargeur soit vide (<b>F</b>) pour gagner une munition bonus (rechargement tactique).</li>
+    </ul>
+  </div>
+
+  <div class="howto-sec">
+    <div class="howto-h">Ennemis</div>
+    <p>Plusieurs types apparaissent selon la vague : tireur, fonceur au corps-à-corps, tank blindé, sniper à distance, et un boss toutes les 5 vagues. Des types spéciaux ajoutent des effets (bouclier frontal, soin d'allié, ralentissement, poison, gel, buff d'équipe...). La couleur de leur lueur aide à les identifier au premier coup d'œil — observez-la avant d'engager.</p>
+  </div>
+
+  <div class="howto-sec">
+    <div class="howto-h">Économie</div>
+    <p>L'argent gagné par kill et par vague se dépense à l'<b>Armurerie</b> : armes, personnages, accessoires et boosts d'équipement, tous améliorant vos statistiques (dégâts, cadence, vie, vitesse, régénération...).</p>
+  </div>
+
+  <div class="howto-sec">
+    <div class="howto-h">Progression</div>
+    <p>Chaque kill donne de l'XP et fait progresser votre niveau (avec titre associé). Complétez les <b>contrats quotidiens</b> et débloquez des <b>succès</b> pour des récompenses supplémentaires. Votre meilleure vague atteinte reste affichée comme record.</p>
+  </div>
+
+  <div class="howto-sec">
+    <div class="howto-h">Survie</div>
+    <p>Vos PV se régénèrent après un court délai sans dégât. Un <b>bouclier</b> rechargeable absorbe les coups avant vos PV. Le <b>mode hardcore</b> (Réglages) désactive régénération et soins pour un défi plus punitif.</p>
+  </div>
+
+  <button class="panel-back" data-panel="howto-panel">◀ Retour</button>
 </div></div>
 
 <script type="importmap">
@@ -1474,6 +1575,7 @@ document.getElementById('shop-prev').onclick = () => shopNav(-1);
 document.getElementById('shop-next').onclick = () => shopNav(1);
 for(const t of document.querySelectorAll('.shop-tab')) t.onclick = () => setShopTab(t.dataset.tab);
 document.getElementById('btn-settings').onclick = () => openSettings();
+document.getElementById('btn-howto').onclick = () => openPanel('howto-panel');
 for(const b of document.querySelectorAll('.panel-back')) b.onclick = () => closePanel(b.dataset.panel);
 // ====== Panneau Réglages (#18) : remplit les contrôles depuis la save, applique + persiste à chaque changement ======
 function renderSettings(){
@@ -1728,9 +1830,10 @@ function updateController(dt){
 function showHud(){
   const h = document.getElementById('hud'); h.classList.remove('hidden');
   h.innerHTML = `<b>${G.character?.label||''}</b>`
-    + `<br>ZQSD / flèches : bouger · R/Shift : courir · Espace : sauter · C : dash`
+    + `<br>ZQSD / flèches : bouger · R/Shift : courir · Espace : sauter (2× = double-saut) · C : dash`
     + `<br>E ou clic G : tirer · A ou clic D : viser · F : recharger · X : couteau · T : auto/rafale · P : semi-auto`
-    + `<br>B (maintenir) : grenade · N : flashbang · H : fumigène · J : collante · Y : claymore · G : ramasser arme`
+    + `<br>B (maintenir) : grenade · N : flashbang · H : fumigène · J : collante · Y : claymore`
+    + `<br>K : molotov · O : grenade EMP · L : tourelle sentinelle · G : ramasser arme`
     + `<br>1/2/3 : danses · Souris : caméra · V : vue 1re/3e · M : son · Échap : pause`;
 }
 function showOverlay(msg){
@@ -5163,7 +5266,7 @@ function updateEnemyCountHud(){
   const el = document.getElementById('enemy-count-hud'); if(!el) return;
   const alive = enemies.filter(e => e.alive).length;
   if(G.phase !== 'playing' || waveState === 'cleared' || alive === 0){ el.classList.add('hidden'); return; }
-  el.classList.remove('hidden'); el.textContent = '✕ ' + alive;
+  el.classList.remove('hidden'); el.textContent = '✕ ' + alive + (alive > 1 ? ' Ennemis' : ' Ennemi');
 }
 G.debug.hudEnemyCountVisible = () => { const el=document.getElementById('enemy-count-hud'); return el ? !el.classList.contains('hidden') : false; };
 function updateWaveHud(){
