@@ -3883,7 +3883,8 @@ function updateCombat(dt){
   if(autoReloadEnabled_ && autoReloadAt_ > 0 && nowS() >= autoReloadAt_ && !reloading && ammo === 0){ autoReloadAt_ = -1; reload(); }
   updateReloadBar();
   const fireRising = input.fire && !firePrev; firePrev = input.fire;
-  if(isSemiAuto() ? fireRising : input.fire) tryFire(); // semi-auto : rising edge seulement (#78)
+  const forceAuto = activePower === 'full_auto';   // #154 : neutralise le semi-auto tant que le power est actif
+  if(forceAuto ? input.fire : (isSemiAuto() ? fireRising : input.fire)) tryFire(); // semi-auto : rising edge seulement (#78)
   const t = nowS();
   for(const tg of targets){ if(!tg.alive && t >= tg.respawnAt){ tg.alive = true; tg.mesh.visible = true; } }
   updateTracers(dt); updateDamageNumbers(); updateKnifeFlash(dt);   // #50
@@ -4255,7 +4256,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s)
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s)
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -4322,6 +4323,9 @@ G.debug.spawnLuckyShot = (x,z) => spawnPowerUp('lucky_shot', x, z);
 G.debug.luckyShotCount = () => luckyShotCount_;
 G.debug.lastLuckyShot = () => lastLuckyShot_;
 G.debug.forceLuckyShot = (b) => { luckyForce_ = !!b; };
+G.debug.fullAutoActive = () => activePower === 'full_auto';                      // #154
+G.debug.fullAutoTimeLeft = () => activePower === 'full_auto' ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.spawnFullAuto = (x,z) => spawnPowerUp('full_auto', x, z);
 G.debug.spawnSpeedBoost = (x,z) => spawnPowerUp('speed_boost', x, z);
 G.debug.playerMoveSpeed = () => lastMoveSpeed_;                                 // #127 vitesse effective (inclut le boost)
 

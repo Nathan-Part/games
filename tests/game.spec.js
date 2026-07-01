@@ -5618,3 +5618,36 @@ test('#153 lucky shot : luckyShotCount incremente uniquement sur un crit reel', 
   await page.evaluate(() => __game.debug.tryFire());
   expect(await page.evaluate(() => __game.debug.luckyShotCount())).toBe(before + 1);
 });
+
+// ====== #154 — Power-up Full-auto override ======
+test('#154 full auto : spawn puis pickup active le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnFullAuto(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.fullAutoActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.fullAutoTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#154 full auto : maintenir le tir en semi-auto ne tire qu une fois SANS le power', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setSemiAuto(true));
+  const ammoBefore = await page.evaluate(() => __game.ammo);
+  await page.evaluate(() => __game.debug.setInput({fire:true}));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => __game.debug.setInput({}));
+  const ammoAfter = await page.evaluate(() => __game.ammo);
+  expect(ammoBefore - ammoAfter).toBe(1); // 1 seul coup malgre le maintien (semi-auto)
+});
+
+test('#154 full auto : maintenir le tir en semi-auto tire plusieurs fois AVEC le power actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setSemiAuto(true));
+  await page.evaluate(() => { __game.debug.spawnFullAuto(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const ammoBefore = await page.evaluate(() => __game.ammo);
+  await page.evaluate(() => __game.debug.setInput({fire:true}));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => __game.debug.setInput({}));
+  const ammoAfter = await page.evaluate(() => __game.ammo);
+  expect(ammoBefore - ammoAfter).toBeGreaterThan(1); // plusieurs coups malgre le semi-auto (override)
+});
