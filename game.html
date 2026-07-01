@@ -1072,7 +1072,8 @@ function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, bestComb
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
   ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
   settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false, rain:false },
-  lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 } }; }
+  lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 },
+  consumables:{ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 } }; }   // #155 : stock persistant, migration auto via Object.assign(defaultSave(), p)
 function loadSave(){
   try { const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultSave();
     const p = JSON.parse(raw); if(!(p && typeof p === 'object')) return defaultSave();
@@ -4298,6 +4299,41 @@ G.debug.unequipBoostRun = (slot) => unequipBoostRun(slot);          // #53 dés�
 G.debug.requipBoostRun = (slot) => requipBoostRun(slot);            // #53 réactive pour la partie en cours
 G.debug.runBoostOverrides = () => Object.assign({}, runBoostOverrides);
 G.debug.isBoostRunDisabled = (slot) => isBoostRunDisabled(slot);
+// ====== #155 Consommables (achat boutique, stock persistant — plus de refill par vague) ======
+const CONSUMABLES = [
+  { key:'frag',      name:'Grenade frag', icon:'grenade', price:50  },
+  { key:'flashbang', name:'Flashbang',     icon:'flash',   price:60  },
+  { key:'smoke',     name:'Fumigène',      icon:'smoke',   price:50  },
+  { key:'sticky',    name:'Grenade collante', icon:'sticky', price:150 },
+  { key:'molotov',   name:'Molotov',       icon:'molotov', price:120 },
+  { key:'emp',       name:'EMP',           icon:'emp',     price:150 },
+];
+function buyConsumable(key, qty=1){
+  const c = CONSUMABLES.find(c => c.key === key);
+  if(!c || qty <= 0) return false;
+  const cost = c.price * qty;
+  if(save.money < cost) return false;
+  save.money -= cost; G.money = save.money;
+  save.consumables[key] = (save.consumables[key] || 0) + qty;
+  persist(); updateMoneyHud();
+  return true;
+}
+G.debug.consumables = () => Object.assign({}, save.consumables);
+G.debug.shop.consumablesCatalog = () => CONSUMABLES.map(c => ({ key:c.key, name:c.name, price:c.price }));
+G.debug.shop.buyConsumable = (key, qty) => buyConsumable(key, qty);
+G.debug.setConsumableStock = (key, n) => {
+  if(!(key in save.consumables)) return false;
+  save.consumables[key] = n; persist();
+  if(G.phase === 'playing'){
+    if(key === 'frag') grenades = n;
+    else if(key === 'flashbang') flashbangs = n;
+    else if(key === 'smoke') smokeStock = n;
+    else if(key === 'sticky') stickyStockCount = n;
+    else if(key === 'molotov') molotovStockCount = n;
+    else if(key === 'emp') empStockCount = n;
+  }
+  return true;
+};
 G.debug.shop.charCatalog = () => CHARACTERS.map(c => ({ id:c.id, name:c.name, price:c.price, base:c.base, rarity:c.rarity }));
 G.debug.shop.buyCharacter = (id) => buyCharacter(id);
 G.debug.shop.selectCharacter = async (id) => { const ok = selectCharacter(id); if(ok) await showSelectedCharacter(); return ok; };   // reflète le bouton Équiper : sélection + reconstruction du modèle

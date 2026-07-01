@@ -1357,6 +1357,42 @@ test('boost : refus si non possede ou sans argent', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.shop.buyBoost('boost:vest1'))).toBe(false);
 });
 
+test('consommables : nouveau save a le stock de depart (#155)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const c = await page.evaluate(() => __game.debug.consumables());
+  expect(c).toEqual({ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 });
+});
+
+test('consommables : acheter debite l argent et incremente le stock sauvegarde', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  expect(await page.evaluate(() => __game.debug.shop.buyConsumable('frag'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.consumables().frag)).toBe(13);
+  expect(await page.evaluate(() => __game.money)).toBe(950);
+});
+
+test('consommables : achat refuse si argent insuffisant (aucun debit)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(10); });
+  expect(await page.evaluate(() => __game.debug.shop.buyConsumable('emp'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.consumables().emp)).toBe(3);
+  expect(await page.evaluate(() => __game.money)).toBe(10);
+});
+
+test('consommables : achat sans plafond (stock accumulable)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(10000); });
+  for(let i=0;i<20;i++) await page.evaluate(() => __game.debug.shop.buyConsumable('frag'));
+  expect(await page.evaluate(() => __game.debug.consumables().frag)).toBe(32);   // 12 + 20
+});
+
+test('consommables : cle inconnue refusee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  expect(await page.evaluate(() => __game.debug.shop.buyConsumable('inexistant'))).toBe(false);
+});
+
 test('boost : sans boost = stats de base (compat #15)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.save.reset());
