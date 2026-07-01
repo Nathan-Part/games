@@ -5352,3 +5352,60 @@ test('#147 regen boost : la regeneration est plus rapide avec le power actif', a
   const hpBoosted = await page.evaluate(() => __game.debug.playerHealth());
   expect(hpBoosted).toBeGreaterThan(hpNormal);
 });
+
+// ====== #148 — Soin d'execution (melee sur ennemi PV bas) ======
+async function faceEnemyForMelee(page){
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.moveEnemy(0,0,2); __game.debug.setPaused(true);
+  });
+}
+
+test('#148 execution : melee qui tue un ennemi deja sous 20% PV soigne le joueur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(60)); // laisse de la marge pour observer le heal
+  await faceEnemyForMelee(page);
+  await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, hp - 10); }); // ennemi a 10 PV (< 20% de 100)
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(true);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBeGreaterThan(hpBefore);
+  expect(await page.evaluate(() => __game.debug.lastExecutionHeal())).toBe(true);
+});
+
+test('#148 execution : melee qui tue un ennemi a PV pleins ne soigne pas', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  await page.evaluate(() => __game.debug.damagePlayer(60));
+  await faceEnemyForMelee(page); // ennemi a 100 PV (couteau = 150 dmg, tue en un coup)
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  expect(await page.evaluate(() => __game.debug.playerMelee())).toBe(true);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+  expect(await page.evaluate(() => __game.debug.lastExecutionHeal())).toBe(false);
+});
+
+test('#148 execution : melee sur ennemi PV bas qui ne tue PAS ne soigne pas', async ({ page }) => {
+  await startPlaying(page);
+  // gros ennemi (tank, vague elevee) : PV bas en fraction mais assez eleve en absolu pour survivre au couteau (150 dmg)
+  await page.evaluate(() => __game.debug.forceWave(20));
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'tank', 2, 0));
+  await faceEnemyForMelee(page);
+  await page.evaluate(() => { const maxHp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, Math.round(maxHp*0.85)); }); // -> ~15% PV, encore tres superieur a 150
+  const before = await page.evaluate(() => __game.debug.executionHealCount());
+  await page.evaluate(() => __game.debug.playerMelee());
+  const after = await page.evaluate(() => __game.debug.executionHealCount());
+  expect(after).toBe(before);
+});
+
+test('#148 execution : executionHealCount incremente a chaque execution', async ({ page }) => {
+  await startPlaying(page);
+  await faceEnemyForMelee(page);
+  await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, hp - 10); });
+  const before = await page.evaluate(() => __game.debug.executionHealCount());
+  await page.evaluate(() => __game.debug.playerMelee());
+  const after = await page.evaluate(() => __game.debug.executionHealCount());
+  expect(after).toBe(before + 1);
+});

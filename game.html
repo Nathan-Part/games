@@ -2232,7 +2232,7 @@ let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 // stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
 let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; }   // #139
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; }   // #139 #148
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
@@ -2370,6 +2370,8 @@ function playMeleeAnim(){
     const cur = actions[curLoco]; if(cur) cur.reset().fadeIn(0.15).play();
   } catch(e){} }, (Math.min(dur, 0.5)) * 1000);
 }
+const EXECUTION_HP_FRAC = 0.2, EXECUTION_HEAL = 5;
+let executionHealCount_ = 0, lastExecutionHeal_ = false;
 function _meleeStrike(reach, damage, cd){
   if(G.phase !== 'playing' || playerMeleeCd > 0) return false;
   playerMeleeCd = cd;
@@ -2382,9 +2384,17 @@ function _meleeStrike(reach, damage, cd){
     const d = Math.hypot(dx, dz); if(d > reach) continue;
     const dot = (dx*dir.x + dz*dir.z) / (d||1); if(dot < 0.2) continue;
     if(d < bestD){ best = e; bestD = d; } }
-  if(best){ best.lastHitMelee = true; damageEnemy(best, damage); best.lastHitMelee = false; flashHitMarker(); return true; }
+  if(best){
+    const wasLowHp = best.hp <= best.maxHp * EXECUTION_HP_FRAC;   // #148 : évalué AVANT le coup
+    best.lastHitMelee = true; damageEnemy(best, damage); best.lastHitMelee = false; flashHitMarker();
+    lastExecutionHeal_ = wasLowHp && !best.alive;
+    if(lastExecutionHeal_){ executionHealCount_++; health = Math.min(maxHealth, health + EXECUTION_HEAL); G.health = health; updateHealthHud(); showCallout('EXÉCUTION!'); }
+    return true;
+  }
   return false;
 }
+G.debug.executionHealCount = () => executionHealCount_;
+G.debug.lastExecutionHeal = () => lastExecutionHeal_;
 // #50 : flash visuel couteau sur la caméra pendant 300ms
 let knifeFlashObj = null, knifeFlashTimer = 0;
 function showKnifeFlash(){
