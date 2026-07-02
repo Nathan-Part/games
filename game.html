@@ -2628,6 +2628,9 @@ const ACHIEVEMENTS = [
   { id:'headhunter',  name:'Chasseur de têtes',  desc:'5 headshots en une partie' },
   { id:'survivor5',   name:'Survivant',          desc:'Atteindre la vague 5' },
   { id:'combomaster', name:'Combo Master',       desc:'Atteindre un combo ×5' },
+  { id:'wave10',      name:'Vétéran',            desc:'Atteindre la vague 10' },        // #169
+  { id:'richesse',    name:'Fortune de guerre',  desc:'Posséder 5000$' },               // #169
+  { id:'legende',     name:'Légende',            desc:'Atteindre le niveau 50' },       // #169
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2641,6 +2644,9 @@ function checkAchievements(comboMult){
   if(runHeadshots >= 5) unlockAchievement('headhunter');
   if(wave >= 5) unlockAchievement('survivor5');
   if((comboMult || 0) >= 5) unlockAchievement('combomaster');
+  if(wave >= 10) unlockAchievement('wave10');                 // #169
+  if(save.money >= 5000) unlockAchievement('richesse');       // #169
+  if(playerLevel() >= 50) unlockAchievement('legende');       // #169
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');

@@ -6516,3 +6516,36 @@ test('#168 : un kill a distance sur un ennemi en patrol ne declenche pas le bonu
   expect(await page.evaluate(() => __game.debug.lastStealthKill())).toBe(false);
   expect(await page.evaluate(() => __game.debug.stealthKillCount())).toBe(0);
 });
+
+// ====== #169 — Nouveaux succes ======
+test('#169 : achievements() inclut les 3 nouveaux ids', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('wave10');
+  expect(ids).toContain('richesse');
+  expect(ids).toContain('legende');
+});
+
+test('#169 : atteindre la vague 10 debloque wave10', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('wave10'))).toBe(false);
+  await page.evaluate(() => __game.debug.forceWave(10));
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('wave10'))).toBe(true);
+});
+
+test('#169 : posseder 5000$ debloque richesse', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('richesse'))).toBe(false);
+  await page.evaluate(() => { __game.debug.save.addMoney(5000); __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('richesse'))).toBe(true);
+});
+
+test('#169 : atteindre le niveau 50 debloque legende', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('legende'))).toBe(false);
+  await page.evaluate(() => { __game.debug.addXp(1000000); __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('legende'))).toBe(true);
+});
