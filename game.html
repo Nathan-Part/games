@@ -2648,6 +2648,8 @@ const ACHIEVEMENTS = [
   { id:'legende',     name:'Légende',            desc:'Atteindre le niveau 50' },       // #169
   { id:'collectionneur', name:'Collectionneur',  desc:'Posséder 10 armes' },            // #175
   { id:'perfectionniste', name:'Perfectionniste', desc:'5 vagues parfaites cumulées' }, // #177
+  { id:'millionnaire', name:'Millionnaire',      desc:'Posséder 10 000$' },            // #180
+  { id:'increvable',   name:'Increvable',        desc:'Atteindre la vague 20' },       // #180
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2666,6 +2668,8 @@ function checkAchievements(comboMult){
   if(playerLevel() >= 50) unlockAchievement('legende');       // #169
   if(save.ownedWeapons.length >= 10) unlockAchievement('collectionneur');   // #175
   if(lifetimeStats().perfectWaves >= 5) unlockAchievement('perfectionniste');   // #177
+  if(save.money >= 10000) unlockAchievement('millionnaire');   // #180
+  if(wave >= 20) unlockAchievement('increvable');               // #180
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');

@@ -6839,3 +6839,27 @@ test('#179 : un ennemi a portee intermediaire n apparait inRange qu avec le powe
   const after = (await page.evaluate(() => __game.debug.radar.blips())).find(b => b.id === 0);
   expect(after.inRange).toBe(true);
 });
+
+// ====== #180 — Succes Millionnaire + Increvable ======
+test('#180 : achievements() inclut millionnaire et increvable', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('millionnaire');
+  expect(ids).toContain('increvable');
+});
+
+test('#180 : posseder 10000$ debloque millionnaire', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('millionnaire'))).toBe(false);
+  await page.evaluate(() => { __game.debug.save.addMoney(10000); __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('millionnaire'))).toBe(true);
+});
+
+test('#180 : atteindre la vague 20 debloque increvable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('increvable'))).toBe(false);
+  await page.evaluate(() => __game.debug.forceWave(20));
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('increvable'))).toBe(true);
+});
