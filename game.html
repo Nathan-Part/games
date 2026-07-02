@@ -2664,6 +2664,7 @@ const ACHIEVEMENTS = [
   { id:'cible_mouvante',name:'Cible mouvante',   desc:'50m parcourus en une partie' },             // #191
   { id:'intraitable',   name:'Intraitable',      desc:'3 kills clutch (une partie)' },             // #191
   { id:'ingenieur',     name:'Ingénieur',        desc:'10 barils en réaction en chaîne' },          // #193
+  { id:'miracule',      name:'Miraculé',         desc:'Nettoyer une vague à 1 PV' },                // #194
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -5889,6 +5890,7 @@ function checkWaveCleared(){
   if(waveDashCount_ === 0){ noDashClearCount_++; addMoney(NO_DASH_BONUS); showCallout('SANG-FROID!'); }   // #182
   if(waveShots_ >= 5 && waveHits_ === waveShots_){ perfectAccuracyCount_++; addMoney(PERFECT_ACCURACY_BONUS); showCallout('PRÉCISION TOTALE!'); }   // #184
   if(waveGrenadeCount_ === 0){ noGrenadeClearCount_++; addMoney(NO_GRENADE_BONUS); showCallout('ÉCONOME!'); }   // #190
+  if(health === 1) unlockAchievement('miracule');   // #194
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 G.debug.speedClearCount = () => speedClearCount_;

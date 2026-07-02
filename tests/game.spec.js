@@ -7258,3 +7258,29 @@ test('#193 : 10 barils en chaine debloquent ingenieur', async ({ page }) => {
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('ingenieur'))).toBe(true);
 });
+
+// ====== #194 — Succes Miracule ======
+test('#194 : achievements() inclut miracule', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('miracule');
+});
+
+test('#194 : nettoyer une vague a 1 PV debloque miracule', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('miracule'))).toBe(false);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));   // dernier souffle -> PV = 1
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('miracule'))).toBe(true);
+});
+
+test('#194 : nettoyer une vague a PV normaux ne debloque pas miracule', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('miracule'))).toBe(false);
+});
