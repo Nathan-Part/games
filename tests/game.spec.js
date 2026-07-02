@@ -6726,3 +6726,33 @@ test('#176 : tuer un ennemi qui n est pas le dernier ne declenche pas le bonus m
   await page.evaluate(() => __game.debug.damageEnemy(0, 99999));   // au moins un autre ennemi reste vivant
   expect(await page.evaluate(() => __game.debug.clutchCount())).toBe(0);
 });
+
+// ====== #177 — Succes Perfectionniste ======
+test('#177 : achievements() inclut perfectionniste', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('perfectionniste');
+});
+
+test('#177 : lifetimeStats().perfectWaves s incremente a chaque vague parfaite', async ({ page }) => {
+  await startPlaying(page);
+  const before = await page.evaluate(() => __game.debug.lifetimeStats().perfectWaves || 0);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  const after = await page.evaluate(() => __game.debug.lifetimeStats().perfectWaves || 0);
+  expect(after).toBe(before + 1);
+});
+
+test('#177 : 5 vagues parfaites cumulees debloquent perfectionniste', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('perfectionniste'))).toBe(false);
+  for (let i = 0; i < 5; i++) {
+    await page.evaluate(() => __game.debug.killAllEnemies());
+    await page.waitForTimeout(50);
+    await page.evaluate(() => __game.debug.forceNextWave());
+    await page.waitForTimeout(50);
+  }
+  expect(await page.evaluate(() => __game.debug.lifetimeStats().perfectWaves)).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('perfectionniste'))).toBe(true);
+});

@@ -2638,6 +2638,7 @@ const ACHIEVEMENTS = [
   { id:'richesse',    name:'Fortune de guerre',  desc:'Posséder 5000$' },               // #169
   { id:'legende',     name:'Légende',            desc:'Atteindre le niveau 50' },       // #169
   { id:'collectionneur', name:'Collectionneur',  desc:'Posséder 10 armes' },            // #175
+  { id:'perfectionniste', name:'Perfectionniste', desc:'5 vagues parfaites cumulées' }, // #177
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2655,6 +2656,7 @@ function checkAchievements(comboMult){
   if(save.money >= 5000) unlockAchievement('richesse');       // #169
   if(playerLevel() >= 50) unlockAchievement('legende');       // #169
   if(save.ownedWeapons.length >= 10) unlockAchievement('collectionneur');   // #175
+  if(lifetimeStats().perfectWaves >= 5) unlockAchievement('perfectionniste');   // #177
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
@@ -3351,6 +3353,7 @@ let waveReloadCount_ = 0, noReloadClearCount_ = 0;
 function grantWaveBonus(waveNum){
   if(dmgThisWave > 0){ perfectWaveStreak_ = 0; return; } // mort ou blessé = pas de bonus, série cassée (#165)
   perfectWaveStreak_++;
+  addLifetimeStat('perfectWaves', 1);   // #177 : succes perfectionniste
   const bonus = waveNum * WAVE_BONUS_PER_WAVE;
   lastWaveBonus_ = bonus; addMoney(bonus);
   const tel=document.getElementById('achievement-toast'); if(tel){ tel.textContent=`🎯 BONUS VAGUE +${bonus}$`; tel.style.color='#ff9900'; tel.classList.add('show'); setTimeout(()=>tel.classList.remove('show'),2200); }
