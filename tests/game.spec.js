@@ -7333,3 +7333,36 @@ test('#196 : le compteur reflete un succes debloque', async ({ page }) => {
   const text = await page.evaluate(() => document.getElementById('intel-achievements').textContent);
   expect(text).toBe(`1/${total}`);
 });
+
+// ====== #197 — Succes Silencieux ======
+test('#197 : achievements() inclut silencieux', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('silencieux');
+});
+
+test('#197 : nettoyer une vague uniquement au couteau debloque silencieux', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.save.reset();
+    __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
+  });
+  const n = await page.evaluate(() => __game.debug.enemyCount());
+  for (let i = 0; i < n; i++) {
+    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+    await page.evaluate(() => __game.debug.playerMelee());
+    await page.waitForTimeout(700);
+  }
+  expect(await page.evaluate(() => __game.debug.waveShots())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('silencieux'))).toBe(true);
+});
+
+test('#197 : un tir a distance dans la vague empeche silencieux', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.tryFire());   // au moins 1 tir trace (waveShots_ > 0), touche ou non
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.waveShots())).toBeGreaterThan(0);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('silencieux'))).toBe(false);
+});
