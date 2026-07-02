@@ -7377,3 +7377,22 @@ test('#198 : recompense medkit octroie +2 trousses de soin', async ({ page }) =>
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(before + 2);
 });
+
+// ====== #199 — Succes Stylise ======
+test('#199 : achievements() inclut stylise', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('stylise');
+});
+
+test('#199 : casque + costume legendaires debloquent stylise, un seul ne suffit pas', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(10000); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(false);
+  await page.evaluate(() => { __game.debug.shop.buyAccessory('helm:halo'); __game.debug.shop.selectAccessory('helmet', 'helm:halo'); });
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(false);   // casque seul, pas assez
+  await page.evaluate(() => { __game.debug.shop.buyAccessory('cost:wings'); __game.debug.shop.selectAccessory('costume', 'cost:wings'); });
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(true);
+});
