@@ -3732,6 +3732,7 @@ G.debug.spawnKevlar = (x,z) => spawnPowerUp('kevlar', x, z);
 G.debug.berserkActive = () => activePower === 'berserk';                                                     // #171
 G.debug.berserkTimeLeft = () => activePower === 'berserk' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnBerserk = (x,z) => spawnPowerUp('berserk', x, z);
+G.debug.spawnInstantHeal = (x,z) => spawnPowerUp('instant_heal', x, z);   // #172
 function clearMoneyOrbs(){ for(const o of moneyOrbs){ scene.remove(o.mesh); o.mesh.material.dispose(); } moneyOrbs.length=0; }
 G.debug.moneyOrbCount = () => moneyOrbs.length;
 G.debug.spawnMoneyOrb = (x,z,amount) => spawnMoneyOrb(x,z,amount||50);
@@ -4841,7 +4842,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s)
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -4851,8 +4852,10 @@ function spawnPowerUp(type, x, z){ if(!POWERUPS[type]) type='dmgx2'; const m = b
 function clearPowerUps(){ for(const p of powerUps) scene.remove(p.mesh); powerUps.length = 0; }
 function maybeDropPower(e){ if(forcePowerDrop || e.type==='boss' || Math.random() < POWER_DROP_CHANCE){
   const ks = Object.keys(POWERUPS); spawnPowerUp(ks[Math.floor(Math.random()*ks.length)], e.root.position.x, e.root.position.z); } }
+const INSTANT_HEAL_AMOUNT = 40;   // #172
 function activatePower(type){
   if(type === 'shield_orb'){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); lastShieldOrbPickup_=true; flashHeal(); playSound('reload'); return; }
+  if(type === 'instant_heal'){ if(!hardcore_){ health = Math.min(maxHealth, health + INSTANT_HEAL_AMOUNT); G.health = health; updateHealthHud(); } flashHeal(); playSound('reload'); return; }   // #172
   activePower = type; powerExpireAt = nowS() + (POWERUPS[type]?.duration || POWER_DURATION); applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload');
 }
 function updatePowerUps(dt){ if(!model) return; const t = nowS();

@@ -6598,3 +6598,24 @@ test('#171 : berserk double les degats au couteau', async ({ page }) => {
   const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
   expect(hp0 - hpAfter).toBe(300);
 });
+
+// ====== #172 — Power-up Trousse instantanee ======
+test('#172 : pickup restaure 40 PV (plafonne au max)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(50); });
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => { __game.debug.spawnInstantHeal(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter - hpBefore).toBe(40);
+});
+
+test('#172 : en hardcore, le pickup ne change pas les PV', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setHardcore(true); __game.debug.setShield(0); __game.debug.damagePlayer(50); });
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => { __game.debug.spawnInstantHeal(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter).toBe(hpBefore);
+});
