@@ -6863,3 +6863,13 @@ test('#180 : atteindre la vague 20 debloque increvable', async ({ page }) => {
   await page.evaluate(() => __game.debug.forceWave(20));
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('increvable'))).toBe(true);
 });
+
+// ====== #181 — Power-up Second souffle ravive ======
+test('#181 : pickup reactive secondWindUsed a false apres consommation', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));   // consomme le dernier souffle
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(true);
+  await page.evaluate(() => { __game.debug.spawnSecondWindRefill(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(false);
+});
