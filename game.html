@@ -5657,6 +5657,7 @@ G.debug.challengeReward   = (i) => sessionChallenges[i]?.def.reward ?? 0;
 G.debug.challengeIds      = () => sessionChallenges.map(c => c.def.id);
 G.debug.forceCompleteChallenge = (i) => { const c = sessionChallenges[i]; if(c && !c.done) completeChallenge(c); updateChallengesHud(); };
 function killEnemy(e){
+  const wasStealthKill_ = e.state === 'patrol' && e.lastHitMelee;   // #168 : capturer avant l'ecrasement de e.state ci-dessous
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   if(e.type === 'toxic') spawnPoisonZone(e.root.position.x, e.root.position.z);   // nuage de poison à la mort (#141)
   if(e.type === 'cryo') spawnFrostZone(e.root.position.x, e.root.position.z);     // zone de gel à la mort (#146)
@@ -5721,6 +5722,8 @@ function killEnemy(e){
   if(lastOverkill_){ overkillCount_++; addMoney(OVERKILL_BONUS); showCallout('OVERKILL!'); }   // #139
   lastFirstBlood_ = !firstBloodDone_;                          // #161 : premier kill de la vague
   if(lastFirstBlood_){ firstBloodDone_ = true; firstBloodCount_++; addMoney(FIRST_BLOOD_MONEY); addXp(FIRST_BLOOD_XP); showCallout('PREMIER SANG!'); }
+  lastStealthKill_ = wasStealthKill_;                          // #168 : takedown furtif
+  if(lastStealthKill_){ stealthKillCount_++; addMoney(STEALTH_MONEY); addXp(STEALTH_XP); showCallout('INFILTRATION!'); }
 }
 G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;
@@ -5729,6 +5732,10 @@ const FIRST_BLOOD_MONEY = 15, FIRST_BLOOD_XP = 20;   // #161
 let firstBloodDone_ = false, firstBloodCount_ = 0, lastFirstBlood_ = false;
 G.debug.firstBloodCount = () => firstBloodCount_;
 G.debug.lastWasFirstBlood = () => lastFirstBlood_;
+const STEALTH_MONEY = 20, STEALTH_XP = 15;   // #168
+let stealthKillCount_ = 0, lastStealthKill_ = false;
+G.debug.stealthKillCount = () => stealthKillCount_;
+G.debug.lastStealthKill = () => lastStealthKill_;
 // ====== Wave director : enchaîne les vagues, tient le record ======
 let waveStartTime = 0;
 function startWave(w){

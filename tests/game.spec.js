@@ -6477,3 +6477,42 @@ test('#167 : kevlar reduit les degats recus de 30%', async ({ page }) => {
   const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
   expect(hpBefore - hpAfter).toBeCloseTo(70, 0);
 });
+
+// ====== #168 — Bonus Infiltration (takedown furtif) ======
+test('#168 : melee sur un ennemi en patrol declenche le bonus infiltration', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.moveEnemy(0,0,2);
+    __game.debug.setPaused(true);
+  });
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('patrol');
+  await page.evaluate(() => __game.debug.playerMelee());
+  expect(await page.evaluate(() => __game.debug.stealthKillCount())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.lastStealthKill())).toBe(true);
+});
+
+test('#168 : melee sur un ennemi deja en chase ne declenche pas le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.moveEnemy(0,0,2);
+    __game.debug.setPaused(true);
+    __game.debug.damageEnemy(0, 1);   // degat non-letal (HP ~100) -> passe l etat a 'chase'
+  });
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('chase');
+  await page.evaluate(() => __game.debug.playerMelee());   // 150 dmg > HP restant -> tue l ennemi
+  expect(await page.evaluate(() => __game.debug.lastStealthKill())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.stealthKillCount())).toBe(0);
+});
+
+test('#168 : un kill a distance sur un ennemi en patrol ne declenche pas le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('patrol');
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.lastStealthKill())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.stealthKillCount())).toBe(0);
+});
