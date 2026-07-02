@@ -7366,3 +7366,14 @@ test('#197 : un tir a distance dans la vague empeche silencieux', async ({ page 
   expect(await page.evaluate(() => __game.debug.waveShots())).toBeGreaterThan(0);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('silencieux'))).toBe(false);
 });
+
+// ====== #198 — Caisse de ravitaillement : recompense trousses de soin ======
+test('#198 : recompense medkit octroie +2 trousses de soin', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const before = await page.evaluate(() => __game.debug.medkitStock());
+  await page.evaluate(() => __game.debug.forceCarePackageReward('medkit'));
+  await page.evaluate(() => { __game.debug.spawnCarePackageAt(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(before + 2);
+});

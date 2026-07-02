@@ -4839,7 +4839,7 @@ G.debug.spawnAmmoPack = (x,z) => spawnAmmoPack(x,z);
 G.debug.forceAmmoDrop = (b) => { forceAmmoDrop_ = !!b; };
 // ====== #143 Caisse de ravitaillement (care package) ======
 const CARE_PACKAGE_WAVE_INTERVAL = 4, CARE_PACKAGE_PICKUP_R = 1.8, CARE_PACKAGE_MONEY = 150;
-const CARE_PACKAGE_REWARDS = ['money', 'grenades', 'ammo', 'bonus_turret', 'bonus_mine', 'bonus_airstrike'];
+const CARE_PACKAGE_REWARDS = ['money', 'grenades', 'ammo', 'bonus_turret', 'bonus_mine', 'bonus_airstrike', 'medkit'];   // #198
 let carePackage = null, carePackageForcedReward_ = null;
 function buildCarePackageMesh(){
   const g = new THREE.Group();
@@ -4872,6 +4872,7 @@ function applyCarePackageReward(type){
   else if(type === 'bonus_turret'){ deployTurretFree(); }       // #156 : octroi instantané gratuit, indépendant du palier de points
   else if(type === 'bonus_mine'){ placeMineFree(); }
   else if(type === 'bonus_airstrike'){ triggerAirstrike(); }
+  else if(type === 'medkit'){ medkitStockCount += 2; save.consumables.medkit = medkitStockCount; persist(); updateMedkitHud(); }   // #198
   showCallout('RAVITAILLEMENT!'); flashHeal(); playSound('reload');
 }
 function updateCarePackage(dt){
