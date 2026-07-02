@@ -2510,16 +2510,7 @@ function updateMoneyOrbs(dt){
     }
   }
 }
-G.debug.moneyMagnetActive = () => activePower === 'money_magnet';                                             // #160
-G.debug.moneyMagnetTimeLeft = () => activePower === 'money_magnet' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnMoneyMagnet = (x,z) => spawnPowerUp('money_magnet', x, z);
-G.debug.kevlarActive = () => activePower === 'kevlar';                                                       // #167
-G.debug.kevlarTimeLeft = () => activePower === 'kevlar' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnKevlar = (x,z) => spawnPowerUp('kevlar', x, z);
-G.debug.berserkActive = () => activePower === 'berserk';                                                     // #171
-G.debug.berserkTimeLeft = () => activePower === 'berserk' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnBerserk = (x,z) => spawnPowerUp('berserk', x, z);
-G.debug.spawnInstantHeal = (x,z) => spawnPowerUp('instant_heal', x, z);   // #172
+// (getters debug money_magnet/kevlar/berserk/instant_heal : générés via POWER_DEBUG plus bas)
 function clearMoneyOrbs(){ for(const o of moneyOrbs){ scene.remove(o.mesh); o.mesh.material.dispose(); } moneyOrbs.length=0; }
 G.debug.moneyOrbCount = () => moneyOrbs.length;
 G.debug.spawnMoneyOrb = (x,z,amount) => spawnMoneyOrb(x,z,amount||50);
@@ -3676,43 +3667,40 @@ G.debug.liveDamage = () => curDmgMult;
 let lastShieldOrbPickup_ = false;
 G.debug.lastShieldOrbPickup = () => lastShieldOrbPickup_;
 G.debug.spawnShieldOrb = (x,z) => { lastShieldOrbPickup_=false; spawnPowerUp('shield_orb', x, z); };
-G.debug.extMagActive = () => activePower === 'extended_mag';
-G.debug.extMagTimeLeft = () => activePower === 'extended_mag' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnExtMag = (x,z) => spawnPowerUp('extended_mag', x, z);
-G.debug.xpBoostActive = () => activePower === 'xp_boost';                       // #122
-G.debug.xpBoostTimeLeft = () => activePower === 'xp_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnXpBoost = (x,z) => spawnPowerUp('xp_boost', x, z);
-G.debug.explosiveAmmoActive = () => activePower === 'explosive_ammo';           // #123
-G.debug.explosiveAmmoTimeLeft = () => activePower === 'explosive_ammo' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnExplosiveAmmo = (x,z) => spawnPowerUp('explosive_ammo', x, z);
-G.debug.speedBoostActive = () => activePower === 'speed_boost';                 // #127
-G.debug.speedBoostTimeLeft = () => activePower === 'speed_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.vampireActive = () => activePower === 'vampire';                        // #133
-G.debug.vampireTimeLeft = () => activePower === 'vampire' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnVampireOrb = (x,z) => spawnPowerUp('vampire', x, z);
-G.debug.steadyAimActive = () => activePower === 'steady_aim';                    // #145
-G.debug.steadyAimTimeLeft = () => activePower === 'steady_aim' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnSteadyAim = (x,z) => spawnPowerUp('steady_aim', x, z);
-G.debug.regenBoostActive = () => activePower === 'regen_boost';                  // #147
-G.debug.regenBoostTimeLeft = () => activePower === 'regen_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnRegenBoost = (x,z) => spawnPowerUp('regen_boost', x, z);
-G.debug.piercingRoundsActive = () => activePower === 'piercing_rounds';          // #150
-G.debug.piercingRoundsTimeLeft = () => activePower === 'piercing_rounds' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnPiercingRounds = (x,z) => spawnPowerUp('piercing_rounds', x, z);
+// ====== Getters debug des power-ups temporisés — GÉNÉRÉS (étape 5) ======
+// nom debug (contrat __game FIGÉ) → { type, spawn } ; les noms de spawners gardent leurs irrégularités historiques.
+const POWER_DEBUG = {
+  extMag:         { type:'extended_mag',    spawn:'spawnExtMag' },          // #95
+  xpBoost:        { type:'xp_boost',        spawn:'spawnXpBoost' },         // #122
+  explosiveAmmo:  { type:'explosive_ammo',  spawn:'spawnExplosiveAmmo' },   // #123
+  speedBoost:     { type:'speed_boost',     spawn:'spawnSpeedBoost' },      // #127
+  vampire:        { type:'vampire',         spawn:'spawnVampireOrb' },      // #133
+  steadyAim:      { type:'steady_aim',      spawn:'spawnSteadyAim' },       // #145
+  regenBoost:     { type:'regen_boost',     spawn:'spawnRegenBoost' },      // #147
+  piercingRounds: { type:'piercing_rounds', spawn:'spawnPiercingRounds' },  // #150
+  incendiaryAmmo: { type:'incendiary_ammo', spawn:'spawnIncendiaryAmmo' },  // #152
+  luckyShot:      { type:'lucky_shot',      spawn:'spawnLuckyShot' },       // #153
+  fullAuto:       { type:'full_auto',       spawn:'spawnFullAuto' },        // #154
+  moneyMagnet:    { type:'money_magnet',    spawn:'spawnMoneyMagnet' },     // #160
+  kevlar:         { type:'kevlar',          spawn:'spawnKevlar' },          // #167
+  berserk:        { type:'berserk',         spawn:'spawnBerserk' },         // #171
+  radarBoost:     { type:'radar_boost',     spawn:'spawnRadarBoost' },      // #179
+  lootMaster:     { type:'loot_master',     spawn:'spawnLootMaster' },      // #188
+  ricochetBoost:  { type:'ricochet_boost',  spawn:'spawnRicochetBoost' },   // #189
+};
+for(const [dbg, def] of Object.entries(POWER_DEBUG)){
+  G.debug[dbg + 'Active'] = () => activePower === def.type;
+  G.debug[dbg + 'TimeLeft'] = () => activePower === def.type ? Math.max(0, powerExpireAt - nowS()) : 0;
+  G.debug[def.spawn] = (x, z) => spawnPowerUp(def.type, x, z);
+}
+// spawners des power-ups instantanés (pas de Active/TimeLeft)
+G.debug.spawnInstantHeal = (x,z) => spawnPowerUp('instant_heal', x, z);             // #172
+G.debug.spawnSecondWindRefill = (x,z) => spawnPowerUp('second_wind_refill', x, z);  // #181
+G.debug.spawnNovaBlast = (x,z) => spawnPowerUp('nova_blast', x, z);                 // #200
 G.debug.piercedHitCount = () => piercedHitCount_;
-G.debug.incendiaryAmmoActive = () => activePower === 'incendiary_ammo';          // #152
-G.debug.incendiaryAmmoTimeLeft = () => activePower === 'incendiary_ammo' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnIncendiaryAmmo = (x,z) => spawnPowerUp('incendiary_ammo', x, z);
-G.debug.luckyShotActive = () => activePower === 'lucky_shot';                    // #153
-G.debug.luckyShotTimeLeft = () => activePower === 'lucky_shot' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnLuckyShot = (x,z) => spawnPowerUp('lucky_shot', x, z);
 G.debug.luckyShotCount = () => luckyShotCount_;
 G.debug.lastLuckyShot = () => lastLuckyShot_;
 G.debug.forceLuckyShot = (b) => { luckyForce_ = !!b; };
-G.debug.fullAutoActive = () => activePower === 'full_auto';                      // #154
-G.debug.fullAutoTimeLeft = () => activePower === 'full_auto' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnFullAuto = (x,z) => spawnPowerUp('full_auto', x, z);
-G.debug.spawnSpeedBoost = (x,z) => spawnPowerUp('speed_boost', x, z);
 G.debug.playerMoveSpeed = () => lastMoveSpeed_;                                 // #127 vitesse effective (inclut le boost)
 
 function playerDie(){
@@ -3970,17 +3958,7 @@ G.debug.radar = {
   range(){ return currentRadarRange(); },
   visible(){ const cv=document.getElementById('radar'); return !!cv && !cv.classList.contains('hidden'); },
 };
-G.debug.radarBoostActive = () => activePower === 'radar_boost';                                              // #179
-G.debug.radarBoostTimeLeft = () => activePower === 'radar_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnRadarBoost = (x,z) => spawnPowerUp('radar_boost', x, z);
-G.debug.spawnSecondWindRefill = (x,z) => spawnPowerUp('second_wind_refill', x, z);   // #181
-G.debug.lootMasterActive = () => activePower === 'loot_master';                                              // #188
-G.debug.lootMasterTimeLeft = () => activePower === 'loot_master' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnLootMaster = (x,z) => spawnPowerUp('loot_master', x, z);
-G.debug.ricochetBoostActive = () => activePower === 'ricochet_boost';                                        // #189
-G.debug.ricochetBoostTimeLeft = () => activePower === 'ricochet_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
-G.debug.spawnRicochetBoost = (x,z) => spawnPowerUp('ricochet_boost', x, z);
-G.debug.spawnNovaBlast = (x,z) => spawnPowerUp('nova_blast', x, z);   // #200
+// (getters debug radar_boost/second_wind_refill/loot_master/ricochet_boost/nova_blast : générés via POWER_DEBUG)
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
