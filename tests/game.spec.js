@@ -6810,3 +6810,32 @@ test('#178 : achat en boutique incremente le stock persiste', async ({ page }) =
   const after = await page.evaluate(() => __game.debug.save.get().consumables.medkit);
   expect(after).toBe(before + 1);
 });
+
+// ====== #179 — Power-up Radar longue portee ======
+test('#179 : spawn puis pickup active le power radar_boost', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnRadarBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.radarBoostActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.radarBoostTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#179 : radar.range() double pendant le power', async ({ page }) => {
+  await startPlaying(page);
+  const rangeBefore = await page.evaluate(() => __game.debug.radar.range());
+  expect(rangeBefore).toBe(28);
+  await page.evaluate(() => { __game.debug.spawnRadarBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.radar.range())).toBe(56);
+});
+
+test('#179 : un ennemi a portee intermediaire n apparait inRange qu avec le power actif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setPos(0,0); __game.debug.spawnEnemyTypeAt(0,'shooter',40,0); });
+  const before = (await page.evaluate(() => __game.debug.radar.blips())).find(b => b.id === 0);
+  expect(before.inRange).toBe(false);
+  await page.evaluate(() => { __game.debug.spawnRadarBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  const after = (await page.evaluate(() => __game.debug.radar.blips())).find(b => b.id === 0);
+  expect(after.inRange).toBe(true);
+});

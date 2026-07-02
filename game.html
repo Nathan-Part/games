@@ -4874,7 +4874,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true }, radar_boost:{ name:'Radar longue portée', color:0x2ad6ff, duration:12 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172 #179(12s)
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -5149,6 +5149,7 @@ Object.assign(G.debug, { flankTarget, segClear, peekTarget });
 // ====== Mini-carte / radar (#21) : blips ennemis autour du joueur, orientés regard ======
 const RADAR_RANGE = 28, RADAR_R = 70;
 const RADAR_COLORS = { shooter:'#ffb84d', rusher:'#ff5b5b', tank:'#c07bff' };
+function currentRadarRange(){ return activePower === 'radar_boost' ? RADAR_RANGE * 2 : RADAR_RANGE; }   // #179
 // projection pure monde->radar : "haut" = direction face caméra (mêmes axes que la caméra)
 function radarBlip(ex, ez, px, pz, yaw, range, radius){
   const dx=ex-px, dz=ez-pz;
@@ -5163,7 +5164,8 @@ let radarCtx = null;
 function updateRadar(){
   const cv = document.getElementById('radar'); if(!cv || !model) return;
   if(!radarCtx) radarCtx = cv.getContext('2d');
-  const ctx = radarCtx, C = cv.width/2, s = RADAR_R/RADAR_RANGE;
+  const rr = currentRadarRange();   // #179 : portee effective (double en radar_boost)
+  const ctx = radarCtx, C = cv.width/2, s = RADAR_R/rr;
   const px=model.position.x, pz=model.position.z, cy=camYaw, cos=Math.cos(cy), sin=Math.sin(cy);
   ctx.clearRect(0,0,cv.width,cv.height);
   // anneau + croix
@@ -5178,13 +5180,13 @@ function updateRadar(){
   ctx.fillStyle='rgba(150,170,210,.16)';
   for(const b of obstacles){
     const ocx=(b.minX+b.maxX)/2, ocz=(b.minZ+b.maxZ)/2;
-    if(Math.hypot(ocx-px,ocz-pz) > RADAR_RANGE + Math.max(b.maxX-b.minX, b.maxZ-b.minZ)) continue;
+    if(Math.hypot(ocx-px,ocz-pz) > rr + Math.max(b.maxX-b.minX, b.maxZ-b.minZ)) continue;
     const c1=toRadar(b.minX,b.minZ), c2=toRadar(b.maxX,b.minZ), c3=toRadar(b.maxX,b.maxZ), c4=toRadar(b.minX,b.maxZ);
     ctx.beginPath(); ctx.moveTo(c1[0],c1[1]); ctx.lineTo(c2[0],c2[1]); ctx.lineTo(c3[0],c3[1]); ctx.lineTo(c4[0],c4[1]); ctx.closePath(); ctx.fill();
   }
   // ennemis (couleur par type, clamp au bord si hors portée)
   for(const e of enemies){ if(!e.alive) continue;
-    const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, cy, RADAR_RANGE, RADAR_R);
+    const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, cy, rr, RADAR_R);
     ctx.globalAlpha = b.inRange ? 1 : 0.5; ctx.fillStyle = RADAR_COLORS[e.type] || '#ff5b5b';
     ctx.beginPath(); ctx.arc(C + b.x, C - b.y, b.inRange ? 4 : 3, 0, Math.PI*2); ctx.fill();
   }
@@ -5195,11 +5197,14 @@ function updateRadar(){
 G.debug.radarBlip = radarBlip;
 G.debug.radar = {
   blips(){ if(!model) return []; const px=model.position.x, pz=model.position.z, out=[];
-    for(const e of enemies){ if(!e.alive) continue; const b=radarBlip(e.root.position.x,e.root.position.z,px,pz,camYaw,RADAR_RANGE,RADAR_R);
+    for(const e of enemies){ if(!e.alive) continue; const b=radarBlip(e.root.position.x,e.root.position.z,px,pz,camYaw,currentRadarRange(),RADAR_R);
       out.push({ id:e.id, x:b.x, y:b.y, inRange:b.inRange, type:e.type }); } return out; },
-  range(){ return RADAR_RANGE; },
+  range(){ return currentRadarRange(); },
   visible(){ const cv=document.getElementById('radar'); return !!cv && !cv.classList.contains('hidden'); },
 };
+G.debug.radarBoostActive = () => activePower === 'radar_boost';                                              // #179
+G.debug.radarBoostTimeLeft = () => activePower === 'radar_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.spawnRadarBoost = (x,z) => spawnPowerUp('radar_boost', x, z);
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
