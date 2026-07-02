@@ -13,8 +13,12 @@ test('save : tuer un ennemi rapporte de l argent (par kill)', async ({ page }) =
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   const rates = await page.evaluate(() => __game.debug.save.rates());
+  // 1er kill hors mesure : consomme le bonus premier sang de la vague (#161) ; précision 0 → pas de dégât reçu (revanche #187)
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.moveEnemy(0, 0, 5); __game.debug.damageEnemy(0, 1000); });
+  await page.waitForTimeout(1100);   // #187 : laisse passer la fenêtre revanche (kill <1s après un dégât)
   const before = await page.evaluate(() => __game.money);
-  await page.evaluate(() => __game.debug.damageEnemy(0, 1000));   // tue 1 des 3 (vague non finie)
+  // 2e kill isolé : dégâts exacts (pas d'overkill #139), courte portée (pas de long shot #102), combo encore x1
+  await page.evaluate(() => { __game.debug.moveEnemy(1, 2, 5); __game.debug.damageEnemy(1, __game.debug.enemyHp(1)); });
   const after = await page.evaluate(() => __game.money);
   expect(after - before).toBe(rates.perKill);
 });
@@ -23,11 +27,18 @@ test('save : nettoyer une vague rapporte un bonus (par vague)', async ({ page })
   await startPlaying(page);
   await page.waitForFunction(() => window.__game.debug.enemyCount?.() === 3, null, { timeout:20000 });
   const rates = await page.evaluate(() => __game.debug.save.rates());
+  // neutralise les bonus de fin de vague pour isoler le bonus par-vague :
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(1); }); // pas de survie parfaite (#100) ni vague parfaite (#165)
+  await page.evaluate(() => __game.debug.ageWaveStart(20));                                 // pas de vague éclair (#149)
+  await page.evaluate(() => { __game.debug.setPitch(1.4); __game.debug.tryFire(); __game.debug.reload(); __game.debug.dash(); }); // 1 tir raté (pas de précision totale #184) + recharge (pas de #166) + dash (pas de #182)
+  // 1er kill hors mesure : consomme le bonus premier sang (#161)
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.moveEnemy(0, 0, 5); __game.debug.damageEnemy(0, __game.debug.enemyHp(0)); });
+  await page.waitForTimeout(1100);   // #187 : revanche = kill <1s après un dégât reçu → on laisse passer la fenêtre
   const before = await page.evaluate(() => __game.money);
-  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(1); }); // 1 dégât réel → pas de bonus "survie parfaite" (#100), on isole le bonus par-vague
-  await page.evaluate(() => __game.debug.killAllEnemies());       // 3 kills (combo x1,x1,x2) + bonus vague 1
+  await page.evaluate(() => { __game.debug.moveEnemy(1, 0, 5); __game.debug.moveEnemy(2, 2, 5); __game.debug.killAllEnemies(); }); // 2 kills restants (combo x1, x2), courte portée
   const after = await page.evaluate(() => __game.money);
-  expect(after - before).toBe((1 + 1 + 2) * rates.perKill + rates.perWave * 1);   // combo (#29) booste l'argent par kill
+  // (1+2)×perKill (combo #29) + bonus de vague + ÉCONOME #190 (vague nettoyée sans grenade, +25 stable)
+  expect(after - before).toBe((1 + 2) * rates.perKill + rates.perWave * 1 + 25);
 });
 
 test('save : une sauvegarde corrompue retombe sur les valeurs par defaut', async ({ page }) => {
