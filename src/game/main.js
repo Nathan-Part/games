@@ -4,7 +4,8 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, addBox, addWall, addBuilding, pointInObstacle, buildArena } from './map.js';
+import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena } from './map.js';
+import { updateFeatures, resetRunFeatures, lobbyFeatures } from './registry.js';
 import { bindAudioVolume, initAudio, resumeAudio, playSound, playTone, setMuted, isMuted, applyVolume, audioGain, audioState, soundCount, lastSound } from './audio.js';
 
 // ====== API debug (contrat figé) ======
@@ -475,6 +476,22 @@ async function initLobby(){
     showOverlay('Impossible de lister les dossiers du jeu.');
   }
 }
+// ====== Reset commun de partie — SOURCE UNIQUE (étape 4) ======
+// Toute remise à zéro d'état de run vit ICI et uniquement ici ; startGame ET restartGame
+// l'appellent. Fin de la classe de bugs « asymétrie des resets » (audits 2026-06-30 it.2).
+function resetRunState(){
+  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetLoadoutPoints();
+  resetFireMode(); resetShield(); resetSemiAuto(); onStreakReset(); resetSticky();
+  rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;
+  fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1;
+  for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0;
+  clearMines(); mineStock=MAX_MINES; updateMineHud();
+  showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; secondWindUsed=false; secondWindInvulnUntil=0;
+  setHardcore(save.settings.hardcore); setRain(save.settings.rain);
+  score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
+  resetRunFeatures();   // hooks resetRun() des features enregistrées (registre étape 4)
+}
+
 async function startGame(){
   if(G.phase==='loading' || G.phase==='playing') return;
   const char = characters[lobbyIndex]; if(!char) return;
@@ -494,13 +511,8 @@ async function startGame(){
   G.character = { id:char.id, label:char.label };
   G.locomotion = 'idle';
   showHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetLoadoutPoints();   // reset + init (#55-#58)
-  resetSemiAuto(); rampageKills_=0; rampageUntil_=0; stunUntil_=0; stunCount_=0; overheat_=0; overheatPaused_=false; infiniteAmmo_=false;   // purge état run résiduel (rampage/stun/overheat) entre 2 parties lancées depuis le menu
-  onStreakReset(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; lastWaveBonus_=0; medicHealCount_=0; lastMedicHealTarget_=-1; enemyGrenadeCount_=0; frenzyCount_=0; showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; secondWindUsed=false; secondWindInvulnUntil=0;   // startGame reflète le bloc reset complet de restartGame (anti-asymétrie : streak/dash/compteurs/rank résiduels du menu)
+  resetRunState();       // reset commun startGame/restartGame (étape 4 — source unique)
   getDailyContracts();   // #62 : initialise save.daily (sinon trackDailyKill/Wave sortent sur !save.daily → contrats inertes en production) + rafraîchit le seed du jour
-  score=0; G.score=0; applyWeaponStats(); ammo=curMag; G.ammo=ammo; reloading=false; lastShot=-1;
-  setHardcore(save.settings.hardcore);                         // applique le réglage hardcore (#94)
-  setRain(save.settings.rain);                                 // applique le réglage pluie (#93)
   spawnDefaultTargets();
   { const ch = document.getElementById('crosshair'); ch.classList.remove('hidden'); ch.style.visibility = 'visible'; } // reset visibilité (sinon réticule bloqué masqué si on a quitté en visant)
   document.getElementById('combat').classList.remove('hidden');
@@ -509,9 +521,9 @@ async function startGame(){
   document.getElementById('radar').classList.remove('hidden');   // mini-carte (#21)
   grenades = save.consumables.frag; document.getElementById('grenade-hud').classList.remove('hidden'); updateGrenadeHud();   // stock persistant (#155)
   flashbangs = save.consumables.flashbang; document.getElementById('flashbang-hud').classList.remove('hidden'); updateFlashbangHud(); // stock persistant (#155)
-  document.getElementById('firemode-hud').classList.remove('hidden'); resetFireMode(); updateFiremodeHud(); // burst (#64)
-  clearMines(); mineStock = MAX_MINES; document.getElementById('mine-hud').classList.remove('hidden'); updateMineHud(); // claymore (#65, hors-scope #155)
-  resetShield(); document.getElementById('shield-bar').classList.remove('hidden'); // shield (#67)
+  document.getElementById('firemode-hud').classList.remove('hidden'); updateFiremodeHud(); // burst (#64) — resetFireMode fait par resetRunState
+  document.getElementById('mine-hud').classList.remove('hidden'); updateMineHud(); // claymore (#65) — clearMines/mineStock faits par resetRunState
+  document.getElementById('shield-bar').classList.remove('hidden'); // shield (#67) — resetShield fait par resetRunState
   smokeStock = save.consumables.smoke; document.getElementById('smoke-hud').classList.remove('hidden'); updateSmokeHud();  // stock persistant (#155)
   stickyStockCount = save.consumables.sticky; molotovStockCount = save.consumables.molotov; empStockCount = save.consumables.emp; medkitStockCount = save.consumables.medkit; // stock persistant (#155/#178)
   document.getElementById('medkit-hud').classList.remove('hidden'); updateMedkitHud();   // #178
@@ -1144,7 +1156,7 @@ function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, 
   const studioView = shopOpen && (shopTab === 'weapons' || shopTab === 'player');   // vitrine 3D centrée (arme ou perso)
   ground.visible = !studioView; grid.visible = !shopOpen;
   for(const m of obstacleMeshes) m.visible = !shopOpen;   // décor (bâtiments/murs/caisses) masqué (fond propre)
-  lamp1.visible = lamp2.visible = !shopOpen;              // lampes d'accent éteintes en boutique
+  for(const l of arenaLamps) l.visible = !shopOpen;       // lampes d'accent éteintes en boutique
   shopLight.intensity = studioView ? 3.0 : 0; shopFill.intensity = studioView ? 1.7 : 0;
   hemi.intensity = shopOpen ? 2.3 : 0.9;
   scene.background = shopOpen ? SHOP_BG : SCENE_BG;
@@ -3771,8 +3783,8 @@ function restartGame(){
   resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
   if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; doubleJumpAvailable = false; }
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
-  resetMatchWeapon(); resetCombo(); resetPower(); resetCallouts(); resetRunStats(); initChallenges(); resetStamina(); resetKillstreak(); resetLoadoutPoints(); resetFireMode(); resetShield(); onStreakReset(); resetSemiAuto(); fsLastT=0; rankKillsOvr=rankAccOvr=rankWaveOvr=null; setHardcore(save.settings.hardcore); setRain(save.settings.rain); overheat_=0; overheatPaused_=false; infiniteAmmo_=false; lastWaveBonus_=0; resetSticky(); medicHealCount_=0; lastMedicHealTarget_=-1; stunUntil_=0; stunCount_=0; rampageKills_=0; rampageUntil_=0; for(const g of enemyGrenadeProjs_) scene.remove(g.mesh); enemyGrenadeProjs_=[]; enemyGrenadeCount_=0; frenzyCount_=0; mineStock=MAX_MINES; updateMineHud(); showGrenadeArc(false); dashRemaining=0; dashCdUntil=0; clearTurret(); turretCooldownUntil=0; secondWindUsed=false; secondWindInvulnUntil=0; // restart (#55-#129, #97, #35 ; reset mineStock + dash + cleanup grenades ennemies)
-  score = 0; G.score = 0; applyWeaponStats(); ammo = curMag; G.ammo = ammo; reloading = false; lastShot = -1; updateCombatHud();
+  resetRunState();       // reset commun startGame/restartGame (étape 4 — source unique)
+  updateCombatHud();
   ensureWeapon();                                              // reconstruit le modèle d'arme (retour à la save après loot)
   flushLifetimeTime(); startLifetimeTimer();                   // #80 : comptabilise le run abandonné (no-op si déjà flushé à la mort) puis relance le chrono (sinon temps des runs relancés perdu)
   spawnDefaultTargets();
@@ -3793,6 +3805,7 @@ function backToHome(){
     document.getElementById(id).classList.add('hidden');
   trainingActive_ = false; infiniteAmmo_ = false;   // #158 : quitter l'entrainement desactive munitions infinies
   clearEnemies(); clearTargets();
+  lobbyFeatures();   // hooks onLobby() des features enregistrées (registre étape 4)
   setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
   if(viewModel) viewModel.visible = false;                     // garantie : pas de mains/arme FPS sur la page d'accueil
   document.getElementById('scope-overlay')?.classList.remove('show'); // pas de viseur sniper résiduel sur l'accueil (#61)
@@ -5107,7 +5120,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); updateFeatures(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

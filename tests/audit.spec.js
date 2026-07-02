@@ -131,7 +131,7 @@ test('#155 : a 0 stock, lancer un objet echoue sans exception ni decrementation 
   expect(await page.evaluate(() => __game.debug.empStock())).toBe(0);
 });
 
-test('consommables : l onglet boutique affiche les 6 items avec le bon prix', async ({ page }) => {
+test('consommables : l onglet boutique affiche les 7 items avec le bon prix', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.backToHome());
   await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('consumables'); });
@@ -142,7 +142,8 @@ test('consommables : l onglet boutique affiche les 6 items avec le bon prix', as
   expect(html).toContain('Grenade collante');
   expect(html).toContain('Molotov');
   expect(html).toContain('EMP');
-  expect((html.match(/data-buycons=/g) || []).length).toBe(6);
+  expect(html).toContain('Trousse de soin');   // #178
+  expect((html.match(/data-buycons=/g) || []).length).toBe(7);   // 6 (#155) + trousse de soin (#178)
 });
 
 test('consommables : cliquer Acheter incremente le stock affiche et debite l argent', async ({ page }) => {
@@ -366,7 +367,9 @@ test('bug viseur : la lunette sniper ne reste pas sur l accueil (retour menu)', 
 
 test('bug viseur : la lunette sniper est masquee a la mort (Game Over propre)', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.setShield(0); document.getElementById('scope-overlay').classList.add('show'); __game.debug.damagePlayer(99999); }); // mort, même evaluate
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(99999); }); // 1er coup fatal → dernier souffle (#137), survit à 1 PV
+  await page.waitForTimeout(2200);                              // laisse expirer l'invincibilité post-dernier-souffle (2 s)
+  await page.evaluate(() => { __game.debug.setShield(0); document.getElementById('scope-overlay').classList.add('show'); __game.debug.damagePlayer(99999); }); // mort réelle, même evaluate
   expect(await page.evaluate(() => __game.phase)).toBe('dead');
   expect(await page.evaluate(() => document.getElementById('scope-overlay').classList.contains('show'))).toBe(false);
 });

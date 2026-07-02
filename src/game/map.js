@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 export const MAP_HALF = 24;
 export const obstacles = [], obstacleMeshes = [];
+export const arenaLamps = [];   // lampes d'accent (éteintes quand la boutique est ouverte)
 let sceneRef = null;
 
 export function addBox(cx, cz, w, d, h){
@@ -50,4 +51,5 @@ export function buildArena(scene){
   // lampes d'accent chaudes (décor pur, sans ombre)
   const lamp1 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp1.position.set(-13, 6, 13); scene.add(lamp1);
   const lamp2 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp2.position.set(13, 6, -13); scene.add(lamp2);
+  arenaLamps.push(lamp1, lamp2);
 }
