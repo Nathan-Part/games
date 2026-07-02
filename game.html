@@ -2637,6 +2637,7 @@ const ACHIEVEMENTS = [
   { id:'wave10',      name:'Vétéran',            desc:'Atteindre la vague 10' },        // #169
   { id:'richesse',    name:'Fortune de guerre',  desc:'Posséder 5000$' },               // #169
   { id:'legende',     name:'Légende',            desc:'Atteindre le niveau 50' },       // #169
+  { id:'collectionneur', name:'Collectionneur',  desc:'Posséder 10 armes' },            // #175
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2653,6 +2654,7 @@ function checkAchievements(comboMult){
   if(wave >= 10) unlockAchievement('wave10');                 // #169
   if(save.money >= 5000) unlockAchievement('richesse');       // #169
   if(playerLevel() >= 50) unlockAchievement('legende');       // #169
+  if(save.ownedWeapons.length >= 10) unlockAchievement('collectionneur');   // #175
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');

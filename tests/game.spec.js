@@ -6680,3 +6680,22 @@ test('#174 : une vague plus lente ne remonte pas le record', async ({ page }) =>
   const t2 = await page.evaluate(() => __game.debug.runFastestWave());
   expect(t2).toBeCloseTo(t1, 0);
 });
+
+// ====== #175 — Succes Collectionneur ======
+test('#175 : achievements() inclut collectionneur', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('collectionneur');
+});
+
+test('#175 : posseder 10 armes debloque collectionneur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('collectionneur'))).toBe(false);
+  await page.evaluate(() => {
+    const s = __game.debug.save.live();
+    s.ownedWeapons = ['w1','w2','w3','w4','w5','w6','w7','w8','w9','w10'];
+    __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999);
+  });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('collectionneur'))).toBe(true);
+});
