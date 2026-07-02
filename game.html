@@ -2665,6 +2665,8 @@ const ACHIEVEMENTS = [
   { id:'intraitable',   name:'Intraitable',      desc:'3 kills clutch (une partie)' },             // #191
   { id:'ingenieur',     name:'Ingénieur',        desc:'10 barils en réaction en chaîne' },          // #193
   { id:'miracule',      name:'Miraculé',         desc:'Nettoyer une vague à 1 PV' },                // #194
+  { id:'contractant',    name:'Contractant',     desc:'Terminer les 3 contrats du jour' },           // #195
+  { id:'legendaire_arme',name:'Arme légendaire', desc:'Équiper une arme légendaire' },                // #195
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2695,6 +2697,8 @@ function checkAchievements(comboMult){
   if(runDistance_ >= 50) unlockAchievement('cible_mouvante');       // #191
   if(clutchCount_ >= 3) unlockAchievement('intraitable');            // #191
   if(barrelChainCount_ >= 10) unlockAchievement('ingenieur');        // #193
+  if(getDailyContracts().filter(c => c.done).length >= 3) unlockAchievement('contractant');   // #195
+  if(weaponById(save.selectedWeapon).rarity === 'legendaire') unlockAchievement('legendaire_arme');   // #195
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');

@@ -7284,3 +7284,31 @@ test('#194 : nettoyer une vague a PV normaux ne debloque pas miracule', async ({
   await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('miracule'))).toBe(false);
 });
+
+// ====== #195 — Succes (lot 5) ======
+test('#195 : achievements() inclut contractant et legendaire_arme', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('contractant');
+  expect(ids).toContain('legendaire_arme');
+});
+
+test('#195 : terminer les 3 contrats du jour debloque contractant', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('contractant'))).toBe(false);
+  const n = (await page.evaluate(() => __game.debug.dailyContracts())).length;
+  for (let i = 0; i < n; i++) await page.evaluate((i) => __game.debug.forceDailyComplete(i), i);
+  expect(await page.evaluate(() => __game.debug.dailyContractsDone())).toBe(n);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('contractant'))).toBe(true);
+});
+
+test('#195 : equiper une arme legendaire debloque legendaire_arme', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(5000); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('legendaire_arme'))).toBe(false);
+  await page.evaluate(() => { __game.debug.shop.buy('phantom_sr'); __game.debug.shop.equip('phantom_sr'); });
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('legendaire_arme'))).toBe(true);
+});
