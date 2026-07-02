@@ -320,6 +320,7 @@
   .go-lb-h{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--text-3);margin-bottom:4px;text-align:center}
   .go-lb-row{display:flex;justify-content:space-between;gap:10px;padding:3px 10px;font-size:var(--t-sm);color:var(--text-2)}
   .go-lb-row.gold{color:#ffd700;font-weight:700}
+  .go-lb-date{color:var(--text-3);font-size:11px}
   .hud-ammo.low-ammo{animation:lowAmmoBlink .5s infinite alternate}
   @keyframes lowAmmoBlink{from{color:var(--text)}to{color:#f44;text-shadow:0 0 10px #f44}}
   #semiauto-hud{position:fixed;right:16px;bottom:120px;z-index:10;background:var(--bg-700);
@@ -4933,7 +4934,7 @@ function playerDie(){
     + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
     + `<div class="go-rank">RANG <span class="go-rank-letter">${runRank()}</span></div>`
     + `<div id="go-leaderboard" class="go-leaderboard"><div class="go-lb-h">// Classement local</div>`
-    + save.leaderboard.map((e,i) => `<div class="go-lb-row${(i===lbRank-1)?' gold':''}"><span>#${i+1}</span><b>${e.score}</b><span>Vague ${e.wave}</span></div>`).join('')
+    + save.leaderboard.map((e,i) => `<div class="go-lb-row${(i===lbRank-1)?' gold':''}"><span>#${i+1}</span><b>${e.score}</b><span>Vague ${e.wave}</span><span class="go-lb-date">${new Date(e.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span></div>`).join('')   // #170
     + `</div>`;
   document.getElementById('gameover').classList.remove('hidden');
 }

@@ -6549,3 +6549,14 @@ test('#169 : atteindre le niveau 50 debloque legende', async ({ page }) => {
   await page.evaluate(() => { __game.debug.addXp(1000000); __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('legende'))).toBe(true);
 });
+
+// ====== #170 — Date sur le classement local ======
+test('#170 : chaque ligne du classement affiche une date JJ/MM', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await page.waitForTimeout(2200);
+  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await page.waitForFunction(() => window.__game.phase === 'dead');
+  const html = await page.evaluate(() => document.getElementById('go-score').innerHTML);
+  expect(html).toMatch(/go-lb-date">\d{2}\/\d{2}</);
+});
