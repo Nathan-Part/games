@@ -6873,3 +6873,31 @@ test('#181 : pickup reactive secondWindUsed a false apres consommation', async (
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(false);
 });
+
+// ====== #182 — Bonus Vague sans dash ======
+test('#182 : nettoyer une vague sans dasher declenche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.waveDashCount())).toBe(0);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.noDashClearCount())).toBe(1);
+});
+
+test('#182 : dasher avant de nettoyer la vague empeche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.dash());
+  expect(await page.evaluate(() => __game.debug.waveDashCount())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.noDashClearCount())).toBe(0);
+});
+
+test('#182 : waveDashCount se remet a 0 a la vague suivante', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.dash());
+  expect(await page.evaluate(() => __game.debug.waveDashCount())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.waveDashCount())).toBe(0);
+});

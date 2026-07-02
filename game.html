@@ -2040,7 +2040,9 @@ function dash(){
   const f = (input.forward?1:0)-(input.back?1:0), s = (input.left?1:0)-(input.right?1:0);
   if(f||s){ const d = cameraRelative({forward:f, strafe:s}, camYaw); const l = Math.hypot(d.x,d.z)||1; dashDir = { x:d.x/l, z:d.z/l }; }
   else { dashDir = { x:Math.sin(camYaw), z:Math.cos(camYaw) }; }
-  dashRemaining = DASH_DISTANCE; dashCdUntil = nowS() + DASH_CD; updateDashHud(); playSound('shot'); return true;
+  dashRemaining = DASH_DISTANCE; dashCdUntil = nowS() + DASH_CD; updateDashHud(); playSound('shot');
+  waveDashCount_++;   // #182 : bonus "vague sans dash"
+  return true;
 }
 function updateDashHud(){ const el = document.getElementById('dash-hud'); if(!el) return;
   const left = Math.max(0, dashCdUntil - nowS()), ready = left <= 0;
@@ -3375,6 +3377,8 @@ const PERFECT_STREAK_MILESTONE = 3, PERFECT_STREAK_BONUS = 100;   // #165
 let perfectWaveStreak_ = 0;
 const NO_RELOAD_BONUS = 30;   // #166
 let waveReloadCount_ = 0, noReloadClearCount_ = 0;
+const NO_DASH_BONUS = 25;   // #182
+let waveDashCount_ = 0, noDashClearCount_ = 0;
 function grantWaveBonus(waveNum){
   if(dmgThisWave > 0){ perfectWaveStreak_ = 0; return; } // mort ou blessé = pas de bonus, série cassée (#165)
   perfectWaveStreak_++;
@@ -5813,6 +5817,7 @@ function startWave(w){
   firstBloodDone_ = false;   // #161 : reactive le bonus premier sang pour cette vague
   waveReloadCount_ = 0;      // #166 : reactive le bonus sans recharge pour cette vague
   waveKillCount_ = 0;        // #173 : compteur de kills de cette vague
+  waveDashCount_ = 0;        // #182 : reactive le bonus vague sans dash pour cette vague
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
@@ -5835,11 +5840,14 @@ function checkWaveCleared(){
   if(lastSpeedClear_){ speedClearCount_++; addMoney(SPEED_CLEAR_BONUS); showCallout('VAGUE ÉCLAIR!'); }
   if(runFastestWave_ === null || clearTime_ < runFastestWave_) runFastestWave_ = clearTime_;   // #174
   if(waveReloadCount_ === 0){ noReloadClearCount_++; addMoney(NO_RELOAD_BONUS); showCallout('SANS RECHARGE!'); }   // #166
+  if(waveDashCount_ === 0){ noDashClearCount_++; addMoney(NO_DASH_BONUS); showCallout('SANG-FROID!'); }   // #182
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 G.debug.speedClearCount = () => speedClearCount_;
 G.debug.noReloadClearCount = () => noReloadClearCount_;   // #166
 G.debug.waveReloadCount = () => waveReloadCount_;
+G.debug.noDashClearCount = () => noDashClearCount_;   // #182
+G.debug.waveDashCount = () => waveDashCount_;
 G.debug.lastSpeedClear = () => lastSpeedClear_;
 function updateWaves(dt){
   if(G.phase !== 'playing' || trainingActive_) return;
