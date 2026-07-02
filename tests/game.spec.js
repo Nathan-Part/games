@@ -6651,3 +6651,32 @@ test('#173 : une nouvelle vague avec moins de kills garde le record mais reset l
   expect(await page.evaluate(() => __game.debug.waveKillCount())).toBe(1);
   expect(await page.evaluate(() => __game.debug.runBestWaveKills())).toBe(3);
 });
+
+// ====== #174 — Vague la plus rapide ======
+test('#174 : runFastestWave demarre a null', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runFastestWave())).toBeNull();
+});
+
+test('#174 : nettoyer une vague renseigne un temps positif', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  const t = await page.evaluate(() => __game.debug.runFastestWave());
+  expect(t).toBeGreaterThanOrEqual(0);
+});
+
+test('#174 : une vague plus lente ne remonte pas le record', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.ageWaveStart(20)); // vague 1 "vieille" de 20s -> temps de clear ~20s
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  const t1 = await page.evaluate(() => __game.debug.runFastestWave());
+  expect(t1).toBeGreaterThanOrEqual(19);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.evaluate(() => __game.debug.ageWaveStart(30)); // vague 2 plus lente (30s)
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  const t2 = await page.evaluate(() => __game.debug.runFastestWave());
+  expect(t2).toBeCloseTo(t1, 0);
+});

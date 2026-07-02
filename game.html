@@ -2617,14 +2617,16 @@ let runBestHit_ = 0;   // #162 : plus gros degat inflige en un coup, sur la part
 let runDistance_ = 0;  // #163 : distance parcourue (m), sur la partie en cours
 let runBestStreak_ = 0; // #164 : record de série de kills sans degat, sur la partie en cours
 let waveKillCount_ = 0, runBestWaveKills_ = 0;   // #173 : kills de la vague en cours / record de la partie
+let runFastestWave_ = null;   // #174 : temps de nettoyage de vague le plus rapide (secondes), null = aucune vague nettoyee
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; runBestWaveKills_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; runBestWaveKills_ = 0; runFastestWave_ = null; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173 #174
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runBestHit = () => runBestHit_;   // #162
 G.debug.runDistance = () => runDistance_;   // #163
 G.debug.runBestStreak = () => runBestStreak_;   // #164
 G.debug.waveKillCount = () => waveKillCount_;   // #173
 G.debug.runBestWaveKills = () => runBestWaveKills_;
+G.debug.runFastestWave = () => runFastestWave_;   // #174
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
 const ACHIEVEMENTS = [
@@ -4939,6 +4941,7 @@ function playerDie(){
     + `<div class="go-tile"><span>Distance</span><b>${Math.round(runDistance_)}m</b></div>`
     + `<div class="go-tile"><span>Meilleure série</span><b>${runBestStreak_}</b></div>`
     + `<div class="go-tile"><span>Meilleure vague</span><b>${runBestWaveKills_}</b></div>`
+    + `<div class="go-tile"><span>Vague la + rapide</span><b>${runFastestWave_!==null ? Math.round(runFastestWave_)+'s' : '—'}</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
     + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
@@ -5784,8 +5787,10 @@ function checkWaveCleared(){
   addMoney(Math.round(MONEY_PER_WAVE * wave * curDiff().money)); recordScore();   // bonus de vague × difficulté (#46)
   addXp(XP_WAVE * wave);                                                           // XP par vague (#60)
   trackDailyWave(wave);                                                             // contrats vague (#62)
-  lastSpeedClear_ = (nowS() - waveStartTime) < SPEED_CLEAR_THRESHOLD;               // #149 : vague éclair
+  const clearTime_ = nowS() - waveStartTime;                                        // #149/#174
+  lastSpeedClear_ = clearTime_ < SPEED_CLEAR_THRESHOLD;               // #149 : vague éclair
   if(lastSpeedClear_){ speedClearCount_++; addMoney(SPEED_CLEAR_BONUS); showCallout('VAGUE ÉCLAIR!'); }
+  if(runFastestWave_ === null || clearTime_ < runFastestWave_) runFastestWave_ = clearTime_;   // #174
   if(waveReloadCount_ === 0){ noReloadClearCount_++; addMoney(NO_RELOAD_BONUS); showCallout('SANS RECHARGE!'); }   // #166
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
