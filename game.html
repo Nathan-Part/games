@@ -2630,7 +2630,9 @@ let runBestStreak_ = 0; // #164 : record de série de kills sans degat, sur la p
 let waveKillCount_ = 0, runBestWaveKills_ = 0;   // #173 : kills de la vague en cours / record de la partie
 let runFastestWave_ = null;   // #174 : temps de nettoyage de vague le plus rapide (secondes), null = aucune vague nettoyee
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; runBestWaveKills_ = 0; runFastestWave_ = null; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173 #174
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; runBestWaveKills_ = 0; runFastestWave_ = null;
+  firstBloodDone_ = false; firstBloodCount_ = 0; lastFirstBlood_ = false; stealthKillCount_ = 0; lastStealthKill_ = false; clutchCount_ = 0; revengeCount_ = 0;
+  noReloadClearCount_ = 0; noDashClearCount_ = 0; perfectAccuracyCount_ = 0; noGrenadeClearCount_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173 #174 ; #161 #166 #168 #176 #182 #184 #187 #190 : correctif reset manquant (audit tranche 191)
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runBestHit = () => runBestHit_;   // #162
 G.debug.runDistance = () => runDistance_;   // #163
@@ -2656,6 +2658,11 @@ const ACHIEVEMENTS = [
   { id:'sniper_elite', name:"Sniper d'élite",    desc:'100 headshots cumulés' },       // #183
   { id:'marathonien',  name:'Marathonien',       desc:'10 000m parcourus cumulés' },   // #185
   { id:'speedrunner',  name:'Speedrunner',       desc:'3 vagues éclair dans la même partie' },   // #186
+  { id:'intouchable',   name:'Intouchable',      desc:'10 vagues parfaites consécutives' },       // #191
+  { id:'sans_faille',   name:'Sans faille',      desc:'5 vagues sans recharger (une partie)' },   // #191
+  { id:'ombre',         name:'Ombre',            desc:'5 takedowns furtifs (une partie)' },       // #191
+  { id:'cible_mouvante',name:'Cible mouvante',   desc:'50m parcourus en une partie' },             // #191
+  { id:'intraitable',   name:'Intraitable',      desc:'3 kills clutch (une partie)' },             // #191
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2680,6 +2687,11 @@ function checkAchievements(comboMult){
   if(lifetimeStats().headshots >= 100) unlockAchievement('sniper_elite');   // #183
   if(lifetimeStats().distance >= 10000) unlockAchievement('marathonien');   // #185
   if(speedClearCount_ >= 3) unlockAchievement('speedrunner');   // #186
+  if(perfectWaveStreak_ >= 10) unlockAchievement('intouchable');    // #191
+  if(noReloadClearCount_ >= 5) unlockAchievement('sans_faille');    // #191
+  if(stealthKillCount_ >= 5) unlockAchievement('ombre');             // #191
+  if(runDistance_ >= 50) unlockAchievement('cible_mouvante');       // #191
+  if(clutchCount_ >= 3) unlockAchievement('intraitable');            // #191
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');

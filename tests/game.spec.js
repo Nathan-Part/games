@@ -7125,3 +7125,79 @@ test('#190 : waveGrenadeCount se remet a 0 a la vague suivante', async ({ page }
   await page.evaluate(() => __game.debug.forceNextWave());
   expect(await page.evaluate(() => __game.debug.waveGrenadeCount())).toBe(0);
 });
+
+// ====== #191 — Succes (lot 4) ======
+test('#191 : achievements() inclut les 5 nouveaux ids', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  for (const id of ['intouchable', 'sans_faille', 'ombre', 'cible_mouvante', 'intraitable']) expect(ids).toContain(id);
+});
+
+test('#191 : 10 vagues parfaites consecutives debloquent intouchable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  for (let i = 0; i < 10; i++) {
+    await page.evaluate(() => __game.debug.killAllEnemies());
+    await page.waitForTimeout(50);
+    await page.evaluate(() => __game.debug.forceNextWave());
+    await page.waitForTimeout(50);
+  }
+  expect(await page.evaluate(() => __game.debug.perfectWaveStreak())).toBeGreaterThanOrEqual(10);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('intouchable'))).toBe(true);
+});
+
+test('#191 : 5 vagues sans recharger debloquent sans_faille', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  for (let i = 0; i < 5; i++) {
+    await page.evaluate(() => __game.debug.killAllEnemies());
+    await page.waitForTimeout(50);
+    await page.evaluate(() => __game.debug.forceNextWave());
+    await page.waitForTimeout(50);
+  }
+  expect(await page.evaluate(() => __game.debug.noReloadClearCount())).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('sans_faille'))).toBe(true);
+});
+
+test('#191 : 5 takedowns furtifs debloquent ombre', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.save.reset();
+    __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
+  });
+  for (let i = 0; i < 5; i++) {
+    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+    await page.evaluate(() => __game.debug.playerMelee());
+    await page.waitForTimeout(700);
+  }
+  expect(await page.evaluate(() => __game.debug.stealthKillCount())).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('ombre'))).toBe(true);
+});
+
+test('#191 : 50m parcourus debloquent cible_mouvante', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
+  await page.waitForTimeout(11000);
+  await page.evaluate(() => __game.debug.setInput({}));
+  expect(await page.evaluate(() => __game.debug.runDistance())).toBeGreaterThanOrEqual(50);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('cible_mouvante'))).toBe(true);
+});
+
+test('#191 : 3 kills clutch debloquent intraitable', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  const maxHp = await page.evaluate(() => __game.maxHealth);
+  for (let i = 0; i < 3; i++) {
+    const hp = await page.evaluate(() => __game.debug.playerHealth());
+    const dmg = Math.max(1, hp - Math.round(maxHp * 0.1));   // ramene les PV a ~10% du max, sans jamais depasser les PV courants (evite second souffle/mort)
+    await page.evaluate((d) => { __game.debug.setShield(0); __game.debug.damagePlayer(d); }, dmg);
+    const n = await page.evaluate(() => __game.debug.enemyCount());
+    for (let j = 0; j < n; j++) await page.evaluate((j) => __game.debug.damageEnemy(j, 99999), j);
+    await page.evaluate(() => { __game.debug.useMedkit(); __game.debug.useMedkit(); });   // remonte les PV avant le prochain cycle
+    await page.evaluate(() => __game.debug.forceNextWave());
+  }
+  expect(await page.evaluate(() => __game.debug.clutchCount())).toBeGreaterThanOrEqual(3);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('intraitable'))).toBe(true);
+});
