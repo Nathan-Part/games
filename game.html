@@ -2654,6 +2654,7 @@ const ACHIEVEMENTS = [
   { id:'increvable',   name:'Increvable',        desc:'Atteindre la vague 20' },       // #180
   { id:'bourreau',     name:'Bourreau',          desc:'500 kills cumulés' },           // #183
   { id:'sniper_elite', name:"Sniper d'élite",    desc:'100 headshots cumulés' },       // #183
+  { id:'marathonien',  name:'Marathonien',       desc:'10 000m parcourus cumulés' },   // #185
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2676,6 +2677,7 @@ function checkAchievements(comboMult){
   if(wave >= 20) unlockAchievement('increvable');               // #180
   if(lifetimeStats().kills >= 500) unlockAchievement('bourreau');       // #183
   if(lifetimeStats().headshots >= 100) unlockAchievement('sniper_elite');   // #183
+  if(lifetimeStats().distance >= 10000) unlockAchievement('marathonien');   // #185
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
@@ -4967,6 +4969,7 @@ G.debug.playerMoveSpeed = () => lastMoveSpeed_;                                 
 function playerDie(){
   G.phase = 'dead'; recordScore(); resetCombo(); resetPower(); playSound('gameover');
   flushLifetimeTime(); // lifetime playtime (#80)
+  addLifetimeStat('distance', runDistance_);   // #185 : distance cumulee (succes marathonien)
   document.getElementById('pickup-prompt').classList.add('hidden');   // plus d'invite de ramassage à la mort (#23)
   document.getElementById('scope-overlay')?.classList.remove('show'); // lunette sniper masquée à la mort (sinon viseur résiduel sur Game Over/accueil #61)
   if(document.pointerLockElement) document.exitPointerLock?.();

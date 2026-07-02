@@ -6993,3 +6993,35 @@ test('#184 : moins de 5 tirs meme a 100% de precision n atteint pas le seuil', a
   await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.perfectAccuracyCount())).toBe(0);
 });
+
+// ====== #185 — Succes Marathonien ======
+test('#185 : achievements() inclut marathonien', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('marathonien');
+});
+
+test('#185 : mourir avec de la distance parcourue incremente lifetimeStats().distance', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => __game.debug.setInput({}));
+  const before = await page.evaluate(() => __game.debug.lifetimeStats().distance || 0);
+  await page.evaluate(() => { __game.debug.damagePlayer(9999); });
+  await page.waitForTimeout(2200);
+  await page.evaluate(() => { __game.debug.damagePlayer(9999); });
+  await page.waitForFunction(() => window.__game.phase === 'dead');
+  const after = await page.evaluate(() => __game.debug.lifetimeStats().distance || 0);
+  expect(after).toBeGreaterThan(before);
+});
+
+test('#185 : 10000m cumules debloquent marathonien', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('marathonien'))).toBe(false);
+  await page.evaluate(() => {
+    __game.debug.addLifetimeStat('distance', 10000);
+    __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999);
+  });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('marathonien'))).toBe(true);
+});
