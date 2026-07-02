@@ -7312,3 +7312,24 @@ test('#195 : equiper une arme legendaire debloque legendaire_arme', async ({ pag
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('legendaire_arme'))).toBe(true);
 });
+
+// ====== #196 — Compteur de succes sur l accueil ======
+test('#196 : accueil affiche 0/N sur une save neuve', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.backToHome(); });
+  await page.waitForFunction(() => window.__game.phase === 'lobby');
+  const total = await page.evaluate(() => __game.debug.achievements().length);
+  const text = await page.evaluate(() => document.getElementById('intel-achievements').textContent);
+  expect(text).toBe(`0/${total}`);
+});
+
+test('#196 : le compteur reflete un succes debloque', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('firstblood'))).toBe(true);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.waitForFunction(() => window.__game.phase === 'lobby');
+  const total = await page.evaluate(() => __game.debug.achievements().length);
+  const text = await page.evaluate(() => document.getElementById('intel-achievements').textContent);
+  expect(text).toBe(`1/${total}`);
+});

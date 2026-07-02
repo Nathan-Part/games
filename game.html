@@ -686,6 +686,7 @@
         <div class="intel-row"><span>Meilleur combo</span><b id="intel-combo">x1</b></div>
         <div class="intel-row"><span>Meilleur score</span><b id="intel-bestscore">0</b></div>
         <div class="intel-row"><span>Prestige</span><b id="intel-prestige">—</b></div>
+        <div class="intel-row"><span>Succès</span><b id="intel-achievements">0/0</b></div>
         <div class="intel-row"><span>Crédits</span><b id="intel-money" class="gold">0</b></div>
       </div>
       <div class="intel-card tac"><span class="br tr"></span><span class="br bl"></span>
@@ -1184,6 +1185,7 @@ function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b
   set('intel-wave', bw);
   set('intel-bestscore', (save.leaderboard[0] && save.leaderboard[0].score) || 0);   // #157
   set('intel-prestige', (save.prestige||0) > 0 ? '★'+save.prestige : '—');            // #159
+  set('intel-achievements', (save.unlockedAchievements||[]).length + '/' + ACHIEVEMENTS.length);   // #196
   let combo = 1; try { combo = comboMultiplier(save.bestCombo || 0); } catch(e){}
   set('intel-combo', 'x' + combo);
   set('intel-money', save.money);
