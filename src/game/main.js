@@ -2013,14 +2013,13 @@ G.debug.enemyInFrenzy = (i) => { const e=enemies[i]; return !!(e && e.frenzyUnti
 G.debug.frenzyCount = () => frenzyCount_;
 G.debug.forceEnemyFrenzy = (i) => { const e=enemies[i]; if(e){ e.frenzyUsed=false; e.hp=Math.floor(e.maxHp*0.2); tryTriggerFrenzy(e); }};
 // ====== #114 Armor system ======
-const ARMOR_TYPES = new Set(['tank','boss','juggernaut']);   // #131 : juggernaut compte aussi comme kill blindé
-const ARMOR_TORSO_MULT = 0.7;
-const FULL_ARMOR_TYPES = new Set(['juggernaut']);   // #131 : armure intégrale (toutes zones), pas juste le torse
-const FULL_ARMOR_MULT = 0.6;
+// armure portée par le champ `armor` de ENEMY_TYPES : 'torso' (tank/boss) ou 'full' (juggernaut #131)
+const ARMOR_TORSO_MULT = 0.7, FULL_ARMOR_MULT = 0.6;
 let armoredKillCount_ = 0;
 function enemyArmorMult(e, zone){
-  if(FULL_ARMOR_TYPES.has(e.type)) return FULL_ARMOR_MULT;
-  return ARMOR_TYPES.has(e.type) && zone === 'torso' ? ARMOR_TORSO_MULT : 1.0;
+  const armor = ENEMY_TYPES[e.type] && ENEMY_TYPES[e.type].armor;
+  if(armor === 'full') return FULL_ARMOR_MULT;
+  return armor === 'torso' && zone === 'torso' ? ARMOR_TORSO_MULT : 1.0;
 }
 G.debug.enemyArmorMult = (i, zone) => { const e=enemies[i]; return e ? enemyArmorMult(e, zone) : 1.0; };
 G.debug.armoredKillCount = () => armoredKillCount_;
@@ -3774,27 +3773,27 @@ const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE
       SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
 const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5, BOSS_BONUS = 300;   // #31 : bonus à la mort d'un boss
 // ====== Types d'ennemis (#11) : rusher (mêlée rapide), shooter (tireur rafale), tank (lourd) ======
+// Table unique par type (étape 5) : stats + arme portée/lootable (#23) + couleur radar (#21) + armure (#114/#131).
 const ENEMY_TYPES = {
-  shooter: { id:'shooter', hpMult:1.0, speedMult:1.0,  scale:1.0,  melee:false, damageMult:1.0, burst:3, glow:null },
-  rusher:  { id:'rusher',  hpMult:0.6, speedMult:1.75, scale:0.9,  melee:true,  damageMult:1.0, burst:1, glow:0x6b1414 },
-  tank:    { id:'tank',    hpMult:2.6, speedMult:0.55, scale:1.34, melee:false, damageMult:1.8, burst:2, glow:0x3a1250 },
-  boss:      { id:'boss',      hpMult:8.0, speedMult:0.7,  scale:1.9,  melee:false, damageMult:2.2, burst:3, glow:0xff5a1e },   // #31
-  bomber:    { id:'bomber',    hpMult:0.5, speedMult:1.9,  scale:0.95, melee:true,  damageMult:1.0, burst:1, glow:0xff1e1e },   // #37 kamikaze
+  shooter: { id:'shooter', hpMult:1.0, speedMult:1.0,  scale:1.0,  melee:false, damageMult:1.0, burst:3, glow:null,     weapon:'default', radarColor:'#ffb84d' },
+  rusher:  { id:'rusher',  hpMult:0.6, speedMult:1.75, scale:0.9,  melee:true,  damageMult:1.0, burst:1, glow:0x6b1414, weapon:'smg',     radarColor:'#ff5b5b' },
+  tank:    { id:'tank',    hpMult:2.6, speedMult:0.55, scale:1.34, melee:false, damageMult:1.8, burst:2, glow:0x3a1250, weapon:'sniper',  radarColor:'#c07bff', armor:'torso' },
+  boss:      { id:'boss',      hpMult:8.0, speedMult:0.7,  scale:1.9,  melee:false, damageMult:2.2, burst:3, glow:0xff5a1e, weapon:'sniper', armor:'torso' },   // #31
+  bomber:    { id:'bomber',    hpMult:0.5, speedMult:1.9,  scale:0.95, melee:true,  damageMult:1.0, burst:1, glow:0xff1e1e, weapon:'smg' },   // #37 kamikaze
   berserker: { id:'berserker', hpMult:1.5, speedMult:1.8,  scale:1.05, melee:true,  damageMult:2.0, burst:1, glow:0xcc4400 },   // #104 rage
   sniper:    { id:'sniper',   hpMult:0.8, speedMult:0.5,  scale:1.0,  melee:false, damageMult:2.5, burst:1, glow:0xcc0033, shootCd:4.0, shootRange:28 }, // #111 sniper (engage de loin, pas à 9m comme les autres)
   shielder:  { id:'shielder', hpMult:1.2, speedMult:0.7,  scale:1.0,  melee:false, damageMult:1.0, burst:2, glow:0x00aacc },         // #119 bouclier frontal
   medic:     { id:'medic',    hpMult:0.7, speedMult:0.8,  scale:0.95, melee:false, damageMult:0.8, burst:1, glow:0x00cc55 },         // #120 guérisseur
   stunner:   { id:'stunner',  hpMult:0.9, speedMult:1.1,  scale:1.0,  melee:false, damageMult:0.7, burst:2, glow:0xffdd00 },         // #121 éclaire/ralentit le joueur
   grenadier: { id:'grenadier',hpMult:1.2, speedMult:0.7,  scale:1.05, melee:false, damageMult:0.8, burst:1, glow:0xaaff00 },         // #128 lance des grenades
-  juggernaut:{ id:'juggernaut',hpMult:5.0, speedMult:0.45, scale:1.5, melee:true,  damageMult:2.2, burst:1, glow:0x888899 },         // #131 élite blindé, armure intégrale, vague 10+
+  juggernaut:{ id:'juggernaut',hpMult:5.0, speedMult:0.45, scale:1.5, melee:true,  damageMult:2.2, burst:1, glow:0x888899, armor:'full' },   // #131 élite blindé, armure intégrale, vague 10+
   toxic:     { id:'toxic',    hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.9, burst:2, glow:0x33cc33 },         // #141 nuage de poison à la mort
   cryo:      { id:'cryo',     hpMult:0.9, speedMult:0.9,  scale:1.0,  melee:false, damageMult:0.8, burst:2, glow:0x66ccff },         // #146 zone de gel à la mort
   commander: { id:'commander',hpMult:1.3, speedMult:0.8,  scale:1.1,  melee:false, damageMult:1.0, burst:2, glow:0xffaa00 },         // #151 aura : buffe les dégâts alliés
 };
 const ENEMY_BURST_GAP = 0.12, MELEE_RANGE = 2.2, MELEE_DAMAGE = 14, MELEE_CD = 0.9;
-// arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable
-const ENEMY_WEAPON = { shooter:'default', rusher:'smg', tank:'sniper', boss:'sniper', bomber:'smg' };
-function weaponIdForType(type){ return ENEMY_WEAPON[type] || 'default'; }
+// arme tenue par type d'ennemi (#23) : sert au mesh ET au loot ramassable — champ `weapon` de ENEMY_TYPES
+function weaponIdForType(type){ return (ENEMY_TYPES[type] && ENEMY_TYPES[type].weapon) || 'default'; }
 function meshMaxZ(obj){ obj.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(obj); return isFinite(b.max.z) ? b.max.z : 0.45; }
 // courbes de progression des vagues (pures) : nombre + PV croissants, plafonnés
 function isBossWave(w){ return w > 0 && w % 5 === 0; }                          // #31 : boss tous les 5 niveaux
@@ -3896,7 +3895,7 @@ function peekTarget(ex, ez, px, pz, obs){
 Object.assign(G.debug, { flankTarget, segClear, peekTarget });
 // ====== Mini-carte / radar (#21) : blips ennemis autour du joueur, orientés regard ======
 const RADAR_RANGE = 28, RADAR_R = 70;
-const RADAR_COLORS = { shooter:'#ffb84d', rusher:'#ff5b5b', tank:'#c07bff' };
+// couleurs radar : champ `radarColor` de ENEMY_TYPES (fallback rouge)
 function currentRadarRange(){ return activePower === 'radar_boost' ? RADAR_RANGE * 2 : RADAR_RANGE; }   // #179
 // projection pure monde->radar : "haut" = direction face caméra (mêmes axes que la caméra)
 function radarBlip(ex, ez, px, pz, yaw, range, radius){
@@ -3935,7 +3934,7 @@ function updateRadar(){
   // ennemis (couleur par type, clamp au bord si hors portée)
   for(const e of enemies){ if(!e.alive) continue;
     const b = radarBlip(e.root.position.x, e.root.position.z, px, pz, cy, rr, RADAR_R);
-    ctx.globalAlpha = b.inRange ? 1 : 0.5; ctx.fillStyle = RADAR_COLORS[e.type] || '#ff5b5b';
+    ctx.globalAlpha = b.inRange ? 1 : 0.5; ctx.fillStyle = (ENEMY_TYPES[e.type] && ENEMY_TYPES[e.type].radarColor) || '#ff5b5b';
     ctx.beginPath(); ctx.arc(C + b.x, C - b.y, b.inRange ? 4 : 3, 0, Math.PI*2); ctx.fill();
   }
   ctx.globalAlpha = 1; ctx.restore();
@@ -4488,7 +4487,7 @@ function killEnemy(e){
     e.root.traverse(o => { if(o.isBone) pose.push({ bone:o, p:o.position.clone(), q:o.quaternion.clone() }); });
     e.frozenPose = pose;
   }
-  if(ARMOR_TYPES.has(e.type)) armoredKillCount_++;    // armor system (#114)
+  if(ENEMY_TYPES[e.type] && ENEMY_TYPES[e.type].armor) armoredKillCount_++;    // armor system (#114)
   const mult = registerKill();                        // combo (#29) : multiplicateur argent/score
   const wm = waveScoreMult_();                        // multiplicateur de vague (#126)
   const killScore = Math.round(mult * wm); lastKillScore_ = killScore;
