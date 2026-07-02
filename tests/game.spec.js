@@ -6756,3 +6756,57 @@ test('#177 : 5 vagues parfaites cumulees debloquent perfectionniste', async ({ p
   expect(await page.evaluate(() => __game.debug.lifetimeStats().perfectWaves)).toBeGreaterThanOrEqual(5);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('perfectionniste'))).toBe(true);
 });
+
+// ====== #178 — Consommable Trousse de soin ======
+test('#178 : stock par defaut est 3', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(3);
+});
+
+test('#178 : useMedkit restaure 30 PV et decremente le stock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(50); });
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  const stockBefore = await page.evaluate(() => __game.debug.medkitStock());
+  expect(await page.evaluate(() => __game.debug.useMedkit())).toBe(true);
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpAfter - hpBefore).toBe(30);
+  expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(stockBefore - 1);
+});
+
+test('#178 : useMedkit a stock 0 echoue, PV inchanges', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(50); for(let i=0;i<10;i++) __game.debug.useMedkit(); });
+  expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(0);
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  expect(await page.evaluate(() => __game.debug.useMedkit())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.playerHealth())).toBe(hpBefore);
+});
+
+test('#178 : en hardcore useMedkit echoue sans consommer le stock', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setHardcore(true); __game.debug.setShield(0); __game.debug.damagePlayer(50); });
+  const stockBefore = await page.evaluate(() => __game.debug.medkitStock());
+  expect(await page.evaluate(() => __game.debug.useMedkit())).toBe(false);
+  expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(stockBefore);
+});
+
+test('#178 : la touche Z declenche useMedkit', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(50); });
+  const stockBefore = await page.evaluate(() => __game.debug.medkitStock());
+  await page.evaluate(() => __game.debug.setInput({}));
+  await page.keyboard.press('KeyZ');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.medkitStock())).toBe(stockBefore - 1);
+});
+
+test('#178 : achat en boutique incremente le stock persiste', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(1000); });
+  const before = await page.evaluate(() => __game.debug.save.get().consumables.medkit);
+  expect(await page.evaluate(() => __game.debug.shop.buyConsumable('medkit'))).toBe(true);
+  const after = await page.evaluate(() => __game.debug.save.get().consumables.medkit);
+  expect(after).toBe(before + 1);
+});
