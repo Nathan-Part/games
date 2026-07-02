@@ -92,26 +92,35 @@ test('boutique : apercu d un accessoire sur le perso sans l acheter (essayer ava
 
 // ====== Tranche 38 : annonces de kill ======
 
+// NB #38 : les callouts bonus (OVERKILL #139, PREMIER SANG #161, REVANCHE #187) s'émettent APRÈS
+// l'annonce de kill → ces tests consomment le premier sang hors mesure, tuent en dégâts exacts
+// (pas d'overkill) et laissent passer les fenêtres revanche (1 s) / multi-kill (1,2 s).
 test('annonce : BOSS DOWN a la mort du boss', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.forceWave(5));
-  await page.evaluate(() => __game.debug.damageEnemy(0, 999999));   // enemies[0] = boss
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.damageEnemy(1, __game.debug.enemyHp(1)); }); // sbire : consomme le premier sang
+  await page.waitForTimeout(1100);
+  await page.evaluate(() => __game.debug.damageEnemy(0, __game.debug.enemyHp(0)));   // enemies[0] = boss, dégâts exacts
   expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('BOSS');
 });
 
 test('annonce : HEADSHOT sur un kill en tete', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.save.addMoney(2000); __game.debug.shop.buy('sniper'); __game.debug.shop.equip('sniper'); });
-  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
-  await page.waitForTimeout(150);
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.damageEnemy(1, __game.debug.enemyHp(1)); }); // consomme le premier sang
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setSpreadOverride(0); });
+  await page.waitForTimeout(1300);   // ferme les fenêtres revanche ET multi-kill
   await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
-  await page.evaluate(() => __game.debug.tryFire());
+  // laisse 15 PV : le headshot (60) tue sans excédent ≥50 (pas d'OVERKILL) ; face au joueur (pas de backstab)
+  await page.evaluate(() => { __game.debug.damageEnemy(0, __game.debug.enemyHp(0) - 15); __game.debug.forceEnemyFacePlayer(0); __game.debug.tryFire(); });
   expect(await page.evaluate(() => __game.debug.lastCallout())).toBe('HEADSHOT');
 });
 
 test('annonce : DOUBLE KILL sur 2 kills rapproches', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.damageEnemy(0, 99999); __game.debug.damageEnemy(1, 99999); });
+  await page.evaluate(() => { __game.debug.setEnemyAccuracy(0); __game.debug.damageEnemy(0, __game.debug.enemyHp(0)); }); // consomme le premier sang
+  await page.waitForTimeout(1300);   // ferme les fenêtres revanche ET multi-kill
+  await page.evaluate(() => __game.debug.spawnEnemyAt(20, 20));   // ressuscite enemies[0] au loin : la vague survit au double (pas de callouts de fin de vague)
+  await page.evaluate(() => { __game.debug.damageEnemy(1, __game.debug.enemyHp(1)); __game.debug.damageEnemy(2, __game.debug.enemyHp(2)); }); // dégâts exacts
   expect(await page.evaluate(() => __game.debug.lastCallout())).toContain('DOUBLE');
   await expect(page.locator('#kill-callout')).toContainText('DOUBLE');
 });

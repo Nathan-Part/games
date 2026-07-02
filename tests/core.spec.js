@@ -249,7 +249,9 @@ test('le joueur a 100 PV, les dégâts les réduisent, et la vie régénère', a
 test('à 0 PV : Game Over, puis Rejouer remet la partie à zéro', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.setShield(0)); // #67 : vider le bouclier pour que 100 dégâts tuent vraiment
-  await page.evaluate(() => __game.debug.damagePlayer(100));
+  await page.evaluate(() => __game.debug.damagePlayer(100)); // 1er coup fatal → dernier souffle (#137), survit à 1 PV
+  await page.waitForTimeout(2200);                           // laisse expirer l'invincibilité post-dernier-souffle (2 s)
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(100); }); // mort réelle
   expect(await page.evaluate(() => __game.phase)).toBe('dead');
   await expect(page.locator('#gameover')).toBeVisible();
   await page.evaluate(() => __game.debug.restart());
@@ -404,7 +406,9 @@ test('accueil : Comment jouer ouvre un panneau a onglets, Echap le ferme', async
 test('accueil : on revient au menu apres un Game Over', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.setShield(0)); // #67 : vider le bouclier pour que 100 dégâts tuent
-  await page.evaluate(() => __game.debug.damagePlayer(100));
+  await page.evaluate(() => __game.debug.damagePlayer(100)); // 1er coup fatal → dernier souffle (#137)
+  await page.waitForTimeout(2200);                           // invincibilité post-dernier-souffle (2 s)
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(100); }); // mort réelle
   expect(await page.evaluate(() => __game.phase)).toBe('dead');
   await page.evaluate(() => __game.debug.backToHome());
   expect(await page.evaluate(() => __game.phase)).toBe('lobby');

@@ -94,7 +94,9 @@ test('stats partie : kills/headshots comptes et affiches au Game Over', async ({
   await page.evaluate(() => __game.debug.tryFire());
   expect(await page.evaluate(() => __game.debug.runStats().kills)).toBeGreaterThanOrEqual(1);
   expect(await page.evaluate(() => __game.debug.runStats().headshots)).toBeGreaterThanOrEqual(1);
-  await page.evaluate(() => __game.debug.damagePlayer(9999));
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(9999); }); // 1er coup fatal → dernier souffle (#137)
+  await page.waitForTimeout(2200);                                                            // invincibilité post-dernier-souffle (2 s)
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(9999); }); // mort réelle
   await expect(page.locator('#go-score')).toContainText('Kills');
 });
 
