@@ -2616,7 +2616,7 @@ let runBestHit_ = 0;   // #162 : plus gros degat inflige en un coup, sur la part
 let runDistance_ = 0;  // #163 : distance parcourue (m), sur la partie en cours
 let runBestStreak_ = 0; // #164 : record de série de kills sans degat, sur la partie en cours
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runBestHit = () => runBestHit_;   // #162
 G.debug.runDistance = () => runDistance_;   // #163
@@ -3329,16 +3329,23 @@ G.debug.enemyIsJuggernaut = (i) => { const e=enemies[i]; return !!e && e.type===
 // ====== #100 Bonus argent fin de vague (survie parfaite) ======
 const WAVE_BONUS_PER_WAVE = 50;
 let lastWaveBonus_ = 0;
+const PERFECT_STREAK_MILESTONE = 3, PERFECT_STREAK_BONUS = 100;   // #165
+let perfectWaveStreak_ = 0;
 function grantWaveBonus(waveNum){
-  if(dmgThisWave > 0) return; // mort ou blessé = pas de bonus
+  if(dmgThisWave > 0){ perfectWaveStreak_ = 0; return; } // mort ou blessé = pas de bonus, série cassée (#165)
+  perfectWaveStreak_++;
   const bonus = waveNum * WAVE_BONUS_PER_WAVE;
   lastWaveBonus_ = bonus; addMoney(bonus);
   const tel=document.getElementById('achievement-toast'); if(tel){ tel.textContent=`🎯 BONUS VAGUE +${bonus}$`; tel.style.color='#ff9900'; tel.classList.add('show'); setTimeout(()=>tel.classList.remove('show'),2200); }
+  if(perfectWaveStreak_ % PERFECT_STREAK_MILESTONE === 0){   // #165 : palier de series parfaites
+    addMoney(PERFECT_STREAK_BONUS); showCallout(`SÉRIE PARFAITE x${perfectWaveStreak_}!`);
+  }
 }
 function forceWaveBonus(waveNum){ const prev=dmgThisWave; dmgThisWave=0; const bonus=waveNum*WAVE_BONUS_PER_WAVE; lastWaveBonus_=bonus; addMoney(bonus); dmgThisWave=prev; }
 G.debug.lastWaveBonus = () => lastWaveBonus_;
 G.debug.waveBonus = () => dmgThisWave===0 ? wave*WAVE_BONUS_PER_WAVE : 0;
 G.debug.forceWaveBonus = (waveNum) => forceWaveBonus(waveNum);
+G.debug.perfectWaveStreak = () => perfectWaveStreak_;   // #165
 // ====== #99 Flank Warning ======
 const FLANK_ANGLE = Math.cos(100 * Math.PI / 180); // cos(100°) ≈ -0.174 : ennemi dans le dos/flanc
 const FLANK_DUR = 1.0;

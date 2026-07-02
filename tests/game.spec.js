@@ -6395,3 +6395,35 @@ test('#164 : restart remet runBestStreak a 0', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.runBestStreak())).toBe(0);
 });
+
+// ====== #165 — Serie de vagues parfaites ======
+test('#165 : perfectWaveStreak demarre a 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.perfectWaveStreak())).toBe(0);
+});
+
+test('#165 : 3 vagues consecutives sans degat declenchent le bonus palier', async ({ page }) => {
+  await startPlaying(page);
+  const moneyBefore = await page.evaluate(() => __game.debug.save.get().money);
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => __game.debug.killAllEnemies());
+    await page.waitForTimeout(50);
+    await page.evaluate(() => __game.debug.forceNextWave());
+    await page.waitForTimeout(50);
+  }
+  expect(await page.evaluate(() => __game.debug.perfectWaveStreak())).toBe(3);
+  const moneyAfter = await page.evaluate(() => __game.debug.save.get().money);
+  expect(moneyAfter - moneyBefore).toBeGreaterThanOrEqual(100); // au moins le bonus palier
+});
+
+test('#165 : une vague avec degats casse la serie', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.perfectWaveStreak())).toBe(1);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(5); });
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.perfectWaveStreak())).toBe(0);
+});
