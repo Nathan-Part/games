@@ -5728,6 +5728,8 @@ function killEnemy(e){
   maybeDropAmmo(e);                                    // chance de pack de munitions (#117)
   maybeDropPower(e);                                   // chance de power-up (#34 ; boss garanti)
   updateComboHud(true);                               // true = pulse (HUD enrichi en T3)
+  const isLastEnemy_ = !enemies.some(en => en.alive && !en.isDecoy);   // #176 : capture avant checkWaveCleared
+  if(isLastEnemy_ && health < maxHealth * 0.2){ clutchCount_++; addMoney(CLUTCH_MONEY); addXp(CLUTCH_XP); showCallout('CLUTCH!'); }
   checkWaveCleared(); updateWaveHud(); updateBossHud(); // vague : un mort de moins + barre boss (#31)
   killCallout(e);                                       // annonce HEADSHOT/multi-kill/BOSS DOWN (#38)
   if(e.isVip) showCallout('VIP ÉLIMINÉ!');              // #140
@@ -5759,6 +5761,9 @@ const STEALTH_MONEY = 20, STEALTH_XP = 15;   // #168
 let stealthKillCount_ = 0, lastStealthKill_ = false;
 G.debug.stealthKillCount = () => stealthKillCount_;
 G.debug.lastStealthKill = () => lastStealthKill_;
+const CLUTCH_MONEY = 30, CLUTCH_XP = 25;   // #176
+let clutchCount_ = 0;
+G.debug.clutchCount = () => clutchCount_;
 // ====== Wave director : enchaîne les vagues, tient le record ======
 let waveStartTime = 0;
 function startWave(w){

@@ -6699,3 +6699,30 @@ test('#175 : posseder 10 armes debloque collectionneur', async ({ page }) => {
   });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('collectionneur'))).toBe(true);
 });
+
+// ====== #176 — Bonus Clutch ======
+test('#176 : dernier ennemi tue a PV eleves ne declenche pas le bonus', async ({ page }) => {
+  await startPlaying(page);
+  const n = await page.evaluate(() => __game.debug.enemyCount());
+  for (let i = 0; i < n; i++) await page.evaluate((i) => __game.debug.damageEnemy(i, 99999), i);
+  expect(await page.evaluate(() => __game.debug.clutchCount())).toBe(0);
+});
+
+test('#176 : dernier ennemi tue a PV bas declenche le bonus clutch', async ({ page }) => {
+  await startPlaying(page);
+  const maxHp = await page.evaluate(() => __game.maxHealth);
+  await page.evaluate((dmg) => { __game.debug.setShield(0); __game.debug.damagePlayer(dmg); }, Math.round(maxHp*0.85));
+  const n = await page.evaluate(() => __game.debug.enemyCount());
+  for (let i = 0; i < n; i++) await page.evaluate((i) => __game.debug.damageEnemy(i, 99999), i);
+  expect(await page.evaluate(() => __game.debug.clutchCount())).toBe(1);
+});
+
+test('#176 : tuer un ennemi qui n est pas le dernier ne declenche pas le bonus meme a PV bas', async ({ page }) => {
+  await startPlaying(page);
+  const maxHp = await page.evaluate(() => __game.maxHealth);
+  await page.evaluate((dmg) => { __game.debug.setShield(0); __game.debug.damagePlayer(dmg); }, Math.round(maxHp*0.85));
+  const n = await page.evaluate(() => __game.debug.enemyCount());
+  expect(n).toBeGreaterThan(1);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));   // au moins un autre ennemi reste vivant
+  expect(await page.evaluate(() => __game.debug.clutchCount())).toBe(0);
+});
