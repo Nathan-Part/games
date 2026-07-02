@@ -2832,6 +2832,7 @@ function reload(){
   if(reloading || ammo === curMag || G.phase!=='playing') return;
   pendingTactical_ = ammo > 0; lastReloadWasTactical_ = false; autoReloadAt_ = -1;
   reloading = true; reloadAt = nowS() + curReload; playSound('reload');
+  waveReloadCount_++;   // #166 : bonus "sans recharge"
 }
 // juice : trace de balle qui s'efface
 const tracers = [];
@@ -3331,6 +3332,8 @@ const WAVE_BONUS_PER_WAVE = 50;
 let lastWaveBonus_ = 0;
 const PERFECT_STREAK_MILESTONE = 3, PERFECT_STREAK_BONUS = 100;   // #165
 let perfectWaveStreak_ = 0;
+const NO_RELOAD_BONUS = 30;   // #166
+let waveReloadCount_ = 0, noReloadClearCount_ = 0;
 function grantWaveBonus(waveNum){
   if(dmgThisWave > 0){ perfectWaveStreak_ = 0; return; } // mort ou blessé = pas de bonus, série cassée (#165)
   perfectWaveStreak_++;
@@ -5733,6 +5736,7 @@ function startWave(w){
   // #156 : plus d'auto-spawn caisse toutes les 4 vagues, remplacé par la touche loadout I
   dmgThisWave = 0; waveState = 'active'; spawnBarrels();    // barils (#41) ; reset dmgThisWave (#55) ; plus de refill grenades par vague (#155)
   firstBloodDone_ = false;   // #161 : reactive le bonus premier sang pour cette vague
+  waveReloadCount_ = 0;      // #166 : reactive le bonus sans recharge pour cette vague
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
@@ -5752,9 +5756,12 @@ function checkWaveCleared(){
   trackDailyWave(wave);                                                             // contrats vague (#62)
   lastSpeedClear_ = (nowS() - waveStartTime) < SPEED_CLEAR_THRESHOLD;               // #149 : vague éclair
   if(lastSpeedClear_){ speedClearCount_++; addMoney(SPEED_CLEAR_BONUS); showCallout('VAGUE ÉCLAIR!'); }
+  if(waveReloadCount_ === 0){ noReloadClearCount_++; addMoney(NO_RELOAD_BONUS); showCallout('SANS RECHARGE!'); }   // #166
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 G.debug.speedClearCount = () => speedClearCount_;
+G.debug.noReloadClearCount = () => noReloadClearCount_;   // #166
+G.debug.waveReloadCount = () => waveReloadCount_;
 G.debug.lastSpeedClear = () => lastSpeedClear_;
 function updateWaves(dt){
   if(G.phase !== 'playing' || trainingActive_) return;

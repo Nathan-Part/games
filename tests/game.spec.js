@@ -6427,3 +6427,33 @@ test('#165 : une vague avec degats casse la serie', async ({ page }) => {
   await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.perfectWaveStreak())).toBe(0);
 });
+
+// ====== #166 — Bonus Sans recharge ======
+test('#166 : nettoyer une vague sans recharger declenche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.waveReloadCount())).toBe(0);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.noReloadClearCount())).toBe(1);
+});
+
+test('#166 : recharger avant de nettoyer la vague empeche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.tryFire()); // ammo < curMag, sinon reload() no-op (deja plein)
+  await page.evaluate(() => __game.debug.reload());
+  expect(await page.evaluate(() => __game.debug.waveReloadCount())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.noReloadClearCount())).toBe(0);
+});
+
+test('#166 : waveReloadCount se remet a 0 a la vague suivante', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.tryFire());
+  await page.evaluate(() => __game.debug.reload());
+  expect(await page.evaluate(() => __game.debug.waveReloadCount())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.waveReloadCount())).toBe(0);
+});
