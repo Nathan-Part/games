@@ -7046,3 +7046,25 @@ test('#186 : 3 vagues eclair dans la meme partie debloquent speedrunner', async 
   expect(await page.evaluate(() => __game.debug.speedClearCount())).toBeGreaterThanOrEqual(3);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('speedrunner'))).toBe(true);
 });
+
+// ====== #187 — Bonus Revanche ======
+test('#187 : tuer juste apres avoir pris un degat declenche la revanche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(5); });
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.revengeCount())).toBe(1);
+});
+
+test('#187 : tuer longtemps apres un degat ne declenche pas la revanche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(5); });
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.revengeCount())).toBe(0);
+});
+
+test('#187 : tuer sans avoir jamais pris de degat ne declenche pas la revanche', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.revengeCount())).toBe(0);
+});

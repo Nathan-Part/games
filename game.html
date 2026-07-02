@@ -5800,6 +5800,7 @@ function killEnemy(e){
   lastStealthKill_ = wasStealthKill_;                          // #168 : takedown furtif
   if(lastStealthKill_){ stealthKillCount_++; addMoney(STEALTH_MONEY); addXp(STEALTH_XP); showCallout('INFILTRATION!'); }
   waveKillCount_++; if(waveKillCount_ > runBestWaveKills_) runBestWaveKills_ = waveKillCount_;   // #173
+  if(nowS() - lastDamageAt < 1){ revengeCount_++; addMoney(REVENGE_MONEY); showCallout('REVANCHE!'); }   // #187
 }
 G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;
@@ -5815,6 +5816,9 @@ G.debug.lastStealthKill = () => lastStealthKill_;
 const CLUTCH_MONEY = 30, CLUTCH_XP = 25;   // #176
 let clutchCount_ = 0;
 G.debug.clutchCount = () => clutchCount_;
+const REVENGE_MONEY = 20;   // #187
+let revengeCount_ = 0;
+G.debug.revengeCount = () => revengeCount_;
 // ====== Wave director : enchaîne les vagues, tient le record ======
 let waveStartTime = 0;
 function startWave(w){
