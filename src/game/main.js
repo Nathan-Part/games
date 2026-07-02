@@ -1647,15 +1647,21 @@ const MAX_GRENADES = 3, GRENADE_DAMAGE = 120, EXPLOSION_R = 4, GRENADE_FUSE = 1.
 let grenades = MAX_GRENADES; const grenadeProjs = [], grenadeFx = [];
 function buildGrenadeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.09,12,10),
   new THREE.MeshStandardMaterial({ color:0x2a3a22, metalness:0.4, roughness:0.6, emissive:0x0a1505 })); }
+// Préambule commun des 6 jets de consommables (étape 5) : spawn devant la caméra + vélocité d'arc standard.
+// `dir` reste unitaire (le raycast de la sticky en dépend).
+function spawnThrownProjectile(buildMesh, speed){
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const mesh = buildMesh(); scene.add(mesh);
+  mesh.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
+  const vel = dir.clone().multiplyScalar(speed); vel.y += 3;
+  return { mesh, vel, dir };
+}
 function throwGrenade(){
   if(G.phase !== 'playing' || grenades <= 0) return false;
   grenades--; save.consumables.frag = grenades; persist(); updateGrenadeHud();
   waveGrenadeCount_++;   // #190 : bonus "vague sans grenade"
-  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-  const m = buildGrenadeMesh(); m.castShadow = true;
-  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
-  const vel = dir.multiplyScalar(9); vel.y += 3;
-  grenadeProjs.push({ mesh:m, vel, explodeAt: nowS() + GRENADE_FUSE, bounces:0 }); showGrenadeArc(false); return true;
+  const p = spawnThrownProjectile(buildGrenadeMesh, 9); p.mesh.castShadow = true;
+  grenadeProjs.push({ mesh:p.mesh, vel:p.vel, explodeAt: nowS() + GRENADE_FUSE, bounces:0 }); showGrenadeArc(false); return true;
 }
 function spawnExplosionFx(pos){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),
   new THREE.MeshBasicMaterial({ color:0xffae3a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false }));
@@ -1703,17 +1709,15 @@ function buildStickyMesh(){ const m = new THREE.Mesh(new THREE.SphereGeometry(0.
 function throwSticky(){
   if(G.phase !== 'playing' || stickyStockCount <= 0) return false;
   stickyStockCount--; save.consumables.sticky = stickyStockCount; persist();
-  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-  const pos = camera.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.5);
+  const p = spawnThrownProjectile(buildStickyMesh, 10);
   // Raycast : colle sur ennemi direct ?
-  _ray.ray.origin.copy(pos); _ray.ray.direction.copy(dir);
+  _ray.ray.origin.copy(p.mesh.position); _ray.ray.direction.copy(p.dir);
   const hitboxes = enemies.filter(e=>e.alive).map(e=>e.hitbox);
   let attachedEnemy = null;
   if(hitboxes.length){ const hits = _ray.intersectObjects(hitboxes, false);
     if(hits.length && hits[0].distance < 20){ attachedEnemy = enemies.find(e=>e.hitbox===hits[0].object)||null; } }
-  const m = buildStickyMesh(); scene.add(m); m.position.copy(pos);
-  stickyProjs.push({ mesh:m, vel:dir.clone().multiplyScalar(10).add(new THREE.Vector3(0,3,0)), explodeAt: nowS()+STICKY_FUSE, attachedEnemy, offset: new THREE.Vector3() });
-  if(attachedEnemy){ m.position.copy(attachedEnemy.root.position).y+=1.2; stickyProjs[stickyProjs.length-1].vel.set(0,0,0); }
+  stickyProjs.push({ mesh:p.mesh, vel:p.vel, explodeAt: nowS()+STICKY_FUSE, attachedEnemy, offset: new THREE.Vector3() });
+  if(attachedEnemy){ p.mesh.position.copy(attachedEnemy.root.position).y+=1.2; stickyProjs[stickyProjs.length-1].vel.set(0,0,0); }
   return true;
 }
 function updateStickyGrenades(dt){ const t = nowS();
@@ -1743,11 +1747,7 @@ function buildMolotovMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13
 function throwMolotov(){
   if(G.phase !== 'playing' || molotovStockCount <= 0) return false;
   molotovStockCount--; save.consumables.molotov = molotovStockCount; persist();
-  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-  const m = buildMolotovMesh(); scene.add(m);
-  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
-  const vel = dir.multiplyScalar(9); vel.y += 3;
-  molotovProjs.push({ mesh:m, vel });
+  molotovProjs.push(spawnThrownProjectile(buildMolotovMesh, 9));
   return true;
 }
 // ====== Zones au sol persistantes (feu #130 / poison #141 / gel #146) : factory unique (étape 5) ======
@@ -1833,11 +1833,7 @@ function buildEmpMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13,10,
 function throwEmp(){
   if(G.phase !== 'playing' || empStockCount <= 0) return false;
   empStockCount--; save.consumables.emp = empStockCount; persist();
-  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-  const m = buildEmpMesh(); scene.add(m);
-  m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
-  const vel = dir.multiplyScalar(9); vel.y += 3;
-  empProjs.push({ mesh:m, vel });
+  empProjs.push(spawnThrownProjectile(buildEmpMesh, 9));
   return true;
 }
 function triggerEmpBlast(x, z){
@@ -2642,10 +2638,8 @@ function buildCloudMesh(r){ return new THREE.Mesh(new THREE.SphereGeometry(r,12,
 function throwSmoke(){
   if(G.phase!=='playing'||smokeStock<=0) return false;
   smokeStock--; save.consumables.smoke = smokeStock; persist(); updateSmokeHud();
-  const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
-  const m=buildSmokeMesh(); m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir,0.5);
-  scene.add(m); const vel=dir.multiplyScalar(7); vel.y+=3;
-  smokeProjs.push({mesh:m,vel,explodeAt:nowS()+SMOKE_FUSE}); return true;
+  const p = spawnThrownProjectile(buildSmokeMesh, 7);
+  smokeProjs.push({mesh:p.mesh,vel:p.vel,explodeAt:nowS()+SMOKE_FUSE}); return true;
 }
 function explodeSmokeAt(x,z){
   const cm=buildCloudMesh(SMOKE_R); cm.position.set(x,1,z); scene.add(cm);
@@ -3098,10 +3092,8 @@ function buildFlashbangMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.
 function throwFlashbang(){
   if(G.phase !== 'playing' || flashbangs <= 0) return false;
   flashbangs--; save.consumables.flashbang = flashbangs; persist(); updateFlashbangHud();
-  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-  const m = buildFlashbangMesh(); m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5);
-  scene.add(m); const vel = dir.multiplyScalar(8); vel.y += 3;
-  flashbangProjs.push({ mesh:m, vel, explodeAt: nowS() + FLASH_FUSE }); return true;
+  const p = spawnThrownProjectile(buildFlashbangMesh, 8);
+  flashbangProjs.push({ mesh:p.mesh, vel:p.vel, explodeAt: nowS() + FLASH_FUSE }); return true;
 }
 function explodeFlashbangAt(x, y, z){
   const t = nowS();
