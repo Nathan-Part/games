@@ -6457,3 +6457,23 @@ test('#166 : waveReloadCount se remet a 0 a la vague suivante', async ({ page })
   await page.evaluate(() => __game.debug.forceNextWave());
   expect(await page.evaluate(() => __game.debug.waveReloadCount())).toBe(0);
 });
+
+// ====== #167 — Power-up Kevlar ======
+test('#167 : spawn puis pickup active le power kevlar', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnKevlar(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.kevlarActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.kevlarTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#167 : kevlar reduit les degats recus de 30%', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  const hpBefore = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => { __game.debug.spawnKevlar(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.damagePlayer(100));
+  const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
+  expect(hpBefore - hpAfter).toBeCloseTo(70, 0);
+});
