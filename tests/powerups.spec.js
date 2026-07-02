@@ -399,6 +399,7 @@ test('#153 lucky shot : spawn puis pickup active le power', async ({ page }) => 
 
 test('#153 lucky shot : forceLuckyShot(true) double les degats du tir suivant', async ({ page }) => {
   await startPlaying(page);
+  await page.evaluate(() => __game.debug.setSpreadOverride(0));   // tirs deterministes : sans ca le spread peut changer de zone (tete 90 vs torse 60) entre les 2 tirs
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
   await page.waitForTimeout(150);
   await page.evaluate(() => { __game.debug.spawnLuckyShot(0, 0); __game.debug.setPos(0, 0); });
@@ -406,16 +407,15 @@ test('#153 lucky shot : forceLuckyShot(true) double les degats du tir suivant', 
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
   await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
   const hpBefore1 = await page.evaluate(() => __game.debug.enemyHp(0));
-  await page.evaluate(() => __game.debug.forceLuckyShot(false));
-  await page.evaluate(() => __game.debug.tryFire());
+  // face au joueur + tir dans le MÊME evaluate : sinon l'ennemi fraîchement spawné tourne le dos → backstab ×1.5 fausse la mesure (#87)
+  await page.evaluate(() => { __game.debug.forceEnemyFacePlayer(0); __game.debug.forceLuckyShot(false); __game.debug.tryFire(); });
   const normalDmg = hpBefore1 - (await page.evaluate(() => __game.debug.enemyHp(0)));
 
   await page.evaluate(() => __game.debug.spawnEnemyInFront(8)); // revit enemies[0] à PV pleins
   await page.waitForTimeout(400); // laisse expirer le cooldown de tir
   await page.evaluate(() => __game.debug.setPitch(0)); // annule un eventuel recul residuel (meme zone visee)
   const hpBefore2 = await page.evaluate(() => __game.debug.enemyHp(0));
-  await page.evaluate(() => __game.debug.forceLuckyShot(true));
-  await page.evaluate(() => __game.debug.tryFire());
+  await page.evaluate(() => { __game.debug.forceEnemyFacePlayer(0); __game.debug.forceLuckyShot(true); __game.debug.tryFire(); });
   const luckyDmg = hpBefore2 - (await page.evaluate(() => __game.debug.enemyHp(0)));
   expect(luckyDmg).toBe(normalDmg * 2);
   expect(await page.evaluate(() => __game.debug.lastLuckyShot())).toBe(true);
@@ -598,10 +598,12 @@ test('#179 : radar.range() double pendant le power', async ({ page }) => {
 
 test('#179 : un ennemi a portee intermediaire n apparait inRange qu avec le power actif', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.setPos(0,0); __game.debug.spawnEnemyTypeAt(0,'shooter',40,0); });
+  // la map clampe les positions a ±24 : depuis le centre, TOUT est a portee du radar de base (28).
+  // On met le joueur dans un coin et l'ennemi a ~48 m : entre 28 (base) et 56 (portee boostee).
+  await page.evaluate(() => { __game.debug.setPos(-20,-20); __game.debug.spawnEnemyTypeAt(0,'shooter',14,14); });
   const before = (await page.evaluate(() => __game.debug.radar.blips())).find(b => b.id === 0);
   expect(before.inRange).toBe(false);
-  await page.evaluate(() => { __game.debug.spawnRadarBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.evaluate(() => { __game.debug.spawnRadarBoost(-20, -20); __game.debug.setPos(-20, -20); });
   await page.waitForTimeout(300);
   const after = (await page.evaluate(() => __game.debug.radar.blips())).find(b => b.id === 0);
   expect(after.inRange).toBe(true);
