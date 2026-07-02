@@ -7240,3 +7240,21 @@ test('#192 : meleeKillStreak se remet a 0 apres declenchement du bonus', async (
   }
   expect(await page.evaluate(() => __game.debug.meleeKillStreak())).toBe(0);
 });
+
+// ====== #193 — Succes Ingenieur ======
+test('#193 : achievements() inclut ingenieur', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('ingenieur');
+});
+
+test('#193 : 10 barils en chaine debloquent ingenieur', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('ingenieur'))).toBe(false);
+  await page.evaluate(() => { for (let i = 0; i < 11; i++) __game.debug.spawnBarrelInFront(8); });
+  await page.evaluate(() => __game.debug.explodeBarrelNow(0));
+  expect(await page.evaluate(() => __game.debug.barrelChainCount())).toBeGreaterThanOrEqual(10);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('ingenieur'))).toBe(true);
+});

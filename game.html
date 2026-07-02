@@ -2663,6 +2663,7 @@ const ACHIEVEMENTS = [
   { id:'ombre',         name:'Ombre',            desc:'5 takedowns furtifs (une partie)' },       // #191
   { id:'cible_mouvante',name:'Cible mouvante',   desc:'50m parcourus en une partie' },             // #191
   { id:'intraitable',   name:'Intraitable',      desc:'3 kills clutch (une partie)' },             // #191
+  { id:'ingenieur',     name:'Ingénieur',        desc:'10 barils en réaction en chaîne' },          // #193
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2692,6 +2693,7 @@ function checkAchievements(comboMult){
   if(stealthKillCount_ >= 5) unlockAchievement('ombre');             // #191
   if(runDistance_ >= 50) unlockAchievement('cible_mouvante');       // #191
   if(clutchCount_ >= 3) unlockAchievement('intraitable');            // #191
+  if(barrelChainCount_ >= 10) unlockAchievement('ingenieur');        // #193
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
