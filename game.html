@@ -2776,11 +2776,11 @@ function tryFire(){
   if(fireModeState === 'burst' && canBurst() && playerBurstLeft <= 0){ playerBurstLeft = BURST_SIZE - 1; playerBurstAt = nowS() + BURST_DELAY; burstHitIds_ = []; lastBurstPerfect_ = false; } // initier la rafale (#64)
   lastShot = nowS(); if(!infiniteAmmo_){ ammo--; G.ammo = ammo; } shake = 1; playSound('shot'); weaponRecoil = curRecoil; registerOverheatShot();
   cameraKick(input.aim ? 1 : 0); // camera kick (#77)
-  runShots++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
+  runShots++; waveShots_++; _fireConnected = false;                       // stats partie (#43) : un appui = un tir
   const sp = currentSpread(); const spR = (sp-1) * 0.022; // spread NDC (#92)
   if(curPellets <= 1){ const a=Math.random()*Math.PI*2; fireRay(Math.cos(a)*spR, Math.sin(a)*spR); }   // arme classique : déviation spread
   else for(let i=0;i<curPellets;i++){ const a = Math.random()*Math.PI*2, r = Math.random()*SHOTGUN_SPREAD + spR; fireRay(Math.cos(a)*r, Math.sin(a)*r); }   // gerbe (#36)
-  if(_fireConnected) runHits++;                             // ce tir a touché ≥1 ennemi (#43)
+  if(_fireConnected){ runHits++; waveHits_++; }                             // ce tir a touché ≥1 ennemi (#43) / #184
   return true;
 }
 // ====== Corps-à-corps (#45) : couteau touche X + couteau arme (E/clic) ======
@@ -2859,7 +2859,7 @@ function playerMeleeWeapon(){
   const dmg = Math.round(PLAYER_MELEE_DAMAGE * s.dmgMult);
   showKnifeFlash();
   const hit = _meleeStrike(PLAYER_MELEE_REACH, dmg, s.cooldown || 0.45);
-  if(hit || playerMeleeCd > 0){ runShots++; if(hit) runHits++; }
+  if(hit || playerMeleeCd > 0){ runShots++; waveShots_++; if(hit){ runHits++; waveHits_++; } }   // #184
   return hit;
 }
 G.debug.playerMelee = () => playerMelee();
@@ -3383,6 +3383,8 @@ const NO_RELOAD_BONUS = 30;   // #166
 let waveReloadCount_ = 0, noReloadClearCount_ = 0;
 const NO_DASH_BONUS = 25;   // #182
 let waveDashCount_ = 0, noDashClearCount_ = 0;
+const PERFECT_ACCURACY_BONUS = 40;   // #184
+let waveShots_ = 0, waveHits_ = 0, perfectAccuracyCount_ = 0;
 function grantWaveBonus(waveNum){
   if(dmgThisWave > 0){ perfectWaveStreak_ = 0; return; } // mort ou blessé = pas de bonus, série cassée (#165)
   perfectWaveStreak_++;
@@ -5822,6 +5824,7 @@ function startWave(w){
   waveReloadCount_ = 0;      // #166 : reactive le bonus sans recharge pour cette vague
   waveKillCount_ = 0;        // #173 : compteur de kills de cette vague
   waveDashCount_ = 0;        // #182 : reactive le bonus vague sans dash pour cette vague
+  waveShots_ = 0; waveHits_ = 0;   // #184 : compteurs de precision de cette vague
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
@@ -5845,6 +5848,7 @@ function checkWaveCleared(){
   if(runFastestWave_ === null || clearTime_ < runFastestWave_) runFastestWave_ = clearTime_;   // #174
   if(waveReloadCount_ === 0){ noReloadClearCount_++; addMoney(NO_RELOAD_BONUS); showCallout('SANS RECHARGE!'); }   // #166
   if(waveDashCount_ === 0){ noDashClearCount_++; addMoney(NO_DASH_BONUS); showCallout('SANG-FROID!'); }   // #182
+  if(waveShots_ >= 5 && waveHits_ === waveShots_){ perfectAccuracyCount_++; addMoney(PERFECT_ACCURACY_BONUS); showCallout('PRÉCISION TOTALE!'); }   // #184
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 G.debug.speedClearCount = () => speedClearCount_;
@@ -5852,6 +5856,9 @@ G.debug.noReloadClearCount = () => noReloadClearCount_;   // #166
 G.debug.waveReloadCount = () => waveReloadCount_;
 G.debug.noDashClearCount = () => noDashClearCount_;   // #182
 G.debug.waveDashCount = () => waveDashCount_;
+G.debug.perfectAccuracyCount = () => perfectAccuracyCount_;   // #184
+G.debug.waveShots = () => waveShots_;
+G.debug.waveHits = () => waveHits_;
 G.debug.lastSpeedClear = () => lastSpeedClear_;
 function updateWaves(dt){
   if(G.phase !== 'playing' || trainingActive_) return;

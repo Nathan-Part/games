@@ -6931,3 +6931,65 @@ test('#183 : 100 headshots cumules debloquent sniper_elite', async ({ page }) =>
   });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('sniper_elite'))).toBe(true);
 });
+
+// ====== #184 — Bonus Precision totale ======
+test('#184 : 5 tirs tous touches sur la meme vague declenchent le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 0, 8);
+    __game.debug.damageEnemy(1, 99999); __game.debug.damageEnemy(2, 99999);   // ecarte les 2 autres ennemis de la vague
+  });
+  await page.waitForTimeout(150);
+  for (let i = 0; i < 5; i++) {
+    await page.evaluate(() => __game.debug.tryFire());
+    await page.waitForTimeout(200);
+  }
+  const shots = await page.evaluate(() => __game.debug.waveShots());
+  expect(shots).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.waveHits())).toBe(shots);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));   // acheve le juggernaut -> vague nettoyee
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.perfectAccuracyCount())).toBe(1);
+});
+
+test('#184 : un tir manque parmi 5+ empeche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 0, 8);
+    __game.debug.damageEnemy(1, 99999); __game.debug.damageEnemy(2, 99999);
+  });
+  await page.waitForTimeout(150);
+  await page.evaluate(() => __game.debug.setYaw(Math.PI));   // tir manque volontairement (dos a l ennemi)
+  await page.evaluate(() => __game.debug.tryFire());
+  await page.waitForTimeout(200);
+  await page.evaluate(() => __game.debug.setYaw(0));
+  for (let i = 0; i < 4; i++) {
+    await page.evaluate(() => __game.debug.tryFire());
+    await page.waitForTimeout(200);
+  }
+  const shots = await page.evaluate(() => __game.debug.waveShots());
+  expect(shots).toBeGreaterThanOrEqual(5);
+  expect(await page.evaluate(() => __game.debug.waveHits())).toBeLessThan(shots);
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.perfectAccuracyCount())).toBe(0);
+});
+
+test('#184 : moins de 5 tirs meme a 100% de precision n atteint pas le seuil', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 0, 8);
+    __game.debug.damageEnemy(1, 99999); __game.debug.damageEnemy(2, 99999);
+  });
+  await page.waitForTimeout(150);
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate(() => __game.debug.tryFire());
+    await page.waitForTimeout(200);
+  }
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.perfectAccuracyCount())).toBe(0);
+});
