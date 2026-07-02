@@ -6341,3 +6341,28 @@ test('#162 : restart remet runBestHit a 0', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.runBestHit())).toBe(0);
 });
+
+// ====== #163 — Distance parcourue ======
+test('#163 : runDistance demarre a 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runDistance())).toBe(0);
+});
+
+test('#163 : avancer augmente runDistance', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => __game.debug.setInput({}));
+  expect(await page.evaluate(() => __game.debug.runDistance())).toBeGreaterThan(0.3);
+});
+
+test('#163 : restart remet runDistance a 0', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setInput({forward:true}));
+  await page.waitForTimeout(600);
+  await page.evaluate(() => __game.debug.setInput({}));
+  expect(await page.evaluate(() => __game.debug.runDistance())).toBeGreaterThan(0.3);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.runDistance())).toBe(0);
+});

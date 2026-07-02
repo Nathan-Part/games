@@ -2043,6 +2043,7 @@ G.debug.dashCooldownLeft = () => Math.max(0, dashCdUntil - nowS());
 G.debug.dashInvulnActive = () => dashRemaining > 0;   // #142
 function updateController(dt){
   if(G.phase!=='playing' || !model) return;
+  const px0_ = model.position.x, pz0_ = model.position.z;   // #163 : distance parcourue
   if(dancing){// danse en cours (#27) : fige la loco
     const moving = input.forward || input.back || input.left || input.right;
     if(nowS() >= danceEndAt || moving) endDance();              // fin (durée écoulée ou mouvement)
@@ -2091,6 +2092,7 @@ function updateController(dt){
     if(model.position.y <= groundY){ model.position.y = groundY; velY = 0; grounded = true; doubleJumpAvailable = false; }   // #135 : réarmé seulement par un nouveau saut au sol
   }
   setLoco(locomotionState(speed, input.sprint && !staminaDepleted));
+  runDistance_ += Math.hypot(model.position.x - px0_, model.position.z - pz0_);   // #163
 }
 
 // ====== UI : HUD, pause, overlay ======
@@ -2611,10 +2613,12 @@ let ammo = 12, reloading = false, reloadAt = 0, lastShot = -1, score = 0;
 // stats de partie (#43) : remises à 0 au start/restart, affichées au Game Over
 let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = false;
 let runBestHit_ = 0;   // #162 : plus gros degat inflige en un coup, sur la partie en cours
+let runDistance_ = 0;  // #163 : distance parcourue (m), sur la partie en cours
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; }   // #139 #148 #149 #150 #153 #162
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; }   // #139 #148 #149 #150 #153 #162 #163
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runBestHit = () => runBestHit_;   // #162
+G.debug.runDistance = () => runDistance_;   // #163
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
 const ACHIEVEMENTS = [
@@ -4900,6 +4904,7 @@ function playerDie(){
     + `<div class="go-tile"><span>Headshots</span><b>${runHeadshots}</b></div>`
     + `<div class="go-tile"><span>Précision</span><b>${accuracy_}%</b></div>`
     + `<div class="go-tile"><span>Meilleur coup</span><b>${runBestHit_}</b></div>`
+    + `<div class="go-tile"><span>Distance</span><b>${Math.round(runDistance_)}m</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
     + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
