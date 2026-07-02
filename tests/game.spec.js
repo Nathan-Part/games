@@ -7097,3 +7097,31 @@ test('#189 : spawn puis pickup active le power ricochet_boost', async ({ page })
   expect(await page.evaluate(() => __game.debug.ricochetBoostActive())).toBe(true);
   expect(await page.evaluate(() => __game.debug.ricochetBoostTimeLeft())).toBeGreaterThan(0);
 });
+
+// ====== #190 — Bonus Vague sans grenade ======
+test('#190 : nettoyer une vague sans lancer de grenade declenche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.waveGrenadeCount())).toBe(0);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.noGrenadeClearCount())).toBe(1);
+});
+
+test('#190 : lancer une grenade avant de nettoyer la vague empeche le bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwGrenade());
+  expect(await page.evaluate(() => __game.debug.waveGrenadeCount())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => __game.debug.noGrenadeClearCount())).toBe(0);
+});
+
+test('#190 : waveGrenadeCount se remet a 0 a la vague suivante', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.throwGrenade());
+  expect(await page.evaluate(() => __game.debug.waveGrenadeCount())).toBe(1);
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.waveGrenadeCount())).toBe(0);
+});

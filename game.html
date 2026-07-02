@@ -2908,6 +2908,7 @@ function buildGrenadeMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.09
 function throwGrenade(){
   if(G.phase !== 'playing' || grenades <= 0) return false;
   grenades--; save.consumables.frag = grenades; persist(); updateGrenadeHud();
+  waveGrenadeCount_++;   // #190 : bonus "vague sans grenade"
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const m = buildGrenadeMesh(); m.castShadow = true;
   m.position.copy(camera.getWorldPosition(new THREE.Vector3())).addScaledVector(dir, 0.5); scene.add(m);
@@ -3389,6 +3390,8 @@ const NO_DASH_BONUS = 25;   // #182
 let waveDashCount_ = 0, noDashClearCount_ = 0;
 const PERFECT_ACCURACY_BONUS = 40;   // #184
 let waveShots_ = 0, waveHits_ = 0, perfectAccuracyCount_ = 0;
+const NO_GRENADE_BONUS = 25;   // #190
+let waveGrenadeCount_ = 0, noGrenadeClearCount_ = 0;
 function grantWaveBonus(waveNum){
   if(dmgThisWave > 0){ perfectWaveStreak_ = 0; return; } // mort ou blessé = pas de bonus, série cassée (#165)
   perfectWaveStreak_++;
@@ -5840,6 +5843,7 @@ function startWave(w){
   waveKillCount_ = 0;        // #173 : compteur de kills de cette vague
   waveDashCount_ = 0;        // #182 : reactive le bonus vague sans dash pour cette vague
   waveShots_ = 0; waveHits_ = 0;   // #184 : compteurs de precision de cette vague
+  waveGrenadeCount_ = 0;   // #190 : reactive le bonus vague sans grenade pour cette vague
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));
@@ -5864,6 +5868,7 @@ function checkWaveCleared(){
   if(waveReloadCount_ === 0){ noReloadClearCount_++; addMoney(NO_RELOAD_BONUS); showCallout('SANS RECHARGE!'); }   // #166
   if(waveDashCount_ === 0){ noDashClearCount_++; addMoney(NO_DASH_BONUS); showCallout('SANG-FROID!'); }   // #182
   if(waveShots_ >= 5 && waveHits_ === waveShots_){ perfectAccuracyCount_++; addMoney(PERFECT_ACCURACY_BONUS); showCallout('PRÉCISION TOTALE!'); }   // #184
+  if(waveGrenadeCount_ === 0){ noGrenadeClearCount_++; addMoney(NO_GRENADE_BONUS); showCallout('ÉCONOME!'); }   // #190
   showWaveBanner('Vague ' + wave + ' terminée !');
 }
 G.debug.speedClearCount = () => speedClearCount_;
@@ -5874,6 +5879,8 @@ G.debug.waveDashCount = () => waveDashCount_;
 G.debug.perfectAccuracyCount = () => perfectAccuracyCount_;   // #184
 G.debug.waveShots = () => waveShots_;
 G.debug.waveHits = () => waveHits_;
+G.debug.noGrenadeClearCount = () => noGrenadeClearCount_;   // #190
+G.debug.waveGrenadeCount = () => waveGrenadeCount_;
 G.debug.lastSpeedClear = () => lastSpeedClear_;
 function updateWaves(dt){
   if(G.phase !== 'playing' || trainingActive_) return;
