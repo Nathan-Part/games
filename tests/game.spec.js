@@ -7025,3 +7025,24 @@ test('#185 : 10000m cumules debloquent marathonien', async ({ page }) => {
   });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('marathonien'))).toBe(true);
 });
+
+// ====== #186 — Succes Speedrunner ======
+test('#186 : achievements() inclut speedrunner', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('speedrunner');
+});
+
+test('#186 : 3 vagues eclair dans la meme partie debloquent speedrunner', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('speedrunner'))).toBe(false);
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => __game.debug.killAllEnemies());
+    await page.waitForTimeout(50);
+    await page.evaluate(() => __game.debug.forceNextWave());
+    await page.waitForTimeout(50);
+  }
+  expect(await page.evaluate(() => __game.debug.speedClearCount())).toBeGreaterThanOrEqual(3);
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('speedrunner'))).toBe(true);
+});

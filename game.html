@@ -2655,6 +2655,7 @@ const ACHIEVEMENTS = [
   { id:'bourreau',     name:'Bourreau',          desc:'500 kills cumulés' },           // #183
   { id:'sniper_elite', name:"Sniper d'élite",    desc:'100 headshots cumulés' },       // #183
   { id:'marathonien',  name:'Marathonien',       desc:'10 000m parcourus cumulés' },   // #185
+  { id:'speedrunner',  name:'Speedrunner',       desc:'3 vagues éclair dans la même partie' },   // #186
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2678,6 +2679,7 @@ function checkAchievements(comboMult){
   if(lifetimeStats().kills >= 500) unlockAchievement('bourreau');       // #183
   if(lifetimeStats().headshots >= 100) unlockAchievement('sniper_elite');   // #183
   if(lifetimeStats().distance >= 10000) unlockAchievement('marathonien');   // #185
+  if(speedClearCount_ >= 3) unlockAchievement('speedrunner');   // #186
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
