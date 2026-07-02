@@ -7201,3 +7201,42 @@ test('#191 : 3 kills clutch debloquent intraitable', async ({ page }) => {
   expect(await page.evaluate(() => __game.debug.clutchCount())).toBeGreaterThanOrEqual(3);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('intraitable'))).toBe(true);
 });
+
+// ====== #192 — Bonus Boucherie (combo melee) ======
+test('#192 : 3 kills melee consecutifs declenchent le bonus boucherie', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0); });
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+    await page.evaluate(() => __game.debug.playerMelee());
+    await page.waitForTimeout(700);
+  }
+  expect(await page.evaluate(() => __game.debug.meleeComboCount())).toBe(1);
+});
+
+test('#192 : un kill a distance intercale casse la serie', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0); });
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+  await page.evaluate(() => __game.debug.playerMelee());   // melee 1 -> streak 1
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4); __game.debug.damageEnemy(0, 99999); });   // kill a distance -> casse la serie
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+  await page.evaluate(() => __game.debug.playerMelee());   // melee 2 -> streak repart a 1
+  await page.waitForTimeout(700);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+  await page.evaluate(() => __game.debug.playerMelee());   // melee 3 -> streak 2 (pas 3)
+  expect(await page.evaluate(() => __game.debug.meleeKillStreak())).toBe(2);
+  expect(await page.evaluate(() => __game.debug.meleeComboCount())).toBe(0);
+});
+
+test('#192 : meleeKillStreak se remet a 0 apres declenchement du bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0); });
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
+    await page.evaluate(() => __game.debug.playerMelee());
+    await page.waitForTimeout(700);
+  }
+  expect(await page.evaluate(() => __game.debug.meleeKillStreak())).toBe(0);
+});

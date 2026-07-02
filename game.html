@@ -2632,7 +2632,7 @@ let runFastestWave_ = null;   // #174 : temps de nettoyage de vague le plus rapi
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
 function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; runBestWaveKills_ = 0; runFastestWave_ = null;
   firstBloodDone_ = false; firstBloodCount_ = 0; lastFirstBlood_ = false; stealthKillCount_ = 0; lastStealthKill_ = false; clutchCount_ = 0; revengeCount_ = 0;
-  noReloadClearCount_ = 0; noDashClearCount_ = 0; perfectAccuracyCount_ = 0; noGrenadeClearCount_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173 #174 ; #161 #166 #168 #176 #182 #184 #187 #190 : correctif reset manquant (audit tranche 191)
+  noReloadClearCount_ = 0; noDashClearCount_ = 0; perfectAccuracyCount_ = 0; noGrenadeClearCount_ = 0; meleeKillStreak_ = 0; meleeComboCount_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173 #174 ; #161 #166 #168 #176 #182 #184 #187 #190 : correctif reset manquant (audit tranche 191) ; #192
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runBestHit = () => runBestHit_;   // #162
 G.debug.runDistance = () => runDistance_;   // #163
@@ -5822,6 +5822,8 @@ function killEnemy(e){
   if(lastStealthKill_){ stealthKillCount_++; addMoney(STEALTH_MONEY); addXp(STEALTH_XP); showCallout('INFILTRATION!'); }
   waveKillCount_++; if(waveKillCount_ > runBestWaveKills_) runBestWaveKills_ = waveKillCount_;   // #173
   if(nowS() - lastDamageAt < 1){ revengeCount_++; addMoney(REVENGE_MONEY); showCallout('REVANCHE!'); }   // #187
+  if(e.lastHitMelee) meleeKillStreak_++; else meleeKillStreak_ = 0;   // #192
+  if(meleeKillStreak_ === 3){ meleeComboCount_++; addMoney(MELEE_COMBO_BONUS); showCallout('BOUCHERIE!'); meleeKillStreak_ = 0; }
 }
 G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;
@@ -5840,6 +5842,10 @@ G.debug.clutchCount = () => clutchCount_;
 const REVENGE_MONEY = 20;   // #187
 let revengeCount_ = 0;
 G.debug.revengeCount = () => revengeCount_;
+const MELEE_COMBO_BONUS = 35;   // #192
+let meleeKillStreak_ = 0, meleeComboCount_ = 0;
+G.debug.meleeKillStreak = () => meleeKillStreak_;
+G.debug.meleeComboCount = () => meleeComboCount_;
 // ====== Wave director : enchaîne les vagues, tient le record ======
 let waveStartTime = 0;
 function startWave(w){
