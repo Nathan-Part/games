@@ -2616,12 +2616,15 @@ let runKills = 0, runHeadshots = 0, runShots = 0, runHits = 0, _fireConnected = 
 let runBestHit_ = 0;   // #162 : plus gros degat inflige en un coup, sur la partie en cours
 let runDistance_ = 0;  // #163 : distance parcourue (m), sur la partie en cours
 let runBestStreak_ = 0; // #164 : record de série de kills sans degat, sur la partie en cours
+let waveKillCount_ = 0, runBestWaveKills_ = 0;   // #173 : kills de la vague en cours / record de la partie
 let runMoney_ = 0;   // argent gagné DANS la partie en cours (affiché au Game Over, distinct du total)
-function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165
+function resetRunStats(){ runKills = runHeadshots = runShots = runHits = 0; runMoney_ = 0; overkillCount_ = 0; lastOverkill_ = false; executionHealCount_ = 0; lastExecutionHeal_ = false; speedClearCount_ = 0; lastSpeedClear_ = false; piercedHitCount_ = 0; luckyShotCount_ = 0; lastLuckyShot_ = false; runBestHit_ = 0; runDistance_ = 0; runBestStreak_ = 0; perfectWaveStreak_ = 0; runBestWaveKills_ = 0; }   // #139 #148 #149 #150 #153 #162 #163 #164 #165 #173
 G.debug.runStats = () => ({ kills:runKills, headshots:runHeadshots, shots:runShots, hits:runHits });
 G.debug.runBestHit = () => runBestHit_;   // #162
 G.debug.runDistance = () => runDistance_;   // #163
 G.debug.runBestStreak = () => runBestStreak_;   // #164
+G.debug.waveKillCount = () => waveKillCount_;   // #173
+G.debug.runBestWaveKills = () => runBestWaveKills_;
 G.debug.runMoney = () => runMoney_;   // argent gagné cette partie (affiché au Game Over)
 // ====== Succès / achievements (#44) : persistés + toast ======
 const ACHIEVEMENTS = [
@@ -4935,6 +4938,7 @@ function playerDie(){
     + `<div class="go-tile"><span>Meilleur coup</span><b>${runBestHit_}</b></div>`
     + `<div class="go-tile"><span>Distance</span><b>${Math.round(runDistance_)}m</b></div>`
     + `<div class="go-tile"><span>Meilleure série</span><b>${runBestStreak_}</b></div>`
+    + `<div class="go-tile"><span>Meilleure vague</span><b>${runBestWaveKills_}</b></div>`
     + `<div class="go-tile"><span>Record</span><b>${save.bestWave}</b></div>`
     + `<div class="go-tile"><span>Combo max</span><b>x${comboMultiplier(save.bestCombo||0)}</b><em>${save.bestCombo||0}</em></div>`
     + `<div class="go-tile gold"><span>Argent gagné</span><b>+${runMoney_}</b></div></div>`
@@ -5737,6 +5741,7 @@ function killEnemy(e){
   if(lastFirstBlood_){ firstBloodDone_ = true; firstBloodCount_++; addMoney(FIRST_BLOOD_MONEY); addXp(FIRST_BLOOD_XP); showCallout('PREMIER SANG!'); }
   lastStealthKill_ = wasStealthKill_;                          // #168 : takedown furtif
   if(lastStealthKill_){ stealthKillCount_++; addMoney(STEALTH_MONEY); addXp(STEALTH_XP); showCallout('INFILTRATION!'); }
+  waveKillCount_++; if(waveKillCount_ > runBestWaveKills_) runBestWaveKills_ = waveKillCount_;   // #173
 }
 G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;
@@ -5761,6 +5766,7 @@ function startWave(w){
   dmgThisWave = 0; waveState = 'active'; spawnBarrels();    // barils (#41) ; reset dmgThisWave (#55) ; plus de refill grenades par vague (#155)
   firstBloodDone_ = false;   // #161 : reactive le bonus premier sang pour cette vague
   waveReloadCount_ = 0;      // #166 : reactive le bonus sans recharge pour cette vague
+  waveKillCount_ = 0;        // #173 : compteur de kills de cette vague
   waveStartTime = nowS();                                                   // #149 : chrono du bonus vague éclair
   checkChallenges('wave', w);
   updateWaveHud(); updateBossHud(); showWaveBanner(w, isBossWave(w));

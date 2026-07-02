@@ -6619,3 +6619,35 @@ test('#172 : en hardcore, le pickup ne change pas les PV', async ({ page }) => {
   const hpAfter = await page.evaluate(() => __game.debug.playerHealth());
   expect(hpAfter).toBe(hpBefore);
 });
+
+// ====== #173 — Meilleure vague ======
+test('#173 : waveKillCount et runBestWaveKills demarrent a 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.waveKillCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.runBestWaveKills())).toBe(0);
+});
+
+test('#173 : 3 kills dans la meme vague portent les deux compteurs a 3', async ({ page }) => {
+  await startPlaying(page);
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate((i) => __game.debug.spawnEnemyTypeAt(i, 'shooter', 4, 4+i), i);
+    await page.evaluate((i) => __game.debug.damageEnemy(i, 99999), i);
+  }
+  expect(await page.evaluate(() => __game.debug.waveKillCount())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.runBestWaveKills())).toBe(3);
+});
+
+test('#173 : une nouvelle vague avec moins de kills garde le record mais reset le compteur courant', async ({ page }) => {
+  await startPlaying(page);
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate((i) => __game.debug.spawnEnemyTypeAt(i, 'shooter', 4, 4+i), i);
+    await page.evaluate((i) => __game.debug.damageEnemy(i, 99999), i);
+  }
+  await page.evaluate(() => __game.debug.forceNextWave());
+  expect(await page.evaluate(() => __game.debug.waveKillCount())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.runBestWaveKills())).toBe(3);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.waveKillCount())).toBe(1);
+  expect(await page.evaluate(() => __game.debug.runBestWaveKills())).toBe(3);
+});
