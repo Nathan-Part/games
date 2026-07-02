@@ -6560,3 +6560,41 @@ test('#170 : chaque ligne du classement affiche une date JJ/MM', async ({ page }
   const html = await page.evaluate(() => document.getElementById('go-score').innerHTML);
   expect(html).toMatch(/go-lb-date">\d{2}\/\d{2}</);
 });
+
+// ====== #171 — Power-up Berserk ======
+test('#171 : spawn puis pickup active le power berserk', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnBerserk(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.berserkActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.berserkTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#171 : melee normal inflige les degats de base (sans berserk)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 0, 2);   // gros pool de PV pour mesurer le degat sans tuer
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.setPaused(true);
+  });
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.playerMelee());
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hp0 - hpAfter).toBe(150);
+});
+
+test('#171 : berserk double les degats au couteau', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 0, 2);
+    __game.debug.setPos(0,0); __game.debug.setYaw(0); __game.debug.setPitch(0); __game.debug.setView('first');
+    __game.debug.spawnBerserk(0, 0);
+  });
+  await page.waitForTimeout(300);
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => { __game.debug.setPaused(true); __game.debug.playerMelee(); });
+  const hpAfter = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hp0 - hpAfter).toBe(300);
+});
