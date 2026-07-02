@@ -6366,3 +6366,32 @@ test('#163 : restart remet runDistance a 0', async ({ page }) => {
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => __game.debug.runDistance())).toBe(0);
 });
+
+// ====== #164 — Meilleure serie ======
+test('#164 : runBestStreak demarre a 0', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.runBestStreak())).toBe(0);
+});
+
+test('#164 : une serie de kills porte le record, un hit recu ne le fait pas redescendre', async ({ page }) => {
+  await startPlaying(page);
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate((i) => __game.debug.spawnEnemyTypeAt(i, 'shooter', 4, 4+i), i);
+    await page.evaluate((i) => __game.debug.damageEnemy(i, 99999), i);
+  }
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(3);
+  expect(await page.evaluate(() => __game.debug.runBestStreak())).toBe(3);
+  await page.evaluate(() => { __game.debug.setShield(0); __game.debug.damagePlayer(5); }); // reset de la serie courante
+  expect(await page.evaluate(() => __game.debug.streakKills())).toBe(0);
+  expect(await page.evaluate(() => __game.debug.runBestStreak())).toBe(3); // le record est conserve
+});
+
+test('#164 : restart remet runBestStreak a 0', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
+  expect(await page.evaluate(() => __game.debug.runBestStreak())).toBe(1);
+  await page.evaluate(() => __game.debug.restart());
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => __game.debug.runBestStreak())).toBe(0);
+});
