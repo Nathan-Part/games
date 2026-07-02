@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { trackErrors, startPlaying, faceEnemyForMelee, alignTwoEnemies } from './helpers.js';
+import { trackErrors, startPlaying, faceEnemyForMelee, alignTwoEnemies, meleeKillWhenReady } from './helpers.js';
 
 test('save : l argent persiste au rechargement (round-trip localStorage)', async ({ page }) => {
   await startPlaying(page);
@@ -895,20 +895,32 @@ test('#191 : 5 takedowns furtifs debloquent ombre', async ({ page }) => {
     __game.debug.save.reset();
     __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
   });
-  for (let i = 0; i < 5; i++) {
-    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
-    await page.evaluate(() => __game.debug.playerMelee());
-    await page.waitForTimeout(700);
-  }
+  for (let i = 0; i < 5; i++) await meleeKillWhenReady(page);
   expect(await page.evaluate(() => __game.debug.stealthKillCount())).toBeGreaterThanOrEqual(5);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('ombre'))).toBe(true);
 });
 
 test('#191 : 50m parcourus debloquent cible_mouvante', async ({ page }) => {
+  test.setTimeout(240000);
   await startPlaying(page);
   await page.evaluate(() => __game.debug.save.reset());
-  await page.evaluate(() => __game.debug.setInput({forward:true, sprint:true}));
-  await page.waitForTimeout(11000);
+  // Le temps de JEU (dt clampé à 0,05/frame) s'écoule très lentement en temps réel sous SwiftShader, et le
+  // ratio se dégrade encore avec la durée du test (rendu logiciel sous charge soutenue) — pas de budget de
+  // temps fixe fiable. On téléporte le joueur entre deux extrémités opposées de la map (le saut de setPos,
+  // hors updateController, n'est PAS compté dans runDistance_ — capturé frame par frame depuis la position du
+  // DÉBUT de cette frame ; setStamina(100) réarme aussi staminaDepleted, sinon le sprint reste bloqué en marche
+  // après le premier épuisement) et on scrute avec un plafond très large, sortie dès que le seuil est atteint.
+  for (let leg = 0; leg < 30; leg++) {
+    const faceForward = leg % 2 === 0;
+    await page.evaluate((fwd) => {
+      __game.debug.setPos(0, fwd ? -20 : 20);
+      __game.debug.setYaw(fwd ? 0 : Math.PI);
+      __game.debug.setStamina(100);
+      __game.debug.setInput({forward:true, sprint:true});
+    }, faceForward);
+    await page.waitForTimeout(6000);
+    if (await page.evaluate(() => __game.debug.runDistance()) >= 55) break;
+  }
   await page.evaluate(() => __game.debug.setInput({}));
   expect(await page.evaluate(() => __game.debug.runDistance())).toBeGreaterThanOrEqual(50);
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
@@ -920,6 +932,10 @@ test('#191 : 3 kills clutch debloquent intraitable', async ({ page }) => {
   await page.evaluate(() => __game.debug.save.reset());
   const maxHp = await page.evaluate(() => __game.maxHealth);
   for (let i = 0; i < 3; i++) {
+    // tuer 3+ ennemis d'un coup (boucle ci-dessous) declenche le bouclier killstreak (#58, -50% degats 5s) :
+    // sans attendre son expiration, le damagePlayer() du cycle suivant est absorbe de moitie et ne descend
+    // pas les PV assez bas -> le seuil clutch (<20%) n'est jamais atteint pour ce kill
+    await page.waitForFunction(() => !window.__game.debug.ksShieldActive(), null, { timeout: 10000 });
     const hp = await page.evaluate(() => __game.debug.playerHealth());
     const dmg = Math.max(1, hp - Math.round(maxHp * 0.1));   // ramene les PV a ~10% du max, sans jamais depasser les PV courants (evite second souffle/mort)
     await page.evaluate((d) => { __game.debug.setShield(0); __game.debug.damagePlayer(d); }, dmg);
@@ -927,6 +943,7 @@ test('#191 : 3 kills clutch debloquent intraitable', async ({ page }) => {
     for (let j = 0; j < n; j++) await page.evaluate((j) => __game.debug.damageEnemy(j, 99999), j);
     await page.evaluate(() => { __game.debug.useMedkit(); __game.debug.useMedkit(); });   // remonte les PV avant le prochain cycle
     await page.evaluate(() => __game.debug.forceNextWave());
+    await page.waitForFunction(() => window.__game.debug.enemyAlive() > 0, null, { timeout: 10000 });   // attend le spawn réel de la vague suivante (sinon enemyCount lit des cadavres)
   }
   expect(await page.evaluate(() => __game.debug.clutchCount())).toBeGreaterThanOrEqual(3);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('intraitable'))).toBe(true);

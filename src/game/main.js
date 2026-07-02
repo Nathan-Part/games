@@ -739,7 +739,7 @@ function updateStaminaHud(){
 function resetStamina(){ stamina = STAMINA_MAX; staminaDepleted = false; updateStaminaHud(); }
 G.debug.stamina = () => stamina;
 G.debug.staminaDepleted = () => staminaDepleted;
-G.debug.setStamina = (v) => { stamina = Math.max(0, Math.min(STAMINA_MAX, v)); if(stamina===0) staminaDepleted=true; updateStaminaHud(); };
+G.debug.setStamina = (v) => { stamina = Math.max(0, Math.min(STAMINA_MAX, v)); if(stamina===0) staminaDepleted=true; else if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false; updateStaminaHud(); };
 
 // ====== Contrôleur + machine d'état locomotion ======
 const WALK_SPEED = 2.4, RUN_SPEED = 5.4, TURN_LERP = 12;
@@ -4454,7 +4454,7 @@ G.debug.challengeReward   = (i) => sessionChallenges[i]?.def.reward ?? 0;
 G.debug.challengeIds      = () => sessionChallenges.map(c => c.def.id);
 G.debug.forceCompleteChallenge = (i) => { const c = sessionChallenges[i]; if(c && !c.done) completeChallenge(c); updateChallengesHud(); };
 function killEnemy(e){
-  const wasStealthKill_ = e.state === 'patrol' && e.lastHitMelee;   // #168 : capturer avant l'ecrasement de e.state ci-dessous
+  const wasStealthKill_ = e.state === 'patrol' && !!e.lastHitMelee;   // #168 : capturer avant l'ecrasement de e.state ci-dessous ; !! : lastHitMelee est undefined pour un ennemi jamais frappé au couteau
   if(e.type === 'bomber') explodeBomber(e);                    // explose à la mort (#37)
   if(e.type === 'toxic') spawnPoisonZone(e.root.position.x, e.root.position.z);   // nuage de poison à la mort (#141)
   if(e.type === 'cryo') spawnFrostZone(e.root.position.x, e.root.position.z);     // zone de gel à la mort (#146)
@@ -4494,7 +4494,6 @@ function killEnemy(e){
   score += killScore; G.score = score; runKills++; if(e.lastHitHead) runHeadshots++;   // stats partie (#43)
   checkChallenges('kills', runKills); if(e.lastHitHead) checkChallenges('headshots', runHeadshots);
   if(e.lastHitMelee){ challengeMeleeKills++; checkChallenges('melee', challengeMeleeKills); }
-  checkAchievements(mult);                             // succès (#44)
   flashHitMarker(); playSound('enemyDie');
   const vipMult = e.isVip ? VIP_MULT : 1;                          // #140 : cible VIP
   addMoney(Math.round(MONEY_PER_KILL * mult * curDiff().money * vipMult));   // argent par kill × combo × difficulté (#46) × VIP
@@ -4527,6 +4526,9 @@ function killEnemy(e){
   if(nowS() - lastDamageAt < 1){ revengeCount_++; addMoney(REVENGE_MONEY); showCallout('REVANCHE!'); }   // #187
   if(e.lastHitMelee) meleeKillStreak_++; else meleeKillStreak_ = 0;   // #192
   if(meleeKillStreak_ === 3){ meleeComboCount_++; addMoney(MELEE_COMBO_BONUS); showCallout('BOUCHERIE!'); meleeKillStreak_ = 0; }
+  // #191/#193/#195 : APRÈS tous les compteurs de ce kill (stealthKillCount_/clutchCount_/etc.) — sinon les succès
+  // qui en dépendent se débloquent avec un kill de retard, voire jamais si c'est le dernier kill de la partie
+  checkAchievements(mult);                             // succès (#44)
 }
 G.debug.overkillCount = () => overkillCount_;
 G.debug.lastOverkill = () => lastOverkill_;

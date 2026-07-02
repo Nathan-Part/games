@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { trackErrors, startPlaying, faceEnemyForMelee, alignTwoEnemies } from './helpers.js';
+import { trackErrors, startPlaying, faceEnemyForMelee, alignTwoEnemies, meleeKillWhenReady } from './helpers.js';
 
 // ====== Tranche 29 : combo / killstreak ======
 
@@ -780,7 +780,7 @@ test('#168 : melee sur un ennemi deja en chase ne declenche pas le bonus', async
 
 test('#168 : un kill a distance sur un ennemi en patrol ne declenche pas le bonus', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4));
+  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 18, 18));   // hors rayon de détection (12 m) : reste en patrol entre deux evaluate
   expect(await page.evaluate(() => __game.debug.enemyState(0))).toBe('patrol');
   await page.evaluate(() => __game.debug.damageEnemy(0, 99999));
   expect(await page.evaluate(() => __game.debug.lastStealthKill())).toBe(false);
@@ -850,12 +850,16 @@ test('#184 : 5 tirs tous touches sur la meme vague declenchent le bonus', async 
   await startPlaying(page);
   await page.evaluate(() => {
     __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0);
+    __game.debug.setSpreadOverride(0);   // tirs déterministes
     __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 0, 8);
     __game.debug.damageEnemy(1, 99999); __game.debug.damageEnemy(2, 99999);   // ecarte les 2 autres ennemis de la vague
   });
   await page.waitForTimeout(150);
   for (let i = 0; i < 5; i++) {
-    await page.evaluate(() => __game.debug.tryFire());
+    // le juggernaut (état chase) dérive latéralement entre deux tirs → reverrouille sa position DANS le même
+    // evaluate que le tir, sinon le dernier tir rate la cible (un ricochet #101 peut alors infliger des dégâts
+    // sans compter comme "hit", ce qui casse waveHits === waveShots sans rapport avec la précision réelle)
+    await page.evaluate(() => { __game.debug.setPitch(0); __game.debug.moveEnemy(0, 0, 8); __game.debug.tryFire(); });
     await page.waitForTimeout(200);
   }
   const shots = await page.evaluate(() => __game.debug.waveShots());
@@ -961,29 +965,22 @@ test('#190 : waveGrenadeCount se remet a 0 a la vague suivante', async ({ page }
 
 // ====== #192 — Bonus Boucherie (combo melee) ======
 
+// NB #192/#191 : meleeKillWhenReady() scrute le cooldown couteau (0,6 s de temps de JEU, dt clampé)
+// au lieu d'un délai fixe — sous SwiftShader le temps réel nécessaire varie fortement avec la charge CPU.
 test('#192 : 3 kills melee consecutifs declenchent le bonus boucherie', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0); });
-  for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
-    await page.evaluate(() => __game.debug.playerMelee());
-    await page.waitForTimeout(700);
-  }
+  for (let i = 0; i < 3; i++) await meleeKillWhenReady(page);
   expect(await page.evaluate(() => __game.debug.meleeComboCount())).toBe(1);
 });
 
 test('#192 : un kill a distance intercale casse la serie', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0); });
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
-  await page.evaluate(() => __game.debug.playerMelee());   // melee 1 -> streak 1
-  await page.waitForTimeout(700);
-  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 4, 4); __game.debug.damageEnemy(0, 99999); });   // kill a distance -> casse la serie
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
-  await page.evaluate(() => __game.debug.playerMelee());   // melee 2 -> streak repart a 1
-  await page.waitForTimeout(700);
-  await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
-  await page.evaluate(() => __game.debug.playerMelee());   // melee 3 -> streak 2 (pas 3)
+  await meleeKillWhenReady(page);   // melee 1 -> streak 1
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 18, 18); __game.debug.damageEnemy(0, 99999); });   // kill a distance -> casse la serie
+  await meleeKillWhenReady(page);   // melee 2 -> streak repart a 1
+  await meleeKillWhenReady(page);   // melee 3 -> streak 2 (pas 3)
   expect(await page.evaluate(() => __game.debug.meleeKillStreak())).toBe(2);
   expect(await page.evaluate(() => __game.debug.meleeComboCount())).toBe(0);
 });
@@ -991,10 +988,6 @@ test('#192 : un kill a distance intercale casse la serie', async ({ page }) => {
 test('#192 : meleeKillStreak se remet a 0 apres declenchement du bonus', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setYaw(0); __game.debug.setPos(0,0); });
-  for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2));
-    await page.evaluate(() => __game.debug.playerMelee());
-    await page.waitForTimeout(700);
-  }
+  for (let i = 0; i < 3; i++) await meleeKillWhenReady(page);
   expect(await page.evaluate(() => __game.debug.meleeKillStreak())).toBe(0);
 });

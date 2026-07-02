@@ -33,3 +33,19 @@ export async function alignTwoEnemies(page){
     __game.debug.setPaused(true);
   });
 }
+
+// Respawn l'ennemi 0 à portée de couteau puis frappe, en réessayant jusqu'à ce que le cooldown
+// couteau (0,6s de temps de JEU, dt clampé) soit retombé. Sous SwiftShader le temps réel nécessaire
+// varie fortement avec la charge CPU (observé de ~1,5s à ~3,5s+) — un délai fixe est donc fragile ;
+// on scrute au lieu de deviner un délai. Retourne true dès qu'un coup porte (throw si jamais atteint).
+export async function meleeKillWhenReady(page, { tries = 60, intervalMs = 200 } = {}){
+  for (let i = 0; i < tries; i++) {
+    const hit = await page.evaluate(() => {
+      __game.debug.spawnEnemyTypeAt(0, 'shooter', 0, 2);
+      return __game.debug.playerMelee();
+    });
+    if (hit) return true;
+    await page.waitForTimeout(intervalMs);
+  }
+  throw new Error('meleeKillWhenReady: cooldown couteau jamais retombé après ' + (tries * intervalMs) + 'ms');
+}
