@@ -4,6 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
+import { MAP_HALF, obstacles, obstacleMeshes, addBox, addWall, addBuilding, pointInObstacle, buildArena } from './map.js';
 import { bindAudioVolume, initAudio, resumeAudio, playSound, playTone, setMuted, isMuted, applyVolume, audioGain, audioState, soundCount, lastSound } from './audio.js';
 
 // ====== API debug (contrat figé) ======
@@ -271,7 +272,7 @@ keyLight.shadow.camera.left=-20; keyLight.shadow.camera.right=20;
 keyLight.shadow.camera.top=20; keyLight.shadow.camera.bottom=-20;
 scene.add(keyLight);
 
-const MAP_HALF = 24;
+// MAP_HALF : importé de src/game/map.js
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(MAP_HALF*2, MAP_HALF*2),
   new THREE.MeshStandardMaterial({ color:0x23262e, roughness:0.96 }));   // bitume urbain
@@ -297,51 +298,11 @@ function setView(v){
 }
 function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
-// ====== Map : obstacles + bornes ======
+// ====== Map : obstacles + bornes — voir src/game/map.js ======
 const PLAYER_R = 0.45;
-const obstacles = [], obstacleMeshes = [];
-function addBox(cx, cz, w, d, h){
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color:0x2a3550, roughness:0.8 }));
-  mesh.position.set(cx, h/2, cz); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh); obstacleMeshes.push(mesh);
-  obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 });
-}
-// ====== Vraie map / niveau (#19) : arène urbaine (enceinte + bâtiments + cover) ======
-const levelMat = {
-  concrete:  () => new THREE.MeshStandardMaterial({ color:0x3a3f4b, roughness:0.9,  metalness:0.05 }),
-  concrete2: () => new THREE.MeshStandardMaterial({ color:0x4a4136, roughness:0.92 }),   // béton chaud (variation)
-  wall:      () => new THREE.MeshStandardMaterial({ color:0x2c313c, roughness:0.95 }),
-};
-function addWall(cx, cz, w, d, h){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), levelMat.wall());
-  m.position.set(cx, h/2, cz); m.castShadow = m.receiveShadow = true; scene.add(m); obstacleMeshes.push(m);
-  obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 }); return m;
-}
-function addBuilding(cx, cz, w, d, h, opt = {}){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), (opt.warm ? levelMat.concrete2() : levelMat.concrete()));
-  m.position.set(cx, h/2, cz); m.castShadow = m.receiveShadow = true; scene.add(m); obstacleMeshes.push(m);
-  obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 });
-  if(opt.lit){   // bandeau lumineux (décor : pas de collision, masqué en boutique via obstacleMeshes)
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(w*0.72, 0.2, d*0.72),
-      new THREE.MeshStandardMaterial({ color:0xffe6bd, emissive:0xffb860, emissiveIntensity:0.9, roughness:0.5 }));
-    strip.position.set(cx, h-0.18, cz); scene.add(strip); obstacleMeshes.push(strip);
-  }
-  return m;
-}
-addBox(-5, 6, 2, 2, 1.5); addBox(7, -4, 3, 1, 2); addBox(0, 12, 2, 2, 1.5);   // caisses d'origine (conservées)
-// mur d'enceinte (arène fermée + toile de fond) ; en retrait du bord (le clamp ±MAP_HALF reste libre)
-addWall(0, 22, 48, 1.6, 4); addWall(0, -22, 48, 1.6, 4); addWall(22, 0, 1.6, 48, 4); addWall(-22, 0, 1.6, 48, 4);
-// bâtiments (couloirs, angles, bloqueurs de vue) — évitent l'origine, le couloir +Z et les points d'ennemis testés
-addBuilding(-13, 13, 6, 6, 5, { lit:true }); addBuilding(-14, -12, 6, 7, 4.5, { warm:true });
-addBuilding(13, -13, 7, 6, 5, { warm:true, lit:true }); addBuilding(16, 8, 4, 8, 4.5); addBuilding(-17, 0, 3, 7, 4);
-// cover bas (barricades pour se mettre à couvert)
-addBox(8, 4, 2, 2, 1.2); addBox(-7, -6, 2.5, 1, 1.2); addBox(4, -10, 2, 2, 1.2); addBox(-3, 18, 3, 2, 1.4);
-// lampes d'accent chaudes (décor pur, sans ombre)
-const lamp1 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp1.position.set(-13, 6, 13); scene.add(lamp1);
-const lamp2 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp2.position.set(13, 6, -13); scene.add(lamp2);
+buildArena(scene);
 G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
-function pointInObstacle(x, z){ return obstacles.some(b => x>=b.minX && x<=b.maxX && z>=b.minZ && z<=b.maxZ); }   // #48
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
 G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
