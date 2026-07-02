@@ -7088,3 +7088,12 @@ test('#188 : forceHealthDrop reste prioritaire pendant loot_master (pas de crash
   const after = await page.evaluate(() => __game.debug.healthPackCount());
   expect(after).toBeGreaterThan(before);
 });
+
+// ====== #189 — Power-up Ricochet ameliore ======
+test('#189 : spawn puis pickup active le power ricochet_boost', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnRicochetBoost(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.ricochetBoostActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.ricochetBoostTimeLeft())).toBeGreaterThan(0);
+});

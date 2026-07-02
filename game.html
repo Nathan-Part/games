@@ -3342,7 +3342,7 @@ G.debug.forceLongShot = () => forceLongShot();
 const RICOCHET_CHANCE = 0.20, RICOCHET_DMG_MULT = 0.4;
 let ricochetsTotal_ = 0, lastRicochetHit_ = false;
 function tryRicochet(missOrigin, missDir){
-  if(Math.random() > RICOCHET_CHANCE) return;
+  if(Math.random() > (activePower==='ricochet_boost' ? RICOCHET_CHANCE*2 : RICOCHET_CHANCE)) return;   // #189
   // Trouver l'obstacle le plus proche dans la direction du tir
   let bestT = Infinity, bestObstacle = null, bestNorm = null;
   for(const ob of obstacles){
@@ -4892,7 +4892,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true }, radar_boost:{ name:'Radar longue portée', color:0x2ad6ff, duration:12 }, second_wind_refill:{ name:'Second souffle ravivé', color:0xffd700, instant:true }, loot_master:{ name:'Loot Master', color:0xffcc00, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172 #179(12s) #181 #188(10s)
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true }, radar_boost:{ name:'Radar longue portée', color:0x2ad6ff, duration:12 }, second_wind_refill:{ name:'Second souffle ravivé', color:0xffd700, instant:true }, loot_master:{ name:'Loot Master', color:0xffcc00, duration:10 }, ricochet_boost:{ name:'Ricochet amélioré', color:0xbfd0e0, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172 #179(12s) #181 #188(10s) #189(10s)
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -5229,6 +5229,9 @@ G.debug.spawnSecondWindRefill = (x,z) => spawnPowerUp('second_wind_refill', x, z
 G.debug.lootMasterActive = () => activePower === 'loot_master';                                              // #188
 G.debug.lootMasterTimeLeft = () => activePower === 'loot_master' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnLootMaster = (x,z) => spawnPowerUp('loot_master', x, z);
+G.debug.ricochetBoostActive = () => activePower === 'ricochet_boost';                                        // #189
+G.debug.ricochetBoostTimeLeft = () => activePower === 'ricochet_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
+G.debug.spawnRicochetBoost = (x,z) => spawnPowerUp('ricochet_boost', x, z);
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
