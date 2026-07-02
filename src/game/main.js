@@ -3,6 +3,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { dbAll, dbGet, dbPut } from '../shared/db.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
+import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
+import { bindAudioVolume, initAudio, resumeAudio, playSound, playTone, setMuted, isMuted, applyVolume, audioGain, audioState, soundCount, lastSound } from './audio.js';
 
 // ====== API debug (contrat figé) ======
 const G = window.__game = {
@@ -12,44 +14,7 @@ const G = window.__game = {
   camera(){ return {x:camera.position.x,y:camera.position.y,z:camera.position.z, yaw:camYaw, pitch:camPitch, dist:camDist}; },
   debug:{},
 };
-function worldPos(o){ const v=new THREE.Vector3(); o.getWorldPosition(v); return {x:v.x,y:v.y,z:v.z}; }
-
-// ====== Helpers purs (sans three.js) ======
-function cameraRelative(input, yaw){
-  const f = input.forward||0, s = input.strafe||0;
-  const sin = Math.sin(yaw), cos = Math.cos(yaw);
-  // avant = (sin,cos) ; droite = (cos,-sin)
-  return { x: sin*f + cos*s, z: cos*f - sin*s };
-}
-const WALK_EPS = 0.05;
-function locomotionState(speed, sprint){
-  if (speed < WALK_EPS) return 'idle';
-  return sprint ? 'run' : 'walk';
-}
-const ROLE_RE = { idle:/alert|idle|wait/i, walk:/walk|march/i, run:/run|sprint|course/i, attack:/attack|combat|punch|hit|skill/i, dead:/dead|death|die|mort/i };
-function resolveClipRole(role, names){
-  const re = ROLE_RE[role]; if (!re) return null;
-  return names.find(n => re.test(n)) || null;
-}
-function pushOutCircleAABB(px, pz, r, box){
-  const cx = Math.max(box.minX, Math.min(px, box.maxX));
-  const cz = Math.max(box.minZ, Math.min(pz, box.maxZ));
-  const dx = px - cx, dz = pz - cz;
-  const d2 = dx*dx + dz*dz;
-  if (d2 >= r*r) return { x:px, z:pz };           // pas de pénétration
-  if (d2 > 1e-12){                                 // dehors en distance, on pousse le long de la normale
-    const d = Math.sqrt(d2); const nx = dx/d, nz = dz/d;
-    return { x: cx + nx*r, z: cz + nz*r };
-  }
-  // centre dans la boîte : pousser sur l'axe de moindre pénétration
-  const pen = [
-    { v: px - box.minX + r, x: box.minX - r, z: pz }, // vers -X
-    { v: box.maxX - px + r, x: box.maxX + r, z: pz }, // vers +X
-    { v: pz - box.minZ + r, x: px, z: box.minZ - r }, // vers -Z
-    { v: box.maxZ - pz + r, x: px, z: box.maxZ + r }, // vers +Z
-  ].sort((a,b)=>a.v-b.v)[0];
-  return { x: pen.x, z: pen.z };
-}
+// Helpers purs : voir src/game/utils.js
 Object.assign(G.debug, { cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB });
 
 // ====== Sauvegarde locale (localStorage) — socle monnaie/record/perso (tranches 12→16) ======
@@ -262,7 +227,7 @@ G.debug.accessoryAttached = (slot) => { if(!model) return false; let f=false; mo
 
 // ====== Réglages (#18) : sensibilité souris / volume / vue par défaut (persistés) ======
 let lookSensitivity = 1;
-function applyVolume(){ if(masterGain && !muted) masterGain.gain.value = save.settings.volume; }   // mute prioritaire
+bindAudioVolume(() => save.settings.volume);   // le module audio lit le volume des réglages (voir src/game/audio.js)
 function applyAllSettings(){ lookSensitivity = save.settings.sensitivity; applyVolume(); }
 function setSetting(key, val){
   if(!save.settings || !(key in save.settings)) return false;
@@ -278,7 +243,7 @@ G.debug.settings = {
   get(){ return JSON.parse(JSON.stringify(save.settings)); },
   set(k, v){ return setSetting(k, v); },
   sensitivity(){ return lookSensitivity; },
-  gain(){ return masterGain ? masterGain.gain.value : null; },
+  gain(){ return audioGain(); },
 };
 
 // ====== Moteur ======
@@ -784,7 +749,7 @@ addEventListener('keydown', e => {
   if(e.code==='KeyZ' && G.phase==='playing') useMedkit();                             // Z = trousse de soin (#178)
   if(G.phase==='playing' && (e.code==='Digit1'||e.code==='Digit2'||e.code==='Digit3')) playDance(+e.code.slice(5)-1);   // 1/2/3 = danses (#27)
   if(e.code==='KeyV' && G.phase==='playing'){ toggleView(); e.preventDefault(); }
-  if(e.code==='KeyM'){ setMuted(!muted); }
+  if(e.code==='KeyM'){ setMuted(!isMuted()); }
   resumeAudio(); });
 addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
   if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyR') input.sprint=false;
@@ -2190,7 +2155,7 @@ G.debug.tacticalReloadCount = () => tacticalReloadCount_;
 G.debug.lastReloadWasTactical = () => lastReloadWasTactical_;
 // ====== #106 Empty mag click feedback ======
 let emptyFireCount_ = 0, lastEmptyFire_ = false;
-function triggerEmptyFire(){ emptyFireCount_++; lastEmptyFire_=true; if(actx && !muted) try{ tone(3000, 0.04, 'square', 0.03, 0); }catch(e){} const el=document.getElementById('hud-ammo-flash'); if(el){ el.classList.add('empty-flash'); setTimeout(()=>el.classList.remove('empty-flash'),300); } }
+function triggerEmptyFire(){ emptyFireCount_++; lastEmptyFire_=true; playTone(3000, 0.04, 'square', 0.03, 0); const el=document.getElementById('hud-ammo-flash'); if(el){ el.classList.add('empty-flash'); setTimeout(()=>el.classList.remove('empty-flash'),300); } }
 G.debug.emptyFireCount = () => emptyFireCount_;
 G.debug.lastEmptyFire = () => lastEmptyFire_;
 G.debug.triggerEmptyFire = () => triggerEmptyFire();
@@ -2542,7 +2507,7 @@ function updateFootsteps(dt){
   const t = nowS();
   if(t - fsLastT >= footstepInterval()){
     fsLastT = t;
-    if(actx && !muted) try { tone(80, 0.06, 'sine', 0.08, 40); } catch(e){}
+    playTone(80, 0.06, 'sine', 0.08, 40);
   }
 }
 G.debug.lastFootstepT = () => fsLastT;
@@ -5210,54 +5175,11 @@ G.debug.pickupWeapon = () => pickupWeapon();
 G.debug.matchWeapon = () => matchWeaponId;
 G.debug.setMatchWeapon = (id) => { matchWeaponId = id; };   // debug : simule une arme lootée (test #61/#89 loot)
 
-// ====== Audio (synthèse Web Audio, aucun fichier) ======
-let actx = null, masterGain = null, muted = false; const soundLog = [];
-function initAudio(){
-  if(actx) return;
-  try {
-    actx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = actx.createGain(); masterGain.gain.value = muted ? 0 : save.settings.volume; masterGain.connect(actx.destination);
-  } catch(e){ actx = null; }
-}
-function resumeAudio(){ try { if(actx && actx.state === 'suspended') actx.resume(); } catch(e){} }
-function tone(freq, dur, type, vol, glideTo){
-  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
-  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
-  if(glideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, glideTo), t + dur);
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(masterGain); o.start(t); o.stop(t + dur + 0.02);
-}
-function noise(dur, vol, filterFreq){
-  const n = Math.floor(actx.sampleRate * dur), buf = actx.createBuffer(1, n, actx.sampleRate);
-  const d = buf.getChannelData(0); for(let i=0;i<n;i++) d[i] = (Math.random()*2-1);
-  const src = actx.createBufferSource(); src.buffer = buf;
-  const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterFreq || 1800;
-  const g = actx.createGain(), t = actx.currentTime;
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(f); f.connect(g); g.connect(masterGain); src.start(t); src.stop(t + dur);
-}
-function playSound(type){
-  if(muted || !actx) return;
-  soundLog.push(type);
-  try {
-    switch(type){
-      case 'shot':      noise(0.08, 0.6, 2200); tone(180, 0.07, 'square', 0.25, 60); break;
-      case 'enemyShot': noise(0.07, 0.35, 1200); tone(120, 0.07, 'square', 0.18, 50); break;
-      case 'hit':       tone(900, 0.06, 'triangle', 0.4, 1300); break;
-      case 'enemyDie':  tone(220, 0.35, 'sawtooth', 0.45, 60); noise(0.18, 0.3, 700); break;
-      case 'playerHit': tone(110, 0.18, 'sine', 0.6, 70); break;
-      case 'gameover':  tone(440, 0.9, 'sine', 0.5, 90); break;
-      case 'reload':    noise(0.03, 0.3, 2500); setTimeout(() => { try{ noise(0.03, 0.3, 2500); }catch(e){} }, 120); break;
-      case 'melee':     noise(0.09, 0.10, 5000); tone(90, 0.12, 'sawtooth', 0.35, 180); break;
-    }
-  } catch(e){}
-}
-function setMuted(b){ muted = !!b; if(masterGain) masterGain.gain.value = muted ? 0 : save.settings.volume; }
+// ====== Audio : voir src/game/audio.js ======
 G.debug.audio = {
-  init(){ initAudio(); }, play(type){ playSound(type); }, muted(){ return muted; }, setMuted(b){ setMuted(b); },
-  count(){ return soundLog.length; }, last(){ return soundLog[soundLog.length-1] || null; },
-  state(){ return actx ? actx.state : 'none'; }
+  init(){ initAudio(); }, play(type){ playSound(type); }, muted(){ return isMuted(); }, setMuted(b){ setMuted(b); },
+  count(){ return soundCount(); }, last(){ return lastSound(); },
+  state(){ return audioState(); }
 };
 
 // ====== Assistance de visée (douce, horizontale uniquement) ======

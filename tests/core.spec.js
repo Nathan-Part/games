@@ -313,7 +313,12 @@ test('audio : chaque event de combat joue le bon son', async ({ page }) => {
   await page.evaluate(() => __game.debug.setShield(0)); // #67 : sinon le bouclier absorbe et 'playerHit' ne se joue pas
   await page.evaluate(() => __game.debug.damagePlayer(10));
   expect(await page.evaluate(() => __game.debug.audio.last())).toBe('playerHit');
-  await page.evaluate(() => __game.debug.damagePlayer(100)); // mort
+  // #137 : le 1er coup fatal déclenche le dernier souffle (survie à 1 PV, son 'reload' du callout)
+  await page.evaluate(() => __game.debug.damagePlayer(100));
+  expect(await page.evaluate(() => __game.debug.audio.last())).toBe('reload');
+  expect(await page.evaluate(() => __game.debug.secondWindUsed())).toBe(true);
+  await page.waitForTimeout(2200); // laisse expirer l'invincibilité post-dernier-souffle (2 s)
+  await page.evaluate(() => __game.debug.damagePlayer(100)); // mort réelle cette fois
   expect(await page.evaluate(() => __game.debug.audio.last())).toBe('gameover');
 });
 
