@@ -7396,3 +7396,32 @@ test('#199 : casque + costume legendaires debloquent stylise, un seul ne suffit 
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(true);
 });
+
+// ====== #200 — Power-up Vague de choc ======
+test('#200 : un ennemi proche subit 80 degats au ramassage', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 4, 0);
+    __game.debug.setPos(0,0);
+  });
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.spawnNovaBlast(0, 0));
+  await page.waitForTimeout(300);
+  const hp1 = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hp0 - hp1).toBe(80);
+});
+
+test('#200 : un ennemi hors de portee n est pas affecte', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => {
+    for(let i=0;i<3;i++) __game.debug.moveEnemy(i,40,40);
+    __game.debug.spawnEnemyTypeAt(0, 'juggernaut', 20, 0);
+    __game.debug.setPos(0,0);
+  });
+  const hp0 = await page.evaluate(() => __game.debug.enemyHp(0));
+  await page.evaluate(() => __game.debug.spawnNovaBlast(0, 0));
+  await page.waitForTimeout(300);
+  const hp1 = await page.evaluate(() => __game.debug.enemyHp(0));
+  expect(hp1).toBe(hp0);
+});

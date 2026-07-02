@@ -4919,7 +4919,7 @@ G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null;
   for(const p of healthPacks){ const d=Math.hypot(model.position.x-p.x, model.position.z-p.z); if(d<bd){bd=d;best=p;} }
   return best ? { x:best.x, z:best.z, dist:bd } : null; };
 // ====== Power-ups temporaires (#34) : orbes droppés, effet temporisé via applyWeaponStats ======
-const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true }, radar_boost:{ name:'Radar longue portée', color:0x2ad6ff, duration:12 }, second_wind_refill:{ name:'Second souffle ravivé', color:0xffd700, instant:true }, loot_master:{ name:'Loot Master', color:0xffcc00, duration:10 }, ricochet_boost:{ name:'Ricochet amélioré', color:0xbfd0e0, duration:10 } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172 #179(12s) #181 #188(10s) #189(10s)
+const POWERUPS = { dmgx2:{ name:'×2 Dégâts', color:0xff8a2a }, rapid:{ name:'Tir rapide', color:0x2ad6ff }, slowmo:{ name:'Slow-mo', color:0x9a6aff }, extended_mag:{ name:'Chargeur ×2', color:0x3dff7a, duration:15 }, shield_orb:{ name:'Bouclier Max', color:0x4488ff, instant:true }, xp_boost:{ name:'×2 XP', color:0xdd66ff, duration:12 }, explosive_ammo:{ name:'Balles Explosives', color:0xff4400 }, speed_boost:{ name:'Sprint ×2', color:0x22ffcc, duration:6 }, vampire:{ name:'Vampire', color:0xaa0044, duration:10 }, steady_aim:{ name:'Visée stable', color:0x66e0ff, duration:8 }, regen_boost:{ name:'Régén ×2', color:0x7dffb0, duration:10 }, piercing_rounds:{ name:'Munitions perforantes', color:0xdde6ee, duration:8 }, incendiary_ammo:{ name:'Munitions incendiaires', color:0xff6600, duration:8 }, lucky_shot:{ name:'Tir chanceux', color:0xffd700, duration:10 }, full_auto:{ name:'Full-auto', color:0xff2222, duration:10 }, money_magnet:{ name:'Aimant à argent', color:0xffe15a, duration:8 }, kevlar:{ name:'Kevlar', color:0x8899aa, duration:10 }, berserk:{ name:'Berserk', color:0x661111, duration:10 }, instant_heal:{ name:'Trousse instantanée', color:0x33ff66, instant:true }, radar_boost:{ name:'Radar longue portée', color:0x2ad6ff, duration:12 }, second_wind_refill:{ name:'Second souffle ravivé', color:0xffd700, instant:true }, loot_master:{ name:'Loot Master', color:0xffcc00, duration:10 }, ricochet_boost:{ name:'Ricochet amélioré', color:0xbfd0e0, duration:10 }, nova_blast:{ name:'Vague de choc', color:0xffddaa, instant:true } }; // #95(15s) #122 #123 #127 #133(10s) #145(8s) #147(10s) #150(8s) #152(8s) #153(10s) #154(10s) #160(8s) #167(10s) #171(10s) #172 #179(12s) #181 #188(10s) #189(10s) #200
 const POWER_DROP_CHANCE = 0.12, POWER_PICKUP_R = 1.6, POWER_DURATION = 8;
 const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
@@ -4930,10 +4930,18 @@ function clearPowerUps(){ for(const p of powerUps) scene.remove(p.mesh); powerUp
 function maybeDropPower(e){ if(forcePowerDrop || e.type==='boss' || Math.random() < (activePower==='loot_master' ? POWER_DROP_CHANCE*2 : POWER_DROP_CHANCE)){   // #188
   const ks = Object.keys(POWERUPS); spawnPowerUp(ks[Math.floor(Math.random()*ks.length)], e.root.position.x, e.root.position.z); } }
 const INSTANT_HEAL_AMOUNT = 40;   // #172
+const NOVA_RADIUS = 8, NOVA_DAMAGE = 80;   // #200
 function activatePower(type){
   if(type === 'shield_orb'){ shieldHpVal = SHIELD_MAX; shieldLastDmg = -999; updateShieldHud(); lastShieldOrbPickup_=true; flashHeal(); playSound('reload'); return; }
   if(type === 'instant_heal'){ if(!hardcore_){ health = Math.min(maxHealth, health + INSTANT_HEAL_AMOUNT); G.health = health; updateHealthHud(); } flashHeal(); playSound('reload'); return; }   // #172
   if(type === 'second_wind_refill'){ secondWindUsed = false; flashHeal(); playSound('reload'); return; }   // #181
+  if(type === 'nova_blast'){   // #200
+    if(model){ for(const e of enemies){ if(!e.alive) continue;
+      const d = Math.hypot(e.root.position.x-model.position.x, e.root.position.z-model.position.z);
+      if(d <= NOVA_RADIUS) damageEnemy(e, NOVA_DAMAGE); }
+      spawnShockwave(model.position.x, 0.6, model.position.z); }
+    flashHeal(); playSound('reload'); return;
+  }
   activePower = type; powerExpireAt = nowS() + (POWERUPS[type]?.duration || POWER_DURATION); applyWeaponStats(); updatePowerHud(); flashHeal(); playSound('reload');
 }
 function updatePowerUps(dt){ if(!model) return; const t = nowS();
@@ -5259,6 +5267,7 @@ G.debug.spawnLootMaster = (x,z) => spawnPowerUp('loot_master', x, z);
 G.debug.ricochetBoostActive = () => activePower === 'ricochet_boost';                                        // #189
 G.debug.ricochetBoostTimeLeft = () => activePower === 'ricochet_boost' ? Math.max(0, powerExpireAt - nowS()) : 0;
 G.debug.spawnRicochetBoost = (x,z) => spawnPowerUp('ricochet_boost', x, z);
+G.debug.spawnNovaBlast = (x,z) => spawnPowerUp('nova_blast', x, z);   // #200
 function enemyTryShoot(e, dt){
   e.shootCd = (e.shootCd || 0) - dt;
   if(e.shootCd > 0) return;
