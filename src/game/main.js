@@ -1737,7 +1737,7 @@ G.debug.stickyAttachedEnemy = (i) => { const s = stickyProjs[i]; return s ? (s.a
 // ====== #130 Molotov cocktail (zone de feu persistante) ======
 const MOLOTOV_STOCK_MAX = 1, MOLOTOV_ZONE_DUR = 5, MOLOTOV_R = 3, MOLOTOV_TICK = 0.5, MOLOTOV_TICK_DMG = 6, MOLOTOV_GRAV = 9.81;
 let molotovStockCount = MOLOTOV_STOCK_MAX;
-const molotovProjs = [], fireZones = [];
+const molotovProjs = [];
 function buildMolotovMesh(){ return new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8),
   new THREE.MeshStandardMaterial({ color:0xff6a1a, emissive:0xff3300, emissiveIntensity:0.9, roughness:0.4 })); }
 function throwMolotov(){
@@ -1750,73 +1750,66 @@ function throwMolotov(){
   molotovProjs.push({ mesh:m, vel });
   return true;
 }
-function igniteFireZone(x, z){
-  const geo = new THREE.CircleGeometry(MOLOTOV_R, 24);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0xff5500, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
-  mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
-  fireZones.push({ mesh, x, z, expireAt: nowS() + MOLOTOV_ZONE_DUR, lastTick: nowS() });
-  spawnExplosionFx(new THREE.Vector3(x, 0.3, z));
+// ====== Zones au sol persistantes (feu #130 / poison #141 / gel #146) : factory unique (étape 5) ======
+function createGroundZone({ color, radius, dur, tick = 0, onTick = null }){
+  const zones = [];
+  return {
+    spawn(x, z){
+      const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 24),
+        new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
+      mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
+      zones.push({ mesh, x, z, expireAt: nowS() + dur, lastTick: nowS() });
+    },
+    update(){
+      const t = nowS();
+      for(let i = zones.length-1; i >= 0; i--){ const z = zones[i];
+        if(t >= z.expireAt){ scene.remove(z.mesh); zones.splice(i,1); continue; }
+        if(onTick && t - z.lastTick >= tick){ z.lastTick = t; onTick(z); } }
+    },
+    clear(){ for(const z of zones) scene.remove(z.mesh); zones.length = 0; },
+    active(){ return zones.length > 0; },
+    contains(x, z){ return zones.some(zz => Math.hypot(x - zz.x, z - zz.z) <= radius); },
+  };
 }
+const fireZone = createGroundZone({ color:0xff5500, radius:MOLOTOV_R, dur:MOLOTOV_ZONE_DUR, tick:MOLOTOV_TICK, onTick(z){
+  for(const e of enemies){ if(!e.alive) continue;
+    if(Math.hypot(e.root.position.x-z.x, e.root.position.z-z.z) <= MOLOTOV_R) damageEnemy(e, MOLOTOV_TICK_DMG); }
+} });
+function igniteFireZone(x, z){ fireZone.spawn(x, z); spawnExplosionFx(new THREE.Vector3(x, 0.3, z)); }
 function updateMolotovs(dt){
   for(let i=molotovProjs.length-1;i>=0;i--){ const p = molotovProjs[i];
     p.vel.y -= MOLOTOV_GRAV*dt; p.mesh.position.addScaledVector(p.vel, dt);
     if(p.mesh.position.y <= 0.12){ igniteFireZone(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); molotovProjs.splice(i,1); } }
 }
-function updateFireZones(dt){ const t = nowS();
-  for(let i=fireZones.length-1;i>=0;i--){ const fz = fireZones[i];
-    if(t >= fz.expireAt){ scene.remove(fz.mesh); fireZones.splice(i,1); continue; }
-    if(t - fz.lastTick >= MOLOTOV_TICK){ fz.lastTick = t;
-      for(const e of enemies){ if(!e.alive) continue;
-        if(Math.hypot(e.root.position.x-fz.x, e.root.position.z-fz.z) <= MOLOTOV_R) damageEnemy(e, MOLOTOV_TICK_DMG); } } }
-}
-function clearMolotovs(){ for(const p of molotovProjs) scene.remove(p.mesh); molotovProjs.length = 0;
-  for(const fz of fireZones) scene.remove(fz.mesh); fireZones.length = 0; }
+function updateFireZones(){ fireZone.update(); }
+function clearMolotovs(){ for(const p of molotovProjs) scene.remove(p.mesh); molotovProjs.length = 0; fireZone.clear(); }
 G.debug.molotovStock = () => molotovStockCount;
 G.debug.molotovCount = () => molotovProjs.length;
 G.debug.throwMolotov = () => throwMolotov();
-G.debug.fireZoneActive = () => fireZones.length > 0;
-G.debug.enemyInFire = (i) => { const e = enemies[i]; if(!e) return false;
-  return fireZones.some(fz => Math.hypot(e.root.position.x-fz.x, e.root.position.z-fz.z) <= MOLOTOV_R); };
+G.debug.fireZoneActive = () => fireZone.active();
+G.debug.enemyInFire = (i) => { const e = enemies[i]; return !!e && fireZone.contains(e.root.position.x, e.root.position.z); };
 G.debug.igniteFireZoneAt = (x,z) => igniteFireZone(x,z);
 // ====== #141 Ennemi toxique : nuage de poison au sol à sa mort (dégâts joueur) ======
 const POISON_R = 3, POISON_DUR = 4, POISON_TICK = 0.5, POISON_TICK_DMG = 8;
-const poisonZones = [];
-function spawnPoisonZone(x, z){
-  const geo = new THREE.CircleGeometry(POISON_R, 24);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0x33cc33, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
-  mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
-  poisonZones.push({ mesh, x, z, expireAt: nowS() + POISON_DUR, lastTick: nowS() });
-}
-function updatePoisonZones(dt){ const t = nowS();
-  for(let i=poisonZones.length-1;i>=0;i--){ const pz = poisonZones[i];
-    if(t >= pz.expireAt){ scene.remove(pz.mesh); poisonZones.splice(i,1); continue; }
-    if(model && t - pz.lastTick >= POISON_TICK){ pz.lastTick = t;
-      if(Math.hypot(model.position.x-pz.x, model.position.z-pz.z) <= POISON_R) damagePlayer(POISON_TICK_DMG); } }
-}
-function clearPoisonZones(){ for(const pz of poisonZones) scene.remove(pz.mesh); poisonZones.length = 0; }
+const poisonZone = createGroundZone({ color:0x33cc33, radius:POISON_R, dur:POISON_DUR, tick:POISON_TICK, onTick(z){
+  if(model && Math.hypot(model.position.x-z.x, model.position.z-z.z) <= POISON_R) damagePlayer(POISON_TICK_DMG);
+} });
+function spawnPoisonZone(x, z){ poisonZone.spawn(x, z); }
+function updatePoisonZones(){ poisonZone.update(); }
+function clearPoisonZones(){ poisonZone.clear(); }
 G.debug.enemyIsToxic = (i) => { const e = enemies[i]; return !!e && e.type==='toxic'; };
-G.debug.poisonZoneActive = () => poisonZones.length > 0;
-G.debug.playerInPoisonZone = () => { if(!model) return false;
-  return poisonZones.some(pz => Math.hypot(model.position.x-pz.x, model.position.z-pz.z) <= POISON_R); };
+G.debug.poisonZoneActive = () => poisonZone.active();
+G.debug.playerInPoisonZone = () => !!model && poisonZone.contains(model.position.x, model.position.z);
 G.debug.spawnPoisonZoneAt = (x,z) => spawnPoisonZone(x,z);
 // ====== #146 Ennemi cryo : zone de gel au sol à sa mort (ralentit le joueur, sans dégâts) ======
 const FROST_R = 3, FROST_DUR = 4, FROST_SLOW_MULT = 0.5;
-const frostZones = [];
-function spawnFrostZone(x, z){
-  const geo = new THREE.CircleGeometry(FROST_R, 24);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0x66ccff, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
-  mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
-  frostZones.push({ mesh, x, z, expireAt: nowS() + FROST_DUR });
-}
-function updateFrostZones(){ const t = nowS();
-  for(let i=frostZones.length-1;i>=0;i--){ const fz = frostZones[i];
-    if(t >= fz.expireAt){ scene.remove(fz.mesh); frostZones.splice(i,1); } }
-}
-function playerSlowedByFrost(){ if(!model) return false;
-  return frostZones.some(fz => Math.hypot(model.position.x-fz.x, model.position.z-fz.z) <= FROST_R); }
-function clearFrostZones(){ for(const fz of frostZones) scene.remove(fz.mesh); frostZones.length = 0; }
+const frostZone = createGroundZone({ color:0x66ccff, radius:FROST_R, dur:FROST_DUR });
+function spawnFrostZone(x, z){ frostZone.spawn(x, z); }
+function updateFrostZones(){ frostZone.update(); }
+function playerSlowedByFrost(){ return !!model && frostZone.contains(model.position.x, model.position.z); }
+function clearFrostZones(){ frostZone.clear(); }
 G.debug.enemyIsCryo = (i) => { const e = enemies[i]; return !!e && e.type==='cryo'; };
-G.debug.frostZoneActive = () => frostZones.length > 0;
+G.debug.frostZoneActive = () => frostZone.active();
 G.debug.playerInFrostZone = () => playerSlowedByFrost();
 G.debug.spawnFrostZoneAt = (x,z) => spawnFrostZone(x,z);
 // ====== #136 Grenade EMP (désactive le tir ennemi à distance) ======
