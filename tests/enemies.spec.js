@@ -693,11 +693,12 @@ test('#111b/#121b : sniper et stunner reapparaissent en vague impaire 9+', async
   expect(w11).toContain('stunner');
 });
 
-test('#111b/#121b : grenadier et stunner en vague paire 8+ (ghost supprimé)', async ({ page }) => {
+test('#111b/#121b : grenadier et cryo en vague paire 8+ (stunner en impaire, ghost supprimé)', async ({ page }) => {
   await startPlaying(page);
   const w8 = await page.evaluate(() => __game.debug.waveComposition(8));
-  expect(w8).toContain('grenadier');   // i%7===6 pair
-  expect(w8).toContain('stunner');     // i%6===5 dès v7 (slot ghost libéré)
+  expect(w8).toContain('grenadier');   // i%7===6 pair (#128)
+  expect(w8).toContain('cryo');        // #146 : i%6===5 en vague PAIRE → cryo (le stunner est passé en impaire)
+  expect(w8).not.toContain('stunner');
   expect(w8).not.toContain('ghost');   // type supprimé
   const w12 = await page.evaluate(() => __game.debug.waveComposition(12));
   expect(w12).toContain('grenadier');
@@ -767,14 +768,17 @@ test('#140 vip : forceVip marque l ennemi', async ({ page }) => {
 
 test('#140 vip : tuer un VIP rapporte 2x argent par rapport a un kill normal', async ({ page }) => {
   await startPlaying(page);
+  // consomme le premier sang (#161, +15$ au 1er kill de la vague) hors mesure — sinon il s'ajoute aux deux gains et casse le ratio ×2
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(1, 'shooter', 8, 8); __game.debug.damageEnemy(1, __game.debug.enemyHp(1)); });
   await page.evaluate(() => __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0));
   const before1 = await page.evaluate(() => __game.debug.runMoney());
   await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, hp); }); // exact : pas d'excédent overkill (#139)
   const normalGain = await page.evaluate(() => __game.debug.runMoney()) - before1;
   expect(normalGain).toBeGreaterThan(0);
 
-  await page.evaluate(() => __game.debug.restart()); // remet combo/runMoney à zéro
+  await page.evaluate(() => __game.debug.restart()); // remet combo/runMoney/premier sang à zéro
   await page.waitForTimeout(100);
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(1, 'shooter', 8, 8); __game.debug.damageEnemy(1, __game.debug.enemyHp(1)); }); // re-consomme le premier sang
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0, 'shooter', 5, 0); __game.debug.forceVip(0); });
   const before2 = await page.evaluate(() => __game.debug.runMoney());
   await page.evaluate(() => { const hp = __game.debug.enemyHp(0); __game.debug.damageEnemy(0, hp); });

@@ -944,8 +944,10 @@ test('#193 : 10 barils en chaine debloquent ingenieur', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.save.reset());
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('ingenieur'))).toBe(false);
-  await page.evaluate(() => { for (let i = 0; i < 11; i++) __game.debug.spawnBarrelInFront(8); });
-  await page.evaluate(() => __game.debug.explodeBarrelNow(0));
+  // explodeBarrelNow(0) viserait un baril de MAP (spawnBarrels en pose 4 aux indices 0-3, loin du joueur) → on capture l'indice réel du 1er baril empilé
+  const first = await page.evaluate(() => __game.debug.spawnBarrelInFront(8));
+  await page.evaluate(() => { for (let i = 0; i < 10; i++) __game.debug.spawnBarrelInFront(8); });
+  await page.evaluate((i) => __game.debug.explodeBarrelNow(i), first);
   expect(await page.evaluate(() => __game.debug.barrelChainCount())).toBeGreaterThanOrEqual(10);
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('ingenieur'))).toBe(true);
@@ -1049,6 +1051,10 @@ test('#197 : nettoyer une vague uniquement au couteau debloque silencieux', asyn
     await page.evaluate(() => __game.debug.playerMelee());
     await page.waitForTimeout(700);
   }
+  // la boucle ne tue que l'indice 0 : les ennemis 1..n-1 de la vague restent vivants — le succès n'est évalué
+  // qu'à la FIN de vague → on achève les restants sans aucun tir (killAllEnemies ne compte pas comme un tir)
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.waveShots())).toBe(0);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('silencieux'))).toBe(true);
 });
@@ -1075,10 +1081,15 @@ test('#199 : casque + costume legendaires debloquent stylise, un seul ne suffit 
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(10000); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(false);
+  // le succès n'est évalué qu'à la FIN d'une vague (checkWaveCleared) → il faut nettoyer une vague après chaque équipement
   await page.evaluate(() => { __game.debug.shop.buyAccessory('helm:halo'); __game.debug.shop.selectAccessory('helmet', 'helm:halo'); });
-  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(false);   // casque seul, pas assez
+  await page.evaluate(() => __game.debug.forceNextWave());
+  await page.waitForFunction(() => window.__game.debug.enemyAlive() > 0, null, { timeout:10000 });   // vague suivante active
   await page.evaluate(() => { __game.debug.shop.buyAccessory('cost:wings'); __game.debug.shop.selectAccessory('costume', 'cost:wings'); });
-  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  await page.evaluate(() => __game.debug.killAllEnemies());
+  await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(true);
 });

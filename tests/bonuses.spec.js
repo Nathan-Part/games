@@ -18,9 +18,10 @@ test('combo : enchainer monte le combo et booste l argent', async ({ page }) => 
   await page.evaluate(() => { for(let i=0;i<3;i++){ __game.debug.spawnEnemyAt(0, 3); __game.debug.damageEnemy(0, 99999); } });
   expect(await page.evaluate(() => __game.debug.combo())).toBe(3);
   expect(await page.evaluate(() => __game.debug.comboMult())).toBe(2);
-  // #139 (pre-existant, corrige ici) : damageEnemy(0, 99999) declenche aussi le bonus overkill (+25$) sur chacun des 3 kills
+  // #139/#161 : damageEnemy(0, 99999) declenche aussi l'overkill (+25$/kill) et le 1er kill de la vague le premier sang (+15$)
   const overkillTotal = await page.evaluate(() => __game.debug.overkillCount() * 25);
-  expect(await page.evaluate(() => __game.money) - m0).toBe(perKill * (1 + 1 + 2) + overkillTotal);   // mult des 3 kills + bonus overkill
+  const firstBloodTotal = await page.evaluate(() => __game.debug.firstBloodCount() * 15);
+  expect(await page.evaluate(() => __game.money) - m0).toBe(perKill * (1 + 1 + 2) + overkillTotal + firstBloodTotal);   // mult des 3 kills + bonus
   expect(await page.evaluate(() => __game.debug.bestCombo())).toBeGreaterThanOrEqual(3);
 });
 

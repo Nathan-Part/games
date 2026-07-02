@@ -475,7 +475,7 @@ test('consommables : nouveau save a le stock de depart (#155)', async ({ page })
   await startPlaying(page);
   await page.evaluate(() => __game.debug.save.reset());
   const c = await page.evaluate(() => __game.debug.consumables());
-  expect(c).toEqual({ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3 });
+  expect(c).toEqual({ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3, medkit:3 });   // medkit ajouté par #178
 });
 
 test('consommables : acheter debite l argent et incremente le stock sauvegarde', async ({ page }) => {

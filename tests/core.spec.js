@@ -754,12 +754,13 @@ test('#134 adrenaline : actif quand PV <= 25%', async ({ page }) => {
 
 test('#134 adrenaline : multiplie les degats reels infliges par un tir (meme zone visee)', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); });
+  await page.evaluate(() => __game.debug.setEnemyAccuracy(0));   // personne ne tue le joueur à 20 PV pendant les waits
+  await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); __game.debug.setSpreadOverride(0); });
   await page.waitForTimeout(150);
   await page.evaluate(() => __game.debug.spawnEnemyInFront(8));
   await page.evaluate(() => __game.debug.setPitch(0)); // re-fige le pitch juste avant le tir (annule un éventuel recul résiduel)
   const hpBefore1 = await page.evaluate(() => __game.debug.enemyHp(0));
-  await page.evaluate(() => __game.debug.tryFire());
+  await page.evaluate(() => { __game.debug.forceEnemyFacePlayer(0); __game.debug.tryFire(); }); // face au joueur DANS le même evaluate : pas de backstab ×1.5 (#87)
   const hpAfter1 = await page.evaluate(() => __game.debug.enemyHp(0));
   const normalDmg = hpBefore1 - hpAfter1;
   expect(normalDmg).toBeGreaterThan(0);
@@ -770,7 +771,7 @@ test('#134 adrenaline : multiplie les degats reels infliges par un tir (meme zon
   await page.waitForTimeout(400); // laisse expirer le cooldown de tir entre les deux essais
   await page.evaluate(() => { __game.debug.setView('first'); __game.debug.setPitch(0); }); // même zone visée que le 1er tir
   const hpBefore2 = await page.evaluate(() => __game.debug.enemyHp(0));
-  await page.evaluate(() => __game.debug.tryFire());
+  await page.evaluate(() => { __game.debug.forceEnemyFacePlayer(0); __game.debug.tryFire(); }); // idem : pas de backstab au 2e tir
   const hpAfter2 = await page.evaluate(() => __game.debug.enemyHp(0));
   const adrDmg = hpBefore2 - hpAfter2;
   expect(adrDmg).toBeGreaterThan(normalDmg);
