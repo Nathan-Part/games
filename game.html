@@ -2652,6 +2652,8 @@ const ACHIEVEMENTS = [
   { id:'perfectionniste', name:'Perfectionniste', desc:'5 vagues parfaites cumulées' }, // #177
   { id:'millionnaire', name:'Millionnaire',      desc:'Posséder 10 000$' },            // #180
   { id:'increvable',   name:'Increvable',        desc:'Atteindre la vague 20' },       // #180
+  { id:'bourreau',     name:'Bourreau',          desc:'500 kills cumulés' },           // #183
+  { id:'sniper_elite', name:"Sniper d'élite",    desc:'100 headshots cumulés' },       // #183
 ];
 function isUnlocked(id){ return (save.unlockedAchievements || []).includes(id); }
 function unlockAchievement(id){
@@ -2672,6 +2674,8 @@ function checkAchievements(comboMult){
   if(lifetimeStats().perfectWaves >= 5) unlockAchievement('perfectionniste');   // #177
   if(save.money >= 10000) unlockAchievement('millionnaire');   // #180
   if(wave >= 20) unlockAchievement('increvable');               // #180
+  if(lifetimeStats().kills >= 500) unlockAchievement('bourreau');       // #183
+  if(lifetimeStats().headshots >= 100) unlockAchievement('sniper_elite');   // #183
 }
 function showAchievementToast(a){ const el = document.getElementById('achievement-toast'); if(!el) return;
   el.innerHTML = `🏆 <b>${a.name}</b> — ${a.desc}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');

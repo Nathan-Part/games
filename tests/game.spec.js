@@ -6901,3 +6901,33 @@ test('#182 : waveDashCount se remet a 0 a la vague suivante', async ({ page }) =
   await page.evaluate(() => __game.debug.forceNextWave());
   expect(await page.evaluate(() => __game.debug.waveDashCount())).toBe(0);
 });
+
+// ====== #183 — Succes Bourreau + Sniper d'elite ======
+test('#183 : achievements() inclut bourreau et sniper_elite', async ({ page }) => {
+  await startPlaying(page);
+  const ids = await page.evaluate(() => __game.debug.achievements().map(a => a.id));
+  expect(ids).toContain('bourreau');
+  expect(ids).toContain('sniper_elite');
+});
+
+test('#183 : 500 kills cumules debloquent bourreau', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('bourreau'))).toBe(false);
+  await page.evaluate(() => {
+    __game.debug.addLifetimeStat('kills', 500);
+    __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999);
+  });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('bourreau'))).toBe(true);
+});
+
+test('#183 : 100 headshots cumules debloquent sniper_elite', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.save.reset());
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('sniper_elite'))).toBe(false);
+  await page.evaluate(() => {
+    __game.debug.addLifetimeStat('headshots', 100);
+    __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999);
+  });
+  expect(await page.evaluate(() => __game.debug.achievementUnlocked('sniper_elite'))).toBe(true);
+});
