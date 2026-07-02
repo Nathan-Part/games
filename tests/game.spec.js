@@ -7068,3 +7068,23 @@ test('#187 : tuer sans avoir jamais pris de degat ne declenche pas la revanche',
   await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
   expect(await page.evaluate(() => __game.debug.revengeCount())).toBe(0);
 });
+
+// ====== #188 — Power-up Loot Master ======
+test('#188 : spawn puis pickup active le power loot_master', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnLootMaster(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __game.debug.lootMasterActive())).toBe(true);
+  expect(await page.evaluate(() => __game.debug.lootMasterTimeLeft())).toBeGreaterThan(0);
+});
+
+test('#188 : forceHealthDrop reste prioritaire pendant loot_master (pas de crash, pack toujours cree)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => { __game.debug.spawnLootMaster(0, 0); __game.debug.setPos(0, 0); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __game.debug.forceHealthDrop(true));
+  const before = await page.evaluate(() => __game.debug.healthPackCount());
+  await page.evaluate(() => { __game.debug.spawnEnemyTypeAt(0,'shooter',4,4); __game.debug.damageEnemy(0, 99999); });
+  const after = await page.evaluate(() => __game.debug.healthPackCount());
+  expect(after).toBeGreaterThan(before);
+});
