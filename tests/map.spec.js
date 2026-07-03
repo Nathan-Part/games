@@ -56,3 +56,10 @@ test('zone portail + ruines : colliders et emplacement du portail', async ({ pag
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-6, 4))).toBe(true);        // bloc de ruine
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 0))).toBe(false);        // spawn joueur degage
 });
+
+test('zone foret : arbres et rochers bloquent le passage', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-16, 16))).toBe(true);   // tronc d'arbre
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-10, 15))).toBe(true);   // rocher
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-16.6, 16.6))).toBe(false); // clairiere a cote
+});

@@ -78,6 +78,16 @@ export async function buildArena(scene){
     await addProp('decor/ruins/block.glb', { x:-8, z:-10, rotY:2.0,  scale:1,   collider:{ w:2,   d:2   } });
     await addProp('decor/ruins/block.glb', { x:6,  z:-14, rotY:0.7,  scale:1.2, collider:{ w:2.2, d:2   } });
     await addProp('decor/ruins/block.glb', { x:10, z:6,   rotY:2.6,  scale:0.7, collider:{ w:1,   d:1   } });
+
+    // Zone foret (anneau exterieur) : troncs en cover ponctuel, clairieres degagees entre chaque instance
+    const trees = [[-16,16],[-18,10],[-15,-4],[-19,-16],[14,17],[17,12],[16,-18],[-4,19],[3,-19],[11,-8]];
+    for(const [tx, tz] of trees){
+      await addProp('decor/forest/tree.glb', { x:tx, z:tz, scale:0.9+Math.random()*0.4, rotY:Math.random()*Math.PI*2, collider:{ w:0.6, d:0.6 } });
+    }
+    const rocks = [[-10,15],[9,-6],[-6,-17],[14,3]];
+    for(const [rx, rz] of rocks){
+      await addProp('decor/ruins/block.glb', { x:rx, z:rz, scale:0.5, rotY:Math.random()*Math.PI*2, collider:{ w:0.8, d:0.8 } });
+    }
   } catch (e) {
     console.warn('[map] chargement du decor thematique KO, arene de secours activee:', e);
     // buildFallbackArena pousse dans obstacles/obstacleMeshes qui peuvent deja contenir des entrees
