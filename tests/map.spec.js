@@ -56,3 +56,10 @@ test('zone portail + ruines : colliders et emplacement du portail', async ({ pag
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-6, 4))).toBe(true);        // bloc de ruine
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 0))).toBe(false);        // spawn joueur degage
 });
+
+test('ambiance nuit : fond violet fonce, grille masquee', async ({ page }) => {
+  await startPlaying(page);
+  const theme = await page.evaluate(() => window.__game.debug.mapTheme());
+  expect(theme.bg).toBe('#0a0a16');
+  expect(theme.gridVisible).toBe(false);
+});
