@@ -116,7 +116,7 @@
 
 <div id="lib">
   <div class="card">
-    <h3>Bibliothèque d'animations</h3>
+    <h3 id="lib-title">Bibliothèque d'animations</h3>
     <div id="lib-anims" class="scroll"></div>
   </div>
 </div>
@@ -241,6 +241,7 @@ let wire = false;
 let speed = 1;
 let lastSphere = new THREE.Sphere(new THREE.Vector3(0,1,0), 1.5);
 let currentFile=null, currentBytes=null, currentName='', currentExt='';
+let isPetLikeModel=false;      // squelette trop différent du rig humain de référence (ex. quadrupède) → n'afficher que ses propres anims
 
 const limbConf = {
   armR:{ axis:'z', up: 1.0, cur:0, tgt:0 },
@@ -677,6 +678,7 @@ function onLoaded(root, animations, name, format){
   curRestWorld = hasSkeleton ? captureRestWorld(root) : null;
   curOrder = hasSkeleton ? boneOrderOf(root) : null;
   modelToken++; for(const ck in libCache) delete libCache[ck];
+  isPetLikeModel = computeLibCompat();
 
   sourceClips=(animations||[]).slice();
   if(hasSkeleton || sourceClips.length){ mixer=new THREE.AnimationMixer(root); mixer.timeScale=speed; }
@@ -689,7 +691,10 @@ function onLoaded(root, animations, name, format){
   elHint.style.display='none';
   elHelp.classList.toggle('disabled', !hasSkeleton);
   setMode('manual');
-  toast(hasSkeleton ? 'Modèle chargé ✓ — squelette détecté' : 'Modèle chargé ✓ — pas de squelette');
+  buildLib();
+  toast(hasSkeleton
+    ? (isPetLikeModel ? 'Modèle chargé ✓ — squelette différent, anims propres uniquement' : 'Modèle chargé ✓ — squelette détecté')
+    : 'Modèle chargé ✓ — pas de squelette');
 }
 
 function readModel(file, cb){
@@ -753,6 +758,23 @@ async function seedPersosToGallery(){
     }catch(e){ console.warn('seed perso KO',d,e); }
   }
 }
+// Remplit « Mes modèles » avec les animaux de /pets (idempotent : seulement si absents)
+async function seedPetsToGallery(){
+  let dirs;
+  try{ dirs=(await listDir(PETS_DIR)).filter(h=>h.endsWith('/')); }catch(e){ return; }
+  for(const d of dirs){
+    const pid=decodeURIComponent(d.replace(/\/$/,'')); const id='pet:'+pid;
+    if(await dbGet(id)) continue;
+    let files; try{ files=await listDir(PETS_DIR+d); }catch(e){ continue; }
+    const glb=files.find(isGlbF); if(!glb) continue;
+    const img=files.find(isImgF);
+    try{
+      const bytes=await (await fetch(PETS_DIR+d+glb)).arrayBuffer();
+      const thumb=img?await urlToDataURL(PETS_DIR+d+img):'';
+      await dbPut({ id, name:libPretty(pid), format:'glb', bytes, thumb, ts:0, source:'pet', date:'dossier /pets' });
+    }catch(e){ console.warn('seed pet KO',d,e); }
+  }
+}
 
 function makeThumb(){
   try{ renderer.render(scene,camera);
@@ -774,6 +796,7 @@ async function openGallery(){
   const grid=$('gallery-grid'); grid.innerHTML='<span class="gempty">Chargement…</span>';
   $('gallery').classList.add('show');
   try{ await seedPersosToGallery(); }catch(e){}
+  try{ await seedPetsToGallery(); }catch(e){}
   let list=[]; try{ list=await dbAll(); }catch(e){}
   list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!list.length){ grid.innerHTML='<span class="gempty">Aucun modèle sauvegardé. Charge un modèle puis clique « 💾 Sauver ».</span>'; return; }
@@ -814,7 +837,7 @@ addEventListener('drop',e=>{ e.preventDefault(); dragN=0; elDrop.classList.remov
 
 // ================= Bibliothèque partagée (/animation) + personnages (/perso) =================
 // Les clips s'appliquent à N'IMPORTE QUEL modèle chargé, via retargeting espace-monde (cf. app.html).
-const ANIM_DIR='animation/', PERSO_DIR='perso/', LIB_ROOT='Hips';
+const ANIM_DIR='animation/', PERSO_DIR='perso/', PETS_DIR='pets/', LIB_ROOT='Hips';
 const LIB_ICONS=[[/walk|march/i,'🚶'],[/run|course|sprint/i,'🏃'],[/dance|danse/i,'💃'],
   [/box|punch|combo|attack|attaque/i,'🥊'],[/skill|comp/i,'✨'],[/alert/i,'⚠️'],
   [/agree|gesture|approuv/i,'👍'],[/idle|wait/i,'🧍']];
@@ -886,8 +909,35 @@ function playLibraryAnim(k, btn){
   document.querySelectorAll('.libanim-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
 }
+// Le modèle chargé a-t-il un squelette trop différent du rig humain de référence
+// (ex. quadrupède) pour que le retargeting de la bibliothèque humaine ait un sens ?
+// Mesuré par le taux d'os du rig de référence retrouvés par NOM dans le modèle courant.
+function computeLibCompat(){
+  const refNames=Object.keys(libSrcBone);
+  if(!hasSkeleton || !refNames.length) return false; // bibliothèque pas encore chargée → ne pas se prononcer
+  const matched=refNames.filter(n=>boneMap.has(n)).length;
+  return (matched/refNames.length) < 0.5;
+}
+function playOwnClip(clip, btn){
+  if(!currentRoot || !hasSkeleton) return;
+  playVariant({label:prettyClip(clip.name), clip, timeScale:1, reverse:false}, null);
+  document.querySelectorAll('.libanim-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
 function buildLib(){
   const ac=$('lib-anims'); ac.innerHTML='';
+  const title=$('lib-title');
+  if(isPetLikeModel){
+    if(title) title.textContent='Animations du modèle';
+    if(!sourceClips.length) ac.innerHTML='<span class="muted" style="font-size:11.5px">Aucune animation</span>';
+    sourceClips.forEach(clip=>{
+      const b=document.createElement('button'); b.className='lib-btn libanim-btn';
+      b.innerHTML=`<span class="ic">${libIcon(clip.name||'')}</span><span>${prettyClip(clip.name)}</span>`;
+      b.onclick=()=>playOwnClip(clip,b); ac.appendChild(b);
+    });
+    return;
+  }
+  if(title) title.textContent="Bibliothèque d'animations";
   if(!libAnims.length) ac.innerHTML='<span class="muted" style="font-size:11.5px">Aucune animation</span>';
   libAnims.forEach(a=>{
     const b=document.createElement('button'); b.className='lib-btn libanim-btn'; b.dataset.key=a.key;
@@ -906,6 +956,7 @@ async function initLibrary(){
       }catch(e){ console.warn('lib anim KO',f,e); }
     }
     libAnims.sort((a,b)=>a.label.localeCompare(b.label));
+    if(currentRoot) isPetLikeModel=computeLibCompat();
     buildLib();
   }catch(e){ console.warn('bibliothèque indisponible',e);
     $('lib-anims').innerHTML='<span class="muted" style="font-size:11.5px">Indisponible — lance via un serveur local</span>';

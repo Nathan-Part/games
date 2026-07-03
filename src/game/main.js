@@ -5,7 +5,8 @@ import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retarget
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
 import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena } from './map.js';
-import { updateFeatures, resetRunFeatures, lobbyFeatures } from './registry.js';
+import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
+import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
 import { bindAudioVolume, initAudio, resumeAudio, playSound, playTone, setMuted, isMuted, applyVolume, audioGain, audioState, soundCount, lastSound } from './audio.js';
 
@@ -5054,6 +5055,22 @@ function updateAimAssist(dt){
   }
   if(bestDiff !== null) camYaw += bestDiff * Math.min(1, dt * AIM_ASSIST_GAIN * (1 - bestAng/AIM_ASSIST_ANGLE));
 }
+
+// ====== Pet compagnon — chien (spec 2026-07-03) ======
+const pet = initPet({
+  THREE, scene, loader,
+  getPlayerPos: () => model ? model.position : { x:0, y:0, z:0 },
+  enemies, damageEnemy,
+  obstacles, MAP_HALF, pushOutCircleAABB,
+  registerFeature,
+});
+G.debug.petLoaded = () => pet.loaded();
+G.debug.petVisible = () => pet.visible();
+G.debug.petPos = () => pet.pos();
+G.debug.petState = () => pet.state();
+G.debug.petAttackCount = () => pet.attackCount();
+G.debug.petSetPos = (x, z) => pet.setPos(x, z);
+G.debug.petClips = () => pet.clips();
 
 // ====== Boucle ======
 const clock = new THREE.Clock();
