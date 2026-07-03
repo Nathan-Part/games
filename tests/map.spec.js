@@ -78,3 +78,10 @@ test('ambiance nuit : fond violet fonce, grille masquee', async ({ page }) => {
   expect(theme.bg).toBe('#0a0a16');
   expect(theme.gridVisible).toBe(false);
 });
+
+test('indicateur de chargement au boot puis masque une fois le lobby pret', async ({ page }) => {
+  await page.goto('/game.html');
+  await expect(page.locator('#boot-loading')).toBeVisible();
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, {timeout:20000});
+  await expect(page.locator('#boot-loading')).toBeHidden();
+});
