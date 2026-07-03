@@ -71,3 +71,10 @@ test('exterieur du chateau : mur et tour bloquent, restent dans les bornes MAP_H
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(19.5, -2))).toBe(true);  // toujours dans la tour
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(22.5, -2))).toBe(false); // au-dela de la tour et du mur d'enceinte
 });
+
+test('ambiance nuit : fond violet fonce, grille masquee', async ({ page }) => {
+  await startPlaying(page);
+  const theme = await page.evaluate(() => window.__game.debug.mapTheme());
+  expect(theme.bg).toBe('#0a0a16');
+  expect(theme.gridVisible).toBe(false);
+});
