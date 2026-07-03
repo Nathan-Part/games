@@ -88,6 +88,11 @@ export async function buildArena(scene){
     for(const [rx, rz] of rocks){
       await addProp('decor/ruins/block.glb', { x:rx, z:rz, scale:0.5, rotY:Math.random()*Math.PI*2, collider:{ w:0.8, d:0.8 } });
     }
+
+    // Exterieur du chateau (cote est de l'arene) - portes fermees, pas d'interieur (tranche future)
+    await addProp('decor/castle/wall.glb',  { x:17, z:6,  scale:1.2, rotY:Math.PI/2, collider:{ w:2, d:8 } });
+    await addProp('decor/castle/wall.glb',  { x:17, z:-9, scale:1.0, rotY:Math.PI/2, collider:{ w:2, d:6 } });
+    await addProp('decor/castle/tower.glb', { x:18, z:-2, scale:1.3, collider:{ w:4, d:4 } });
   } catch (e) {
     console.warn('[map] chargement du decor thematique KO, arene de secours activee:', e);
     // buildFallbackArena pousse dans obstacles/obstacleMeshes qui peuvent deja contenir des entrees
