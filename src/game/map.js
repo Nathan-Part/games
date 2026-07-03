@@ -1,6 +1,7 @@
 // Map / niveau (#19, #48) : bornes, obstacles AABB + meshes de l'arène urbaine.
 // buildArena(scene) construit le décor ; obstacles est muté en place (jamais réassigné).
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export const MAP_HALF = 24;
 export const obstacles = [], obstacleMeshes = [];
@@ -38,7 +39,8 @@ export function addBuilding(cx, cz, w, d, h, opt = {}){
 
 export function pointInObstacle(x, z){ return obstacles.some(b => x>=b.minX && x<=b.maxX && z>=b.minZ && z<=b.maxZ); }   // #48
 
-export function buildArena(scene){
+// ====== Arène de secours (ex-arène urbaine) : filet de sécurité si le décor thématique échoue ======
+function buildFallbackArena(scene){
   sceneRef = scene;
   addBox(-5, 6, 2, 2, 1.5); addBox(7, -4, 3, 1, 2); addBox(0, 12, 2, 2, 1.5);   // caisses d'origine (conservées)
   // mur d'enceinte (arène fermée + toile de fond) ; en retrait du bord (le clamp ±MAP_HALF reste libre)
@@ -52,4 +54,64 @@ export function buildArena(scene){
   const lamp1 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp1.position.set(-13, 6, 13); scene.add(lamp1);
   const lamp2 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp2.position.set(13, 6, -13); scene.add(lamp2);
   arenaLamps.push(lamp1, lamp2);
+}
+
+// ====== Nouvelle arène thématique (Portail des ruines) — resilience totale ======
+export async function buildArena(scene){
+  sceneRef = scene;
+  try {
+    if(typeof window !== 'undefined' && window.__FORCE_DECOR_FAIL__) throw new Error('decor force-fail (test)');
+    // Tasks 9-13 ajoutent ici la construction du niveau thematique (portail, ruines, foret, chateau, decor lointain).
+  } catch (e) {
+    console.warn('[map] chargement du decor thematique KO, arene de secours activee:', e);
+    // buildFallbackArena pousse dans obstacles/obstacleMeshes qui peuvent deja contenir des entrees
+    // partielles issues du essai precedent — c'est acceptable (collision surabondante, jamais manquante).
+    buildFallbackArena(scene);
+  }
+}
+
+// ====== Props GLB (décor thématique) : chargement + collision optionnelle ======
+const propLoader = new GLTFLoader();
+let decorPropCount_ = 0, decorBackdropCount_ = 0;
+export function decorPropCount(){ return decorPropCount_; }
+export function decorBackdropCount(){ return decorBackdropCount_; }
+
+export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=null } = {}){
+  try {
+    const gltf = await propLoader.loadAsync(url);
+    const mesh = gltf.scene;
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = rotY;
+    mesh.scale.setScalar(scale);
+    mesh.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    sceneRef.add(mesh);
+    obstacleMeshes.push(mesh);
+    decorPropCount_++;
+    if(collider){
+      const { w, d } = collider;
+      obstacles.push({ minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2 });
+    }
+    return mesh;
+  } catch (e) {
+    console.warn('[map] addProp echec:', url, e);
+    return null;
+  }
+}
+
+export async function addBackdropProp(url, { x=0, z=0, y=0, scale=1, rotY=0 } = {}){
+  try {
+    const gltf = await propLoader.loadAsync(url);
+    const mesh = gltf.scene;
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = rotY;
+    mesh.scale.setScalar(scale);
+    mesh.traverse(o => { if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
+    sceneRef.add(mesh);
+    obstacleMeshes.push(mesh);
+    decorBackdropCount_++;
+    return mesh;
+  } catch (e) {
+    console.warn('[map] addBackdropProp echec:', url, e);
+    return null;
+  }
 }
