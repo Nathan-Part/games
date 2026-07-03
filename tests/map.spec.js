@@ -48,3 +48,11 @@ test('si le chargement du decor echoue totalement, l\'arene de secours prend le 
   expect(obstacleCount).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__game.debug.mapHalf)).toBe(24);
 });
+
+test('zone portail + ruines : colliders et emplacement du portail', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => window.__game.debug.obstacleCount())).toBeGreaterThanOrEqual(10);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-1.8, -9.5))).toBe(true);   // colonne portail
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-6, 4))).toBe(true);        // bloc de ruine
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 0))).toBe(false);        // spawn joueur degage
+});

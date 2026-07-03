@@ -62,6 +62,22 @@ export async function buildArena(scene){
   try {
     if(typeof window !== 'undefined' && window.__FORCE_DECOR_FAIL__) throw new Error('decor force-fail (test)');
     // Tasks 9-13 ajoutent ici la construction du niveau thematique (portail, ruines, foret, chateau, decor lointain).
+
+    // Zone portail (piece hero, centree en (0,-8))
+    await addProp('decor/portal/arch.glb', { x:0, z:-8.5, scale:1.4, collider:{ w:3, d:1 } });
+    await addProp('decor/portal/pillar.glb', { x:-1.8, z:-9.5, scale:1, collider:{ w:0.8, d:0.8 } });
+    await addProp('decor/portal/pillar.glb', { x: 1.8, z:-9.5, scale:1, collider:{ w:0.8, d:0.8 } });
+    await addProp('decor/portal/pillar.glb', { x:-1.8, z:-6.5, scale:1, collider:{ w:0.8, d:0.8 } });
+    await addProp('decor/portal/pillar.glb', { x: 1.8, z:-6.5, scale:1, collider:{ w:0.8, d:0.8 } });
+    const portalLight = new THREE.PointLight(0xb266ff, 1.4, 18); portalLight.position.set(0, 2.2, -8); scene.add(portalLight);
+    arenaLamps.push(portalLight);
+
+    // Zone ruines (cover), autour du portail
+    await addProp('decor/ruins/block.glb', { x:-6, z:4,   rotY:0.4,  scale:1.1, collider:{ w:2.4, d:2.2 } });
+    await addProp('decor/ruins/block.glb', { x:7,  z:2,   rotY:1.1,  scale:1.3, collider:{ w:2,   d:2.5 } });
+    await addProp('decor/ruins/block.glb', { x:-8, z:-10, rotY:2.0,  scale:1,   collider:{ w:2,   d:2   } });
+    await addProp('decor/ruins/block.glb', { x:6,  z:-14, rotY:0.7,  scale:1.2, collider:{ w:2.2, d:2   } });
+    await addProp('decor/ruins/block.glb', { x:10, z:6,   rotY:2.6,  scale:0.7, collider:{ w:1,   d:1   } });
   } catch (e) {
     console.warn('[map] chargement du decor thematique KO, arene de secours activee:', e);
     // buildFallbackArena pousse dans obstacles/obstacleMeshes qui peuvent deja contenir des entrees
