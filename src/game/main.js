@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena } from './map.js';
+import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures } from './registry.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
 import { bindAudioVolume, initAudio, resumeAudio, playSound, playTone, setMuted, isMuted, applyVolume, audioGain, audioState, soundCount, lastSound } from './audio.js';
@@ -282,6 +282,10 @@ G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
+G.debug.testAddProp = (url, opts) => addProp(url, opts);
+G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
+G.debug.decorPropCount = () => decorPropCount();
+G.debug.decorBackdropCount = () => decorBackdropCount();
 G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
 
 // ====== Assets + galerie de personnages : voir src/game/assets.js ======

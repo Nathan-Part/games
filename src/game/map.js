@@ -1,6 +1,7 @@
 // Map / niveau (#19, #48) : bornes, obstacles AABB + meshes de l'arène urbaine.
 // buildArena(scene) construit le décor ; obstacles est muté en place (jamais réassigné).
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export const MAP_HALF = 24;
 export const obstacles = [], obstacleMeshes = [];
@@ -52,4 +53,50 @@ export function buildArena(scene){
   const lamp1 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp1.position.set(-13, 6, 13); scene.add(lamp1);
   const lamp2 = new THREE.PointLight(0xffcf9a, 0.6, 26); lamp2.position.set(13, 6, -13); scene.add(lamp2);
   arenaLamps.push(lamp1, lamp2);
+}
+
+// ====== Props GLB (décor thématique) : chargement + collision optionnelle ======
+const propLoader = new GLTFLoader();
+let decorPropCount_ = 0, decorBackdropCount_ = 0;
+export function decorPropCount(){ return decorPropCount_; }
+export function decorBackdropCount(){ return decorBackdropCount_; }
+
+export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=null } = {}){
+  try {
+    const gltf = await propLoader.loadAsync(url);
+    const mesh = gltf.scene;
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = rotY;
+    mesh.scale.setScalar(scale);
+    mesh.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    sceneRef.add(mesh);
+    obstacleMeshes.push(mesh);
+    decorPropCount_++;
+    if(collider){
+      const { w, d } = collider;
+      obstacles.push({ minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2 });
+    }
+    return mesh;
+  } catch (e) {
+    console.warn('[map] addProp echec:', url, e);
+    return null;
+  }
+}
+
+export async function addBackdropProp(url, { x=0, z=0, y=0, scale=1, rotY=0 } = {}){
+  try {
+    const gltf = await propLoader.loadAsync(url);
+    const mesh = gltf.scene;
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = rotY;
+    mesh.scale.setScalar(scale);
+    mesh.traverse(o => { if(o.isMesh){ o.castShadow = false; o.receiveShadow = false; } });
+    sceneRef.add(mesh);
+    obstacleMeshes.push(mesh);
+    decorBackdropCount_++;
+    return mesh;
+  } catch (e) {
+    console.warn('[map] addBackdropProp echec:', url, e);
+    return null;
+  }
 }
