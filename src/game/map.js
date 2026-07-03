@@ -18,7 +18,7 @@ export function addBox(cx, cz, w, d, h){
 const levelMat = {
   concrete:  () => new THREE.MeshStandardMaterial({ color:0x3a3f4b, roughness:0.9,  metalness:0.05 }),
   concrete2: () => new THREE.MeshStandardMaterial({ color:0x4a4136, roughness:0.92 }),   // béton chaud (variation)
-  wall:      () => new THREE.MeshStandardMaterial({ color:0x2c313c, roughness:0.95 }),
+  wall:      () => new THREE.MeshStandardMaterial({ color:0x33362c, roughness:0.95 }),
 };
 export function addWall(cx, cz, w, d, h){
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), levelMat.wall());
@@ -93,6 +93,21 @@ export async function buildArena(scene){
     await addProp('decor/castle/wall.glb',  { x:17, z:6,  scale:1.2, rotY:Math.PI/2, collider:{ w:2, d:8 } });
     await addProp('decor/castle/wall.glb',  { x:17, z:-9, scale:1.0, rotY:Math.PI/2, collider:{ w:2, d:6 } });
     await addProp('decor/castle/tower.glb', { x:18, z:-2, scale:1.3, collider:{ w:4, d:4 } });
+
+    // Enceinte (identique en forme/collision a l'ancienne arene urbaine, juste re-habillee visuellement
+    // via la recoloration de levelMat.wall ci-dessous) - buildArena ne reutilise pas buildFallbackArena,
+    // ces 4 appels doivent donc etre repetes ici pour que l'arene ait bien une enceinte fermee.
+    addWall(0, 22, 48, 1.6, 4); addWall(0, -22, 48, 1.6, 4); addWall(22, 0, 1.6, 48, 4); addWall(-22, 0, 1.6, 48, 4);
+
+    // Decor lointain (hors enceinte, jamais de collider) : cite futuriste + montagnes
+    await addBackdropProp('decor/backdrop/city_cluster.glb', { x:-38, z:0,  scale:3, rotY:0.3 });
+    await addBackdropProp('decor/backdrop/mountain.glb',     { x:0,   z:45, scale:5 });
+
+    // Rochers decoratifs le long de l'enceinte (pas de collider - le mur invisible+recolore fait deja la collision)
+    const edgeRocks = [[-20,20],[0,21],[20,20],[-21,0],[21,0],[-20,-20],[0,-21],[20,-20]];
+    for(const [ex, ez] of edgeRocks){
+      await addProp('decor/ruins/block.glb', { x:ex, z:ez, scale:0.9, rotY:Math.random()*Math.PI*2 });
+    }
   } catch (e) {
     console.warn('[map] chargement du decor thematique KO, arene de secours activee:', e);
     // buildFallbackArena pousse dans obstacles/obstacleMeshes qui peuvent deja contenir des entrees

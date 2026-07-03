@@ -69,7 +69,7 @@ test('exterieur du chateau : mur et tour bloquent, restent dans les bornes MAP_H
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(17, 6))).toBe(true);    // mur
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(18, -2))).toBe(true);   // tour
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(19.5, -2))).toBe(true);  // toujours dans la tour
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(22.5, -2))).toBe(false); // au-dela de la tour et du mur d'enceinte
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(23.5, -2))).toBe(false); // au-dela de la tour et du mur d'enceinte (mur : x 21.2-22.8)
 });
 
 test('ambiance nuit : fond violet fonce, grille masquee', async ({ page }) => {
@@ -77,4 +77,12 @@ test('ambiance nuit : fond violet fonce, grille masquee', async ({ page }) => {
   const theme = await page.evaluate(() => window.__game.debug.mapTheme());
   expect(theme.bg).toBe('#0a0a16');
   expect(theme.gridVisible).toBe(false);
+});
+
+test('decor lointain : aucun collider ajoute, compteur backdrop incremente', async ({ page }) => {
+  await startPlaying(page);
+  const obstacles = await page.evaluate(() => window.__game.debug.obstacleCount());
+  const backdrop = await page.evaluate(() => window.__game.debug.decorBackdropCount());
+  expect(backdrop).toBeGreaterThanOrEqual(2);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-35, 0))).toBe(false);   // cite futuriste hors bornes, jamais bloquant
 });
