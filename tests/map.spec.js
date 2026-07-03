@@ -39,3 +39,12 @@ test('addBackdropProp charge un modele mais n\'ajoute jamais de collider', async
   expect(ok).toBe(true);
   expect(after).toBe(before);
 });
+
+test('si le chargement du decor echoue totalement, l\'arene de secours prend le relais', async ({ page }) => {
+  await page.addInitScript(() => { window.__FORCE_DECOR_FAIL__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
+  const obstacleCount = await page.evaluate(() => window.__game.debug.obstacleCount());
+  expect(obstacleCount).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__game.debug.mapHalf)).toBe(24);
+});
