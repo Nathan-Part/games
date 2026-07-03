@@ -86,3 +86,10 @@ test('decor lointain : aucun collider ajoute, compteur backdrop incremente', asy
   expect(backdrop).toBeGreaterThanOrEqual(2);
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-35, 0))).toBe(false);   // cite futuriste hors bornes, jamais bloquant
 });
+
+test('indicateur de chargement au boot puis masque une fois le lobby pret', async ({ page }) => {
+  await page.goto('/game.html');
+  await expect(page.locator('#boot-loading')).toBeVisible();
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, {timeout:20000});
+  await expect(page.locator('#boot-loading')).toBeHidden();
+});

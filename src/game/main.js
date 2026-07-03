@@ -288,7 +288,8 @@ function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
 // ====== Map : obstacles + bornes — voir src/game/map.js ======
 const PLAYER_R = 0.45;
-buildArena(scene);
+await buildArena(scene);
+document.getElementById('boot-loading').classList.add('hidden');
 G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
