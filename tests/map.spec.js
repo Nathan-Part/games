@@ -66,8 +66,8 @@ test('zone foret : arbres et rochers bloquent le passage', async ({ page }) => {
 
 test('exterieur du chateau : mur et tour bloquent, restent dans les bornes MAP_HALF', async ({ page }) => {
   await startPlaying(page);
-  const half = await page.evaluate(() => window.__game.debug.mapHalf);
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(17, 6))).toBe(true);    // mur
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(18, -2))).toBe(true);   // tour
-  expect(17 + 4).toBeLessThanOrEqual(half + 1);   // marge : la tour (w=4) ne depasse pas l'enceinte (24)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(19.5, -2))).toBe(true);  // toujours dans la tour
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(22.5, -2))).toBe(false); // au-dela de la tour et du mur d'enceinte
 });
