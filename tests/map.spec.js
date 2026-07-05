@@ -126,3 +126,60 @@ test('le choix de map est persiste (save.settings.mapId)', async ({ page }) => {
   await page.evaluate(() => window.__game.debug.setMapId('urban'));
   expect(await page.evaluate(() => window.__game.debug.save.raw().settings.mapId)).toBe('urban');
 });
+
+// ====== #203 map utopia (cite utopique, derivee de map_utopia.blend) ======
+test('mapList contient utopia et setMapId("utopia") bascule + persiste', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => window.__game.debug.mapList())).toContain('utopia');
+  expect(await page.evaluate(() => window.__game.debug.setMapId('utopia'))).toBe(true);
+  expect(await page.evaluate(() => window.__game.debug.mapId())).toBe('utopia');
+  expect(await page.evaluate(() => window.__game.debug.save.raw().settings.mapId)).toBe('utopia');
+});
+
+test('utopia : pad central et allee degages, canaux infranchissables', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 0))).toBe(false);      // pad spawn
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 2))).toBe(false);      // allee centrale
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.8, -6.8))).toBe(true); // canal X nord-ouest
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.8, 6.8))).toBe(true);   // canal X sud-est
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(5.44, 12.8))).toBe(true);  // canal Y sud
+});
+
+test('utopia : rez-de-chaussee visitable (porte ouverte, vitres/noyau pleins)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  // batiment ouest-nord, centre (-16.64, -10.4), facade vers +x, porte centree
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, -10.4))).toBe(false); // seuil de porte
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, -14))).toBe(true);    // vitre avant (segment)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-21.32, -10.4))).toBe(true);  // vitre arriere
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-19.52, -10.4))).toBe(true);  // noyau ascenseur
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-14.6, -13))).toBe(false);    // interieur circulable
+  // batiment est-nord (miroir rotY=pi) : porte cote rue aussi
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.28, -10.4))).toBe(false);  // seuil de porte est
+});
+
+test('utopia : parterres/pots/kiosques en cover, enceinte fermee', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-10.8, -11.2))).toBe(true); // parterre fleuri
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(3.44, 10.4))).toBe(true);   // pot
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-9.84, 4.4))).toBe(true);   // kiosque
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 22))).toBe(true);        // enceinte nord
+  expect(await page.evaluate(() => window.__game.debug.obstacleCount())).toBeGreaterThanOrEqual(50);
+});
+
+test('utopia : decor GLB pose (batiments+place+drone)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.decorPropCount())).toBeGreaterThanOrEqual(6);
+});
+
+test('utopia : si le decor echoue, fallback arene urbaine', async ({ page }) => {
+  await page.addInitScript(() => { window.__FORCE_DECOR_FAIL__ = true; });
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby', null, {timeout:20000});
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.mapId())).toBe('utopia');
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-5, 6))).toBe(true);        // caisse arene urbaine
+});

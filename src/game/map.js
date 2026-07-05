@@ -2,6 +2,7 @@
 // buildArena(scene) construit le décor ; obstacles est muté en place (jamais réassigné).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 export const MAP_HALF = 24;
 export const obstacles = [], obstacleMeshes = [];
@@ -116,10 +117,102 @@ async function buildPortalArena(scene){
   }
 }
 
+// ====== Map #203 : Cité utopique — dérivée de la scène Blender map_utopia.blend de Nathan ======
+// Assets decor/utopia/ (GLB Draco). Échelle blend→jeu 0.8 ; game (x,z) = (0.8·bx, -0.8·by).
+// Les colliders sont posés EN CODE (indépendants des GLB, qui sont purement visuels) : chaque
+// valeur ci-dessous vient des bbox relevées dans la scène Blender (docs scratchpad inventaire).
+function addCollider(cx, cz, w, d){ obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 }); }
+const UTOPIA_CANALS = [   // bassins/canaux infranchissables — aussi trous du sol dallé
+  [-12.8,-6.8,10.9,2.3],[12.8,-6.8,10.9,2.3],[-12.8,6.8,10.9,2.3],[12.8,6.8,10.9,2.3],   // canaux X
+  [-5.44,-12.8,2.6,12.5],[5.44,-12.8,2.6,12.5],[-5.44,12.8,2.6,12.5],[5.44,12.8,2.6,12.5], // canaux Y
+];
+const UTOPIA_PROPS_COLLIDERS = [
+  [-10.8,-11.2,6,4],[10.8,-11.2,6,4],[-10.8,11.2,6,4],[10.8,11.2,6,4],                    // parterres fleuris (cover)
+  [-3.44,10.4,1.4,1.4],[3.44,10.4,1.4,1.4],[-3.44,15.2,1.4,1.4],[3.44,15.2,1.4,1.4],      // pots
+  [-3.44,-11.2,1.4,1.4],[3.44,-11.2,1.4,1.4],
+  [-9.84,4.4,0.7,0.7],[10,-3.84,0.7,0.7],[-10,-16,0.7,0.7],                               // kiosques
+  [-7.6,-7.6,0.5,0.5],[7.6,-7.6,0.5,0.5],[-7.6,7.6,0.5,0.5],[7.6,7.6,0.5,0.5],            // lampadaires
+];
+// Coquille d'un bâtiment (repère local, façade vers +x) : vitres pleines sauf porte 2.4 m centrée,
+// noyau ascenseur, comptoir d'accueil, salon. m=+1 rangée ouest, m=-1 rangée est (GLB tourné de π).
+const UTOPIA_BUILDING_BOXES = [
+  [ 4.36,-3.66,0.3,4.92],[ 4.36,3.66,0.3,4.92],   // vitre avant, 2 segments encadrant la porte
+  [-4.68,0,0.3,12.24],                            // vitre arrière
+  [-0.16,-6.12,9.34,0.3],[-0.16,6.12,9.34,0.3],   // vitres latérales
+  [-2.88,0,1.92,2.56],                            // noyau ascenseur (plein toute hauteur)
+  [ 0.84,0,0.56,2.4],                             // comptoir d'accueil
+  [ 0.16,3.12,3.2,3.2],                           // salon (canapés + table basse)
+];
+function addUtopiaBuildingColliders(cx, cz, m){
+  for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES) addCollider(cx + m*lx, cz + m*lz, w, d);
+}
+const utopiaMat = {
+  marble: () => new THREE.MeshStandardMaterial({ color:0xe9edf4, roughness:0.4, metalness:0.05 }),
+  padDark:() => new THREE.MeshStandardMaterial({ color:0x2b3138, roughness:0.5, metalness:0.3 }),
+  neon:   () => new THREE.MeshStandardMaterial({ color:0x9fdcff, emissive:0x66ccff, emissiveIntensity:1.4, roughness:0.4 }),
+};
+async function buildUtopiaArena(scene){
+  sceneRef = scene;
+  try {
+    if(typeof window !== 'undefined' && window.__FORCE_DECOR_FAIL__) throw new Error('decor force-fail (test)');
+    // Bâtiments d'abord : sans eux la map n'a pas de sens → fallback si aucun ne charge
+    const bWN = await addProp('decor/utopia/building.glb', { x:-16.64, z:-10.4, scale:0.8 });
+    const bWS = await addProp('decor/utopia/building.glb', { x:-16.64, z: 10.4, scale:0.8 });
+    const bEN = await addProp('decor/utopia/building.glb', { x: 16.64, z:-10.4, scale:0.8, rotY:Math.PI });
+    const bES = await addProp('decor/utopia/building.glb', { x: 16.64, z: 10.4, scale:0.8, rotY:Math.PI });
+    if(!bWN && !bWS && !bEN && !bES) throw new Error('aucun batiment utopia charge');
+    addUtopiaBuildingColliders(-16.64, -10.4, 1); addUtopiaBuildingColliders(-16.64, 10.4, 1);
+    addUtopiaBuildingColliders( 16.64, -10.4,-1); addUtopiaBuildingColliders( 16.64, 10.4,-1);
+    // Sol dallé clair avec trous au droit des canaux (l'eau des GLB est en contrebas)
+    const shape = new THREE.Shape();
+    shape.moveTo(-MAP_HALF, -MAP_HALF); shape.lineTo(MAP_HALF, -MAP_HALF);
+    shape.lineTo(MAP_HALF, MAP_HALF); shape.lineTo(-MAP_HALF, MAP_HALF); shape.closePath();
+    for(const [cx, cz, w, d] of UTOPIA_CANALS){
+      const h = new THREE.Path();
+      h.moveTo(cx-w/2, cz-d/2); h.lineTo(cx-w/2, cz+d/2); h.lineTo(cx+w/2, cz+d/2); h.lineTo(cx+w/2, cz-d/2); h.closePath();
+      shape.holes.push(h);
+    }
+    const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), utopiaMat.marble());
+    floor.rotation.x = -Math.PI/2; floor.position.y = 0.02; floor.receiveShadow = true;
+    scene.add(floor); obstacleMeshes.push(floor);
+    // Enceinte : parapets de marbre blanc (même empreinte de collision que les autres maps)
+    for(const [cx, cz, w, d] of [[0,22,48,1.6],[0,-22,48,1.6],[22,0,1.6,48],[-22,0,1.6,48]]){
+      const p = new THREE.Mesh(new THREE.BoxGeometry(w, 2.5, d), utopiaMat.marble());
+      p.position.set(cx, 1.25, cz); p.castShadow = false; p.receiveShadow = true;
+      scene.add(p); obstacleMeshes.push(p); addCollider(cx, cz, w, d);
+    }
+    for(const [cx, cz, w, d] of UTOPIA_CANALS) addCollider(cx, cz, w, d);
+    for(const [cx, cz, w, d] of UTOPIA_PROPS_COLLIDERS) addCollider(cx, cz, w, d);
+    // Pad central lumineux (spawn) : disque sombre + anneau néon, fidèle aux images de référence
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(2.6, 48), utopiaMat.padDark());
+    pad.rotation.x = -Math.PI/2; pad.position.y = 0.035; scene.add(pad); obstacleMeshes.push(pad);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.0, 3.35, 64), utopiaMat.neon());
+    ring.rotation.x = -Math.PI/2; ring.position.y = 0.04; scene.add(ring); obstacleMeshes.push(ring);
+    // Place fleurie + kiosques + lampadaires + canaux (GLB unique, déjà centré) — shadow:false (perf)
+    await addProp('decor/utopia/plaza.glb', { x:0, z:0, scale:0.8, shadow:false });
+    // Drone en vol lent au-dessus de la place (cosmétique) : va-et-vient + rotation via onBeforeRender
+    const drone = await addProp('decor/utopia/drone.glb', { x:0, z:0, y:9, scale:0.8, shadow:false });
+    if(drone){
+      drone.onBeforeRender = () => {
+        const t = performance.now() / 1000;
+        drone.position.set(Math.sin(t*0.11)*10, 9 + Math.sin(t*0.7)*0.35, Math.cos(t*0.13)*8);
+        drone.rotation.y = t * 0.2;
+      };
+    }
+    // Lumière d'accent froide au-dessus du pad (l'ambiance jour vient de MAP_VISUALS côté main.js)
+    const glow = new THREE.PointLight(0xbfe8ff, 0.6, 22); glow.position.set(0, 4, 0); scene.add(glow);
+    arenaLamps.push(glow);
+  } catch (e) {
+    console.warn('[map] decor utopia KO, arene de secours activee:', e);
+    buildFallbackArena(scene);
+  }
+}
+
 // ====== Registre des maps (#201) — ajouter une map future = 1 entrée ici, aucun autre code d'UI requis ======
 export const MAPS = [
   { id:'portal', label:'Portail des ruines', build:buildPortalArena },
   { id:'urban',  label:'Arène urbaine',      build:buildFallbackArena },
+  { id:'utopia', label:'Cité utopique',      build:buildUtopiaArena },
 ];
 const DEFAULT_MAP_ID = 'portal';
 
@@ -141,6 +234,11 @@ export async function buildArena(scene, mapId = DEFAULT_MAP_ID){
 
 // ====== Props GLB (décor thématique) : chargement + collision optionnelle ======
 const propLoader = new GLTFLoader();
+// Draco (#203) : les GLB utopia sont compressés (fleurs = ~260K tris) ; décodeur servi par le
+// même CDN unpkg que three lui-même (import map de game.html) — même profil de disponibilité.
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+propLoader.setDRACOLoader(dracoLoader);
 const propCache_ = new Map();   // url -> Promise<THREE.Object3D> (le template chargé, non positionné)
 let decorPropCount_ = 0, decorBackdropCount_ = 0;
 export function decorPropCount(){ return decorPropCount_; }
