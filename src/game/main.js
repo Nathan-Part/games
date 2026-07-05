@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena } from './map.js';
+import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
 import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
@@ -228,9 +228,9 @@ G.debug.settings = {
 // ====== Moteur ======
 const app = document.getElementById('app');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b0d12);
-scene.fog = new THREE.Fog(0x0b0d12, 18, 60);
-const SCENE_BG = new THREE.Color(0x0b0d12), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xaeb6c9); // fond clair pour la boutique
+scene.background = new THREE.Color(0x0a0a16);
+scene.fog = new THREE.Fog(0x0a0a16, 18, 60);
+const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xaeb6c9); // fond clair pour la boutique
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 3, -6);
@@ -256,6 +256,17 @@ const ground = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color:0x23262e, roughness:0.96 }));   // bitume urbain
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
 const grid = new THREE.GridHelper(MAP_HALF*2, MAP_HALF, 0x39435c, 0x20252f); scene.add(grid);
+grid.visible = false;   // theme "portail des ruines" : sol naturel, la grille technique urbaine ne convient plus
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(300 * 3);
+for(let i=0;i<300;i++){
+  starPos[i*3]   = (Math.random()-0.5) * 160;
+  starPos[i*3+1] = 30 + Math.random() * 40;
+  starPos[i*3+2] = (Math.random()-0.5) * 160;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({ color:0xffffff, size:0.4, transparent:true, opacity:0.85, depthWrite:false });
+scene.add(new THREE.Points(starGeo, starMat));
 const shopLight = new THREE.DirectionalLight(0xbcd0ff, 0); shopLight.position.set(2.4, 3, 3.4); scene.add(shopLight); // appoints vitrine boutique
 const shopFill  = new THREE.DirectionalLight(0xfff0d8, 0); shopFill.position.set(-3, 2.2, 2.6); scene.add(shopFill);
 
@@ -278,11 +289,17 @@ function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
 // ====== Map : obstacles + bornes — voir src/game/map.js ======
 const PLAYER_R = 0.45;
-buildArena(scene);
+await buildArena(scene);
+document.getElementById('boot-loading').classList.add('hidden');
 G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
+G.debug.mapTheme = () => ({ bg: '#' + scene.background.getHexString(), gridVisible: grid.visible });
+G.debug.testAddProp = (url, opts) => addProp(url, opts);
+G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
+G.debug.decorPropCount = () => decorPropCount();
+G.debug.decorBackdropCount = () => decorBackdropCount();
 G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
 
 // ====== Assets + galerie de personnages : voir src/game/assets.js ======
@@ -1131,7 +1148,7 @@ function applyShopVisibility(){
 function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, sans brouillard, hémisphère boostée)
   const weaponsView = shopOpen && shopTab === 'weapons';
   const studioView = shopOpen && (shopTab === 'weapons' || shopTab === 'player');   // vitrine 3D centrée (arme ou perso)
-  ground.visible = !studioView; grid.visible = !shopOpen;
+  ground.visible = !studioView;
   for(const m of obstacleMeshes) m.visible = !shopOpen;   // décor (bâtiments/murs/caisses) masqué (fond propre)
   for(const l of arenaLamps) l.visible = !shopOpen;       // lampes d'accent éteintes en boutique
   shopLight.intensity = studioView ? 3.0 : 0; shopFill.intensity = studioView ? 1.7 : 0;
