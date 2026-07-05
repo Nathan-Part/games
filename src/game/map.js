@@ -82,11 +82,11 @@ export async function buildArena(scene){
     // Zone foret (anneau exterieur) : troncs en cover ponctuel, clairieres degagees entre chaque instance
     const trees = [[-16,16],[-18,10],[-15,-4],[-19,-16],[14,17],[17,12],[16,-18],[-4,19],[3,-19],[11,-8]];
     for(const [tx, tz] of trees){
-      await addProp('decor/forest/tree.glb', { x:tx, z:tz, scale:0.9+Math.random()*0.4, rotY:Math.random()*Math.PI*2, collider:{ w:0.6, d:0.6 } });
+      await addProp('decor/forest/tree.glb', { x:tx, z:tz, scale:0.9+Math.random()*0.4, rotY:Math.random()*Math.PI*2, collider:{ w:0.6, d:0.6 }, shadow:false });
     }
     const rocks = [[-10,15],[9,-6],[-6,-17],[14,3]];
     for(const [rx, rz] of rocks){
-      await addProp('decor/ruins/block.glb', { x:rx, z:rz, scale:0.5, rotY:Math.random()*Math.PI*2, collider:{ w:0.8, d:0.8 } });
+      await addProp('decor/ruins/block.glb', { x:rx, z:rz, scale:0.5, rotY:Math.random()*Math.PI*2, collider:{ w:0.8, d:0.8 }, shadow:false });
     }
 
     // Exterieur du chateau (cote est de l'arene) - portes fermees, pas d'interieur (tranche future)
@@ -106,7 +106,7 @@ export async function buildArena(scene){
     // Rochers decoratifs le long de l'enceinte (pas de collider - le mur invisible+recolore fait deja la collision)
     const edgeRocks = [[-20,20],[0,21],[20,20],[-21,0],[21,0],[-20,-20],[0,-21],[20,-20]];
     for(const [ex, ez] of edgeRocks){
-      await addProp('decor/ruins/block.glb', { x:ex, z:ez, scale:0.9, rotY:Math.random()*Math.PI*2 });
+      await addProp('decor/ruins/block.glb', { x:ex, z:ez, scale:0.9, rotY:Math.random()*Math.PI*2, shadow:false });
     }
   } catch (e) {
     console.warn('[map] chargement du decor thematique KO, arene de secours activee:', e);
@@ -131,14 +131,16 @@ async function loadPropTemplate_(url){
   return propCache_.get(url);
 }
 
-export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=null } = {}){
+export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=null, shadow=true } = {}){
   try {
     const template = await loadPropTemplate_(url);
     const mesh = template.clone();
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotY;
     mesh.scale.setScalar(scale);
-    mesh.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    // shadow:false pour le décor répété en grand nombre (arbres, rochers) — chaque caster GLB coûte cher
+    // à projeter dans la shadow map 2048×2048 du keyLight ; réservé aux pièces architecturales (portail/ruines/château).
+    mesh.traverse(o => { if(o.isMesh){ o.castShadow = shadow; o.receiveShadow = true; } });
     sceneRef.add(mesh);
     obstacleMeshes.push(mesh);
     decorPropCount_++;
