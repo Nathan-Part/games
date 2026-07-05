@@ -2,7 +2,7 @@
 
 Détail de toutes les tranches du projet (voir [`CLAUDE.md`](CLAUDE.md) pour le contexte général, l'architecture, les conventions et l'API debug). Chaque ligne = une tranche livrée avec sa description et ses fonctions debug associées. Mettre à jour ce fichier (description + statut) quand une tranche est finie.
 
-**Statut global** : tranches 1→19, 21, 23→202 terminées. Reste : 20 (mains FPS), 22 (multijoueur).
+**Statut global** : tranches 1→19, 21, 23→203 terminées. Reste : 20 (mains FPS), 22 (multijoueur).
 
 | # | Tranche | Statut |
 |---|---------|--------|
@@ -208,5 +208,7 @@ Détail de toutes les tranches du projet (voir [`CLAUDE.md`](CLAUDE.md) pour le 
 | 200 | **Power-up Vague de choc** — nova instantanée, 80 dégâts AoE dans un rayon de 8m au ramassage ; `spawnNovaBlast(x,z)` | ✅ Fait (tests non exécutés) |
 | 201 | **Chien de guerre en loadout** — le pet (#153) quitte le mode compagnon permanent : 5e bonus du système « série de points » (#156), invocable via la touche **4** une fois le seuil (900 pts) atteint ; taille corrigée (normalisée par le squelette, moitié de la hauteur du joueur, pieds au sol), PV (150), riposte de la cible touchée (combat symétrique auto-contenu dans `pet.js`), timer de despawn (30s) si non tué avant ; `summon()`, `hp()`, `maxHp()`, `despawnTimeLeft()`, debug `petSummon/petHp/petMaxHp/petDamage/petDespawnTimeLeft/petForceDespawn/petHeight` | ✅ Fait |
 | 202 | **Système multi-map** — registre `MAPS` (`map.js`) découplant la sélection de map de son code de construction ; sélecteur dans les Réglages (généré depuis le registre, pas de markup par map) permettant de revenir à l'ancienne arène urbaine ou de rebasculer sur le Portail des ruines, reconstruction à chaud (`clearArenaDecor` + `buildArena(scene, mapId)`, cache GLB conservé) ; persisté (`save.settings.mapId`) ; `mapId()`, `mapList()`, `setMapId(id)` | ✅ Fait |
+| 203 | **Map « Cité utopique »** — 3e map du registre, dérivée de la scène Blender `map_utopia.blend` de Nathan (échelle ×0.8, cœur de la cité : 4 bâtiments meublés sur 3 étages visibles, RdC **visitables par les angles de loggia** — 2 entrées/bâtiment, salle vitrée d'angle fermée) ; assets `decor/utopia/` en GLB **Draco** (~9 Mo : building/plaza/passerelles/drone) + skybox équirectangulaire rendue depuis la scène ; ~7300 fleurs converties des particules HAIR en 7 matériaux ; canaux infranchissables (trous du sol dallé `ShapeGeometry`), parterres/pots/kiosques en cover, passerelles aériennes (~10 m, sans collision), drone animé `onBeforeRender` ; **zones anti-spawn** dans les lobbys (`noSpawnZones`, repli `randomSpawn`) ; visuels par map `MAP_VISUALS` (skybox, fog jour, lumières, étoiles/grille) ; debug `mapTheme()`, `starsVisible()`, `noSpawnZoneCount()`, `inNoSpawnZone(x,z)`. **Hors scope v1** (tranches futures) : stèle/gradins enfoncés + terrasses (moteur « sol à hauteur variable »), agrandissement au-delà de `MAP_HALF=24` (avenue sud, rivière+ponts, 8 bâtiments), étages praticables | ✅ Fait (tests non exécutés) |
 
 **Boucle d'ajout autonome en cours** : à la demande de l'utilisateur, Claude continue d'ajouter des features en autonomie (brainstorm → spec → plan → TDD) à partir du #54.
+
