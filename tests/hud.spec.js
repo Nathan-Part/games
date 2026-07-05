@@ -72,12 +72,27 @@ test('refonte : typographie Barlow appliquee au body', async ({ page }) => {
   expect(ff.toLowerCase()).toContain('barlow');
 });
 
-test('refonte : le CTA principal est orange (pas bleu legacy)', async ({ page }) => {
+test('refonte utopie : le CTA principal est violet (pas orange OPERATOR)', async ({ page }) => {
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.booted);
   const bg = await page.evaluate(() => getComputedStyle(document.getElementById('play-btn')).backgroundImage);
-  expect(bg).toMatch(/255,\s*106,\s*26/);      // --accent #ff6a1a
-  expect(bg).not.toMatch(/91,\s*140,\s*255/);  // ancien bleu #5b8cff
+  expect(bg).toMatch(/124,\s*77,\s*255/);      // --accent #7c4dff
+  expect(bg).not.toMatch(/255,\s*106,\s*26/);  // ancien orange #ff6a1a
+});
+
+test('refonte utopie : image de fond lobby-bg posee sur #app', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.booted);
+  const bg = await page.evaluate(() => getComputedStyle(document.getElementById('app')).backgroundImage);
+  expect(bg).toContain('lobby-bg');
+});
+
+test('refonte utopie : le carrousel affiche un point par perso possede (actif unique)', async ({ page }) => {
+  await page.goto('/game.html');
+  await page.waitForFunction(() => window.__game?.phase === 'lobby' && window.__game.characters?.length >= 1, null, { timeout:20000 });
+  const n = await page.evaluate(() => window.__game.characters.length);
+  expect(await page.evaluate(() => document.querySelectorAll('#char-dots i').length)).toBe(n);
+  expect(await page.evaluate(() => document.querySelectorAll('#char-dots i.on').length)).toBe(1);
 });
 
 test('boutique : apercu d un accessoire sur le perso sans l acheter (essayer avant d acheter)', async ({ page }) => {

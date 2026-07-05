@@ -61,6 +61,7 @@ function updateHomeMeta(){   // accueil : profil + intel + équipement (C-5 : <b
   set('intel-achievements', (save.unlockedAchievements||[]).length + '/' + ACHIEVEMENTS.length);   // #196
   let combo = 1; try { combo = comboMultiplier(save.bestCombo || 0); } catch(e){}
   set('intel-combo', 'x' + combo);
+  set('hub-combo-v', 'x' + combo);   // chip haut-droite (refonte utopie)
   set('intel-money', save.money);
   let wName = '—'; try { wName = weaponById(save.selectedWeapon).name; } catch(e){}
   set('intel-weapon', wName);
@@ -230,12 +231,12 @@ const app = document.getElementById('app');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a16);
 scene.fog = new THREE.Fog(0x0a0a16, 18, 60);
-const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xaeb6c9); // fond clair pour la boutique
+const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xdfe4f0); // fond clair pour la boutique (assorti au thème utopie)
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 3, -6);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });   // alpha : en lobby le canvas est transparent au-dessus du fond CSS (assets/img/lobby-bg.jpg)
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
@@ -266,7 +267,11 @@ for(let i=0;i<300;i++){
 }
 starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
 const starMat = new THREE.PointsMaterial({ color:0xffffff, size:0.4, transparent:true, opacity:0.85, depthWrite:false });
-scene.add(new THREE.Points(starGeo, starMat));
+const stars = new THREE.Points(starGeo, starMat); scene.add(stars);
+// disque récepteur d'ombre (lobby uniquement) : ancre visuellement le perso au podium du fond utopie
+const lobbyShadow = new THREE.Mesh(new THREE.CircleGeometry(2.4, 40), new THREE.ShadowMaterial({ opacity:0.3 }));
+lobbyShadow.rotation.x = -Math.PI/2; lobbyShadow.position.y = 0.02; lobbyShadow.receiveShadow = true;
+lobbyShadow.visible = false; scene.add(lobbyShadow);
 const shopLight = new THREE.DirectionalLight(0xbcd0ff, 0); shopLight.position.set(2.4, 3, 3.4); scene.add(shopLight); // appoints vitrine boutique
 const shopFill  = new THREE.DirectionalLight(0xfff0d8, 0); shopFill.position.set(-3, 2.2, 2.6); scene.add(shopFill);
 
@@ -292,7 +297,8 @@ const PLAYER_R = 0.45;
 function applyMapVisuals(mapId){ grid.visible = (mapId === 'urban'); }   // grille technique = ancienne arène urbaine uniquement
 await buildArena(scene, save.settings.mapId);
 applyMapVisuals(save.settings.mapId);
-document.getElementById('boot-loading').classList.add('hidden');
+// NB : #boot-loading reste affiché jusqu'à la fin d'initLobby() (perso chargé + vitrine transparente),
+// sinon on voit flasher l'arène opaque entre le décor et le lobby (retour utilisateur 2026-07-05).
 // Reconstruit la map à chaud (#201 multi-map) : retire le décor courant puis (re)construit la map choisie.
 // Le registre MAPS (map.js) est la seule source de vérité — ajouter une map = 1 entrée, pas de code ici à changer.
 async function switchMap(id){
@@ -302,6 +308,7 @@ async function switchMap(id){
   setSetting('mapId', id);
   await buildArena(scene, id);
   applyMapVisuals(id);
+  updateShopScene();   // re-masque le décor fraîchement construit si on est encore dans la vitrine lobby
   document.getElementById('boot-loading').classList.add('hidden');
   return true;
 }
@@ -309,7 +316,7 @@ G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
-G.debug.mapTheme = () => ({ bg: '#' + scene.background.getHexString(), gridVisible: grid.visible });
+G.debug.mapTheme = () => ({ bg: '#' + ((scene.background && scene.background.isColor) ? scene.background : SCENE_BG).getHexString(), gridVisible: grid.visible });   // scene.background peut être null en lobby (canvas transparent)
 G.debug.testAddProp = (url, opts) => addProp(url, opts);
 G.debug.mapId = () => save.settings.mapId;
 G.debug.mapList = () => MAPS.map(m => m.id);
@@ -443,14 +450,20 @@ let allCharacters = [];     // toute la galerie (source de sélection des ennemi
 let lobbyIndex = 0;
 
 function setLobbyCamera(){
-  camera.position.set(0, 1.5, 4.2);
-  camera.lookAt(0, 1.0, 0);
+  camera.position.set(0, 1.95, 6.8);   // dézoom (retour utilisateur) : perso plus petit, posé au centre du podium du fond
+  camera.lookAt(0, 1.46, 0);
+}
+// points du carrousel perso (refonte utopie) : un point par perso possédé, l'actif en violet
+function updateCharDots(){
+  const d = document.getElementById('char-dots'); if(!d) return;
+  d.innerHTML = characters.map((_, i) => `<i${i === lobbyIndex ? ' class="on"' : ''}></i>`).join('');
 }
 async function previewCharacter(index){
   const n = characters.length; if(!n) return;
   lobbyIndex = ((index % n) + n) % n;
   const c = characters[lobbyIndex];
   document.getElementById('char-name').textContent = c.label;   // maj immédiate du nom
+  updateCharDots();
   save.selectedCharacterId = c.id; persist();                  // mémorise le perso choisi (tranche 12)
   await spawnModel(c);                                          // affiche le modèle (turntable)
   playLobbyIdle();                                              // non-bloquant : joue l'idle dès que prêt (no T-pose)
@@ -482,9 +495,12 @@ async function initLobby(){
     const savedIdx = characters.findIndex(c => c.id === save.selectedCharacterId);   // rouvre sur le perso mémorisé
     await previewCharacter(savedIdx >= 0 ? savedIdx : 0);
     G.phase = 'lobby';
+    updateShopScene();   // vitrine lobby : canvas transparent au-dessus du fond utopie, décor d'arène masqué
   } catch (e) {
     console.warn('init KO', e);
     showOverlay('Impossible de lister les dossiers du jeu.');
+  } finally {
+    document.getElementById('boot-loading').classList.add('hidden');   // le boot couvre tout jusqu'au lobby prêt (anti-flash)
   }
 }
 // ====== Reset commun de partie — SOURCE UNIQUE (étape 4) ======
@@ -508,8 +524,10 @@ async function startGame(){
   const char = characters[lobbyIndex]; if(!char) return;
   G.phase = 'loading';
   document.getElementById('lobby').classList.add('hidden');
+  updateShopScene();   // sortie de la vitrine lobby : fond opaque + décor d'arène restaurés
   if(!model) await spawnModel(char);                            // sécurité (normalement déjà affiché)
   if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
+  if(G.phase !== 'loading') return;   // backToHome() appelé pendant le chargement → on n'écrase pas le lobby (HUD/cibles fantômes)
   model.rotation.y = 0;
   mixer = new THREE.AnimationMixer(model);                      // mixer de jeu sur le modèle déjà chargé
   danceActionCache = {}; dancing = false; danceAction = null; meleeAnimCache = null;   // nouvelles actions de danse sur ce mixer (#27)
@@ -620,8 +638,12 @@ function renderSettings(){
 // ====== Panneau Map (#201/#202) : bouton dédié depuis l'accueil, boutons générés depuis le registre MAPS ======
 function renderMapPanel(){
   const el = document.getElementById('map-grid'); if(!el) return;
-  el.innerHTML = MAPS.map(m => `<button class="set-diff-btn" data-map="${m.id}">${m.label}</button>`).join('');
-  el.querySelectorAll('[data-map]').forEach(b => b.classList.toggle('on', b.dataset.map === save.settings.mapId));
+  el.innerHTML = MAPS.map(m => {
+    const on = m.id === save.settings.mapId;
+    return `<button class="map-card${on ? ' on' : ''}" data-map="${m.id}">
+      <span class="mc-ico"><svg class="ico"><use href="#i-map"></use></svg></span>
+      <b>${m.label}</b><small>${on ? 'Terrain actuel' : 'Choisir ce terrain'}</small></button>`;
+  }).join('');
 }
 document.getElementById('btn-map').onclick = () => { renderMapPanel(); openPanel('map-panel'); };
 document.getElementById('map-grid').addEventListener('click', async e => {
@@ -652,7 +674,11 @@ addEventListener('keydown', e => {
   else if(e.code==='Enter' || e.code==='Space'){ e.preventDefault(); startGame(); }
 });
 
-initLobby();
+initLobby().then(() => {
+  // hook dev : #settings / #map / #loadout / #howto / #shop dans l'URL ouvre le panneau au boot (captures/tests visuels)
+  const h = location.hash.slice(1);
+  if(/^(settings|map|loadout|howto|shop)$/.test(h)) document.getElementById('btn-' + h)?.click();
+});
 
 // ====== Entrées clavier (event.code => ZQSD sur AZERTY) ======
 const input = { forward:false, back:false, left:false, right:false, sprint:false, fire:false, aim:false };
@@ -1174,17 +1200,21 @@ function applyShopVisibility(){
   for(const o of [shopWeaponObj, shopSideL, shopSideR]) if(o) o.visible = weaponsView;
   for(const o of [shopCharObj, shopCharL, shopCharR]) if(o) o.visible = charView;
 }
-function updateShopScene(){   // boutique ouverte => scène CLAIRE (fond clair, sans brouillard, hémisphère boostée)
+function updateShopScene(){   // boutique => scène CLAIRE ; lobby => vitrine TRANSPARENTE (refonte utopie : fond CSS lobby-bg.jpg sous le canvas)
   const weaponsView = shopOpen && shopTab === 'weapons';
   const studioView = shopOpen && (shopTab === 'weapons' || shopTab === 'player');   // vitrine 3D centrée (arme ou perso)
-  ground.visible = !studioView;
-  for(const m of obstacleMeshes) m.visible = !shopOpen;   // décor (bâtiments/murs/caisses) masqué (fond propre)
-  for(const l of arenaLamps) l.visible = !shopOpen;       // lampes d'accent éteintes en boutique
-  shopLight.intensity = studioView ? 3.0 : 0; shopFill.intensity = studioView ? 1.7 : 0;
-  hemi.intensity = shopOpen ? 2.3 : 0.9;
-  scene.background = shopOpen ? SHOP_BG : SCENE_BG;
-  scene.fog = shopOpen ? null : SCENE_FOG;
-  document.getElementById('lobby').classList.toggle('hidden', shopOpen);
+  const lobbyView = !shopOpen && G.phase === 'lobby';     // accueil : perso seul au-dessus du podium de l'image de fond
+  ground.visible = !studioView && !lobbyView;
+  grid.visible = save.settings.mapId === 'urban' && !shopOpen && !lobbyView;   // grille technique : arène urbaine, hors vitrines
+  stars.visible = !shopOpen && !lobbyView;
+  lobbyShadow.visible = lobbyView;
+  for(const m of obstacleMeshes) m.visible = !shopOpen && !lobbyView;   // décor masqué (fond propre)
+  for(const l of arenaLamps) l.visible = !shopOpen && !lobbyView;       // lampes d'accent éteintes en vitrine
+  shopLight.intensity = (studioView || lobbyView) ? 3.0 : 0; shopFill.intensity = (studioView || lobbyView) ? 1.7 : 0;
+  hemi.intensity = (shopOpen || lobbyView) ? 2.3 : 0.9;
+  scene.background = shopOpen ? SHOP_BG : (lobbyView ? null : SCENE_BG);
+  scene.fog = (shopOpen || lobbyView) ? null : SCENE_FOG;
+  document.getElementById('lobby').classList.toggle('hidden', shopOpen || G.phase !== 'lobby');
 }
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
@@ -1214,6 +1244,7 @@ function closeShop(){
   rebuildLobbyCharacters();                                   // un achat de perso a pu changer la liste
   const idx = characters.findIndex(c => c.id === save.selectedCharacterId); lobbyIndex = idx >= 0 ? idx : 0;
   const cn = document.getElementById('char-name'); if(cn && characters[lobbyIndex]) cn.textContent = characters[lobbyIndex].label;
+  updateCharDots();                                           // un achat de perso a pu changer le nombre de points
   updateShopScene(); updateHomeMeta(); updateShopCamera();   // restaure home (méta à jour) + caméra lobby
 }
 function disposeCharCarousel(){
@@ -3814,6 +3845,7 @@ function backToHome(){
     document.getElementById(id).classList.add('hidden');
   trainingActive_ = false; infiniteAmmo_ = false;   // #158 : quitter l'entrainement desactive munitions infinies
   clearEnemies(); clearTargets();
+  const ehb = document.getElementById('enemy-hp-bars'); if(ehb) ehb.innerHTML = '';   // purge le pool de barres HP (la boucle qui le resynchronise ne tourne plus au lobby)
   lobbyFeatures();   // hooks onLobby() des features enregistrées (registre étape 4)
   setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
   if(viewModel) viewModel.visible = false;                     // garantie : pas de mains/arme FPS sur la page d'accueil
@@ -3821,6 +3853,7 @@ function backToHome(){
   if(document.pointerLockElement) document.exitPointerLock?.();
   G.phase = 'lobby';
   document.getElementById('lobby').classList.remove('hidden');
+  updateShopScene();   // retour vitrine lobby : canvas transparent + décor masqué
   updateHomeMeta(); setLobbyCamera();
   if(characters[lobbyIndex]) previewCharacter(lobbyIndex);
 }
