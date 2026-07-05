@@ -96,6 +96,7 @@
       <button id="btn-howto" class="btn btn--ghost"><svg class="ico"><use href="#i-help"></use></svg> Comment jouer</button>
       <button id="btn-loadout" class="btn btn--ghost"><svg class="ico"><use href="#i-grenade"></use></svg> Série de points</button>
       <button id="btn-training" class="btn btn--ghost"><svg class="ico"><use href="#i-sprint"></use></svg> Entraînement</button>
+      <button id="btn-map" class="btn btn--ghost"><svg class="ico"><use href="#i-gauge"></use></svg> Map</button>
     </div>
     <button id="play-btn" class="btn btn--primary deploy-btn"><svg class="ico"><use href="#i-play"></use></svg>
       <span class="deploy-lbl">Déployer<small>// Survie — vagues infinies</small></span></button>
@@ -230,8 +231,6 @@
     <button id="set-hardcore" class="set-toggle"></button></div>
   <div class="set-row"><label for="set-rain"><svg class="ico"><use href="#i-gauge"></use></svg> Pluie <span style="opacity:.6;font-size:.78em">(ambiance orageuse)</span></label>
     <button id="set-rain" class="set-toggle"></button></div>
-  <div class="set-row"><label><svg class="ico"><use href="#i-gauge"></use></svg> Map</label>
-    <div id="set-map" class="set-diff"></div></div>
   <button class="panel-back" data-panel="settings-panel">◀ Retour</button>
 </div></div>
 
@@ -241,6 +240,14 @@
   <p class="howto-intro">Choisis 3 bonus. Chaque kill donne 100 points à chacun, en parallèle. Une fois le palier atteint, la touche indiquée le déclenche.</p>
   <div id="loadout-grid" class="shop-grid" style="padding:16px"></div>
   <button class="panel-back" data-panel="loadout-panel">◀ Retour</button>
+</div></div>
+
+<div id="map-panel" class="panel hidden"><div class="panel-card">
+  <div class="eyebrow">// Terrain d'opération</div>
+  <h2>Map</h2>
+  <p class="howto-intro">Choisis la map. Le changement s'applique immédiatement.</p>
+  <div id="map-grid" class="set-diff" style="padding:16px"></div>
+  <button class="panel-back" data-panel="map-panel">◀ Retour</button>
 </div></div>
 
 <div id="howto-panel" class="panel hidden"><div class="panel-card howto-card">

@@ -616,12 +616,18 @@ function renderSettings(){
   if(hc){ hc.textContent = s.hardcore ? '☠ Activé' : 'Désactivé'; hc.classList.toggle('on', !!s.hardcore); }
   const rn = document.getElementById('set-rain');               // toggle pluie (#93)
   if(rn){ rn.textContent = s.rain ? '🌧 Activé' : 'Désactivé'; rn.classList.toggle('on', !!s.rain); }
-  const mp = document.getElementById('set-map');                // sélecteur de map (#201), généré depuis le registre MAPS
-  if(mp){
-    mp.innerHTML = MAPS.map(m => `<button class="set-diff-btn" data-map="${m.id}">${m.label}</button>`).join('');
-    mp.querySelectorAll('[data-map]').forEach(b => b.classList.toggle('on', b.dataset.map === s.mapId));
-  }
 }
+// ====== Panneau Map (#201/#202) : bouton dédié depuis l'accueil, boutons générés depuis le registre MAPS ======
+function renderMapPanel(){
+  const el = document.getElementById('map-grid'); if(!el) return;
+  el.innerHTML = MAPS.map(m => `<button class="set-diff-btn" data-map="${m.id}">${m.label}</button>`).join('');
+  el.querySelectorAll('[data-map]').forEach(b => b.classList.toggle('on', b.dataset.map === save.settings.mapId));
+}
+document.getElementById('btn-map').onclick = () => { renderMapPanel(); openPanel('map-panel'); };
+document.getElementById('map-grid').addEventListener('click', async e => {
+  const b = e.target.closest('[data-map]'); if(!b) return;
+  await switchMap(b.dataset.map); renderMapPanel();
+});
 function openSettings(){ renderSettings(); openPanel('settings-panel'); }
 document.getElementById('set-sensitivity').oninput = e => { setSetting('sensitivity', parseFloat(e.target.value)); renderSettings(); };
 document.getElementById('set-volume').oninput = e => { setSetting('volume', parseFloat(e.target.value)); renderSettings(); };
@@ -629,10 +635,6 @@ document.getElementById('set-view').onclick = () => { setSetting('defaultView', 
 document.getElementById('set-diff').addEventListener('click', e => { const b = e.target.closest('.set-diff-btn'); if(b) G.debug.setDifficulty(b.dataset.diff); });   // #46
 document.getElementById('set-hardcore').onclick = () => { setSetting('hardcore', !save.settings.hardcore); renderSettings(); };   // #94 toggle hardcore persistant
 document.getElementById('set-rain').onclick = () => { setSetting('rain', !save.settings.rain); setRain(save.settings.rain); renderSettings(); };   // #93 toggle pluie persistant
-document.getElementById('set-map').addEventListener('click', async e => {                        // #201 sélecteur de map
-  const b = e.target.closest('[data-map]'); if(!b) return;
-  await switchMap(b.dataset.map); renderSettings();
-});
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
@@ -3808,7 +3810,7 @@ function backToHome(){
   flushLifetimeTime();                                         // #80 : comptabilise le temps de session avant de quitter (sinon perdu via pause→menu)
   resetCombo(); resetPower(); resetRunBoosts();                // #53 : retour menu remet les boosts run à leur état persistant
   resetCallouts();                                             // vide kill-feed + callouts résiduels (sinon persistent dans le lobby)
-  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud','ls-turret-hud','ls-mine-hud','ls-airstrike-hud','ls-carepackage-hud','training-hud','medkit-hud'])
+  for(const id of ['hud','combat','wave-hud','money-hud','healthbar','crosshair','radar','pickup-prompt','combo-hud','boss-hud','grenade-hud','flashbang-hud','power-hud','dash-hud','xp-hud','mine-hud','firemode-hud','shield-bar','smoke-hud','streak-hud','semiauto-hud','enemy-count-hud','overheat-hud','wave-countdown','stamina-hud','hardcore-hud','flank-hud','adrenaline-hud','ls-turret-hud','ls-mine-hud','ls-airstrike-hud','ls-carepackage-hud','ls-dog-hud','pet-hp-bar','training-hud','medkit-hud'])
     document.getElementById(id).classList.add('hidden');
   trainingActive_ = false; infiniteAmmo_ = false;   // #158 : quitter l'entrainement desactive munitions infinies
   clearEnemies(); clearTargets();
