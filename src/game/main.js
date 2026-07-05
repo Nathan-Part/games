@@ -232,6 +232,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a16);
 scene.fog = new THREE.Fog(0x0a0a16, 18, 60);
 const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xdfe4f0); // fond clair pour la boutique (assorti au thème utopie)
+// #203 : visuels de match PAR MAP — bg devient la skybox équirectangulaire une fois chargée (utopia)
+const MAP_VISUALS = {
+  portal: { bg:0x0a0a16, fog:[0x0a0a16,18,60],   grid:false, stars:true,  hemi:0.9, key:[0xfff2e0,2.4] },
+  urban:  { bg:0x0a0a16, fog:[0x0a0a16,18,60],   grid:true,  stars:true,  hemi:0.9, key:[0xfff2e0,2.4] },
+  utopia: { bg:0xbfdcff, fog:[0xdceafc,34,110],  grid:false, stars:false, hemi:1.6, key:[0xfff8ec,3.0], sky:'decor/utopia/skybox.jpg' },
+};
+let matchBg_ = SCENE_BG, matchFog_ = SCENE_FOG, matchHemi_ = 0.9;
+const skyCache_ = {};   // url -> Texture équirect (chargée une fois, survit aux switchs de map)
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 3, -6);
@@ -294,7 +302,24 @@ function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
 // ====== Map : obstacles + bornes — voir src/game/map.js ======
 const PLAYER_R = 0.45;
-function applyMapVisuals(mapId){ grid.visible = (mapId === 'urban'); }   // grille technique = ancienne arène urbaine uniquement
+function applyMapVisuals(mapId){   // #203 : ambiance de match par map (fond/fog/lumières/grille/étoiles)
+  const v = MAP_VISUALS[mapId] || MAP_VISUALS.portal;
+  matchBg_ = new THREE.Color(v.bg);
+  matchFog_ = new THREE.Fog(v.fog[0], v.fog[1], v.fog[2]);
+  matchHemi_ = v.hemi;
+  keyLight.color.setHex(v.key[0]); keyLight.intensity = v.key[1];
+  grid.visible = !!v.grid; stars.visible = !!v.stars;
+  // NB : appelée au boot avant l'état boutique/lobby → ne PAS appeler updateShopScene ici ;
+  // c'est elle qui relira matchBg_/matchFog_/matchHemi_ à chaque changement d'état.
+  if(v.sky){   // skybox panoramique : remplace la couleur unie une fois chargée (résilient : couleur sinon)
+    if(skyCache_[v.sky]) matchBg_ = skyCache_[v.sky];
+    else new THREE.TextureLoader().load(v.sky, tex => {
+      tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
+      skyCache_[v.sky] = tex;
+      if(save.settings.mapId === mapId){ matchBg_ = tex; updateShopScene(); }   // callback post-boot : sans risque
+    });
+  }
+}
 await buildArena(scene, save.settings.mapId);
 applyMapVisuals(save.settings.mapId);
 // NB : #boot-loading reste affiché jusqu'à la fin d'initLobby() (perso chargé + vitrine transparente),
@@ -316,7 +341,8 @@ G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
-G.debug.mapTheme = () => ({ bg: '#' + ((scene.background && scene.background.isColor) ? scene.background : SCENE_BG).getHexString(), gridVisible: grid.visible });   // scene.background peut être null en lobby (canvas transparent)
+G.debug.mapTheme = () => ({ bg: '#' + new THREE.Color((MAP_VISUALS[save.settings.mapId] || MAP_VISUALS.portal).bg).getHexString(), gridVisible: grid.visible });   // couleur du thème (stable même quand la skybox texture remplace le fond)
+G.debug.starsVisible = () => stars.visible;
 G.debug.testAddProp = (url, opts) => addProp(url, opts);
 G.debug.mapId = () => save.settings.mapId;
 G.debug.mapList = () => MAPS.map(m => m.id);
@@ -1205,15 +1231,16 @@ function updateShopScene(){   // boutique => scène CLAIRE ; lobby => vitrine TR
   const studioView = shopOpen && (shopTab === 'weapons' || shopTab === 'player');   // vitrine 3D centrée (arme ou perso)
   const lobbyView = !shopOpen && G.phase === 'lobby';     // accueil : perso seul au-dessus du podium de l'image de fond
   ground.visible = !studioView && !lobbyView;
-  grid.visible = save.settings.mapId === 'urban' && !shopOpen && !lobbyView;   // grille technique : arène urbaine, hors vitrines
-  stars.visible = !shopOpen && !lobbyView;
+  const mv = MAP_VISUALS[save.settings.mapId] || MAP_VISUALS.portal;   // #203 : grille/étoiles selon la map
+  grid.visible = !!mv.grid && !shopOpen && !lobbyView;
+  stars.visible = !!mv.stars && !shopOpen && !lobbyView;
   lobbyShadow.visible = lobbyView;
   for(const m of obstacleMeshes) m.visible = !shopOpen && !lobbyView;   // décor masqué (fond propre)
   for(const l of arenaLamps) l.visible = !shopOpen && !lobbyView;       // lampes d'accent éteintes en vitrine
   shopLight.intensity = (studioView || lobbyView) ? 3.0 : 0; shopFill.intensity = (studioView || lobbyView) ? 1.7 : 0;
-  hemi.intensity = (shopOpen || lobbyView) ? 2.3 : 0.9;
-  scene.background = shopOpen ? SHOP_BG : (lobbyView ? null : SCENE_BG);
-  scene.fog = (shopOpen || lobbyView) ? null : SCENE_FOG;
+  hemi.intensity = (shopOpen || lobbyView) ? 2.3 : matchHemi_;
+  scene.background = shopOpen ? SHOP_BG : (lobbyView ? null : matchBg_);
+  scene.fog = (shopOpen || lobbyView) ? null : matchFog_;
   document.getElementById('lobby').classList.toggle('hidden', shopOpen || G.phase !== 'lobby');
 }
 function updateShopCamera(){

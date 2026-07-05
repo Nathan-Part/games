@@ -175,6 +175,15 @@ test('utopia : decor GLB pose (batiments+place+drone)', async ({ page }) => {
   expect(await page.evaluate(() => window.__game.debug.decorPropCount())).toBeGreaterThanOrEqual(6);
 });
 
+test('utopia : theme jour (fond clair, grille masquee, etoiles eteintes)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  const theme = await page.evaluate(() => window.__game.debug.mapTheme());
+  expect(theme.bg).toBe('#bfdcff');
+  expect(theme.gridVisible).toBe(false);
+  expect(await page.evaluate(() => window.__game.debug.starsVisible())).toBe(false);
+});
+
 test('utopia : si le decor echoue, fallback arene urbaine', async ({ page }) => {
   await page.addInitScript(() => { window.__FORCE_DECOR_FAIL__ = true; });
   await page.goto('/game.html');
