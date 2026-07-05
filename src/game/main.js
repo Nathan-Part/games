@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor } from './map.js';
+import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
 import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
@@ -343,6 +343,8 @@ G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
 G.debug.mapTheme = () => ({ bg: '#' + new THREE.Color((MAP_VISUALS[save.settings.mapId] || MAP_VISUALS.portal).bg).getHexString(), gridVisible: grid.visible });   // couleur du thème (stable même quand la skybox texture remplace le fond)
 G.debug.starsVisible = () => stars.visible;
+G.debug.noSpawnZoneCount = () => noSpawnZones.length;
+G.debug.inNoSpawnZone = (x, z) => inNoSpawnZone(x, z);
 G.debug.testAddProp = (url, opts) => addProp(url, opts);
 G.debug.mapId = () => save.settings.mapId;
 G.debug.mapList = () => MAPS.map(m => m.id);
@@ -4165,15 +4167,17 @@ function randomSpawn(){
   // anneau autour du joueur, AU-DELÀ du rayon de détection (apparition en patrouille, pas d'aggro instantané)
   // #48 : réessayer jusqu'à 10 fois pour éviter de spawner à l'intérieur d'un obstacle
   const px = model ? model.position.x : 0, pz = model ? model.position.z : 0;
-  let best = null;
-  for(let attempt = 0; attempt < 10; attempt++){
+  let best = null, horsObstacle = null;
+  for(let attempt = 0; attempt < 12; attempt++){
     const a = Math.random()*Math.PI*2, r = DETECT_RADIUS + 3 + Math.random()*6;
     const x = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, px + Math.cos(a)*r));
     const z = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, pz + Math.sin(a)*r));
     if(!best) best = { x, z };
-    if(!pointInObstacle(x, z)){ best = { x, z }; break; }
+    if(pointInObstacle(x, z)) continue;
+    if(!inNoSpawnZone(x, z)) return { x, z };            // idéal : ni obstacle, ni intérieur de bâtiment (#203)
+    if(!horsObstacle) horsObstacle = { x, z };           // repli : hors obstacle mais en zone interdite
   }
-  return best;
+  return horsObstacle || best;
 }
 function rigHeightOf(obj){
   obj.updateMatrixWorld(true);

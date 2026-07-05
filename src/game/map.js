@@ -6,6 +6,9 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 export const MAP_HALF = 24;
 export const obstacles = [], obstacleMeshes = [];
+// #203 : zones interdites au spawn ennemi (intérieurs de bâtiments utopia) — mutées en place comme obstacles
+export const noSpawnZones = [];
+export function inNoSpawnZone(x, z){ return noSpawnZones.some(b => x>=b.minX && x<=b.maxX && z>=b.minZ && z<=b.maxZ); }
 export const arenaLamps = [];   // lampes d'accent (éteintes quand la boutique est ouverte)
 let sceneRef = null;
 
@@ -133,18 +136,23 @@ const UTOPIA_PROPS_COLLIDERS = [
   [-9.84,4.4,0.7,0.7],[10,-3.84,0.7,0.7],[-10,-16,0.7,0.7],                               // kiosques
   [-7.6,-7.6,0.5,0.5],[7.6,-7.6,0.5,0.5],[-7.6,7.6,0.5,0.5],[7.6,7.6,0.5,0.5],            // lampadaires
 ];
-// Coquille d'un bâtiment (repère local, façade vers +x) : vitres pleines sauf porte 2.4 m centrée,
-// noyau ascenseur, comptoir d'accueil, salon. m=+1 rangée ouest, m=-1 rangée est (GLB tourné de π).
+// Coquille d'un bâtiment (repère local, façade vers +x). Les ENTRÉES sont les deux angles
+// ouverts de la loggia (design d'origine du blend, vitre élargie à l'export) — le centre de la
+// façade est occupé côté rue par le parterre fleuri, donc vitre avant PLEINE au milieu.
+// m=+1 rangée ouest, m=-1 rangée est (GLB tourné de π).
 const UTOPIA_BUILDING_BOXES = [
-  [ 4.36,-3.66,0.3,4.92],[ 4.36,3.66,0.3,4.92],   // vitre avant, 2 segments encadrant la porte
+  [ 4.36,0,0.3,8.8],                              // vitre avant (pleine, angles ouverts de part et d'autre)
   [-4.68,0,0.3,12.24],                            // vitre arrière
-  [-0.16,-6.12,9.34,0.3],[-0.16,6.12,9.34,0.3],   // vitres latérales
+  [-1.02,-6.12,7.32,0.3],[-1.02,6.12,7.32,0.3],   // vitres latérales (raccourcies côté façade = passages d'angle)
+  [ 4.54,5.8,0.5,0.5],[ 4.54,-6.2,0.5,0.5],       // piliers de colonnade aux angles d'entrée
   [-2.88,0,1.92,2.56],                            // noyau ascenseur (plein toute hauteur)
   [ 0.84,0,0.56,2.4],                             // comptoir d'accueil
   [ 0.16,3.12,3.2,3.2],                           // salon (canapés + table basse)
+  [-1.9,-5.85,5.56,2.22],                         // salle vitrée d'angle nord-ouest (fermée : porte trop étroite)
 ];
 function addUtopiaBuildingColliders(cx, cz, m){
   for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES) addCollider(cx + m*lx, cz + m*lz, w, d);
+  noSpawnZones.push({ minX:cx-5.6, maxX:cx+5.6, minZ:cz-7.1, maxZ:cz+7.1 });   // pas de spawn ennemi dans les lobbys
 }
 const utopiaMat = {
   marble: () => new THREE.MeshStandardMaterial({ color:0xe9edf4, roughness:0.4, metalness:0.05 }),
@@ -190,6 +198,8 @@ async function buildUtopiaArena(scene){
     ring.rotation.x = -Math.PI/2; ring.position.y = 0.04; scene.add(ring); obstacleMeshes.push(ring);
     // Place fleurie + kiosques + lampadaires + canaux (GLB unique, déjà centré) — shadow:false (perf)
     await addProp('decor/utopia/plaza.glb', { x:0, z:0, scale:0.8, shadow:false });
+    // Passerelles aériennes entre les toits (~10 m de haut : aucune collision au sol, décor pur)
+    await addProp('decor/utopia/passerelles.glb', { x:0, z:0, scale:0.8, shadow:false });
     // Drone en vol lent au-dessus de la place (cosmétique) : va-et-vient + rotation via onBeforeRender
     const drone = await addProp('decor/utopia/drone.glb', { x:0, z:0, y:9, scale:0.8, shadow:false });
     if(drone){
@@ -222,7 +232,7 @@ const DEFAULT_MAP_ID = 'portal';
 export function clearArenaDecor(scene){
   for(const m of obstacleMeshes) scene.remove(m);
   for(const l of arenaLamps) scene.remove(l);
-  obstacles.length = 0; obstacleMeshes.length = 0; arenaLamps.length = 0;
+  obstacles.length = 0; obstacleMeshes.length = 0; arenaLamps.length = 0; noSpawnZones.length = 0;
   decorPropCount_ = 0; decorBackdropCount_ = 0;
 }
 

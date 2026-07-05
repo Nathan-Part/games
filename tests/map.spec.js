@@ -146,17 +146,28 @@ test('utopia : pad central et allee degages, canaux infranchissables', async ({ 
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(5.44, 12.8))).toBe(true);  // canal Y sud
 });
 
-test('utopia : rez-de-chaussee visitable (porte ouverte, vitres/noyau pleins)', async ({ page }) => {
+test('utopia : rez-de-chaussee visitable par les angles de loggia (vitres/noyau pleins)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => window.__game.debug.setMapId('utopia'));
-  // batiment ouest-nord, centre (-16.64, -10.4), facade vers +x, porte centree
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, -10.4))).toBe(false); // seuil de porte
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, -14))).toBe(true);    // vitre avant (segment)
+  // batiment ouest-nord, centre (-16.64, -10.4), facade vers +x, entrees aux 2 angles
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.3, -5.4))).toBe(false);   // entree angle sud
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.3, -15.7))).toBe(false);  // entree angle nord
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, -10.4))).toBe(true);  // vitre avant pleine au centre
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-21.32, -10.4))).toBe(true);  // vitre arriere
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-19.52, -10.4))).toBe(true);  // noyau ascenseur
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-18.54, -16.25))).toBe(true); // salle vitree d'angle (fermee)
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-14.6, -13))).toBe(false);    // interieur circulable
-  // batiment est-nord (miroir rotY=pi) : porte cote rue aussi
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.28, -10.4))).toBe(false);  // seuil de porte est
+  // batiment est-nord (miroir rotY=pi) : entree d'angle cote rue aussi
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.3, -15.4))).toBe(false);   // entree angle (est)
+});
+
+test('utopia : les interieurs de batiments sont interdits au spawn ennemi', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(0);       // portal : aucune zone
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(4);       // 4 lobbys proteges
+  expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-14.6, -13))).toBe(true);  // interieur NW
+  expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(0, 0))).toBe(false);       // place libre
 });
 
 test('utopia : parterres/pots/kiosques en cover, enceinte fermee', async ({ page }) => {
