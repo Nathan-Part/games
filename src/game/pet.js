@@ -1,11 +1,12 @@
-// Pet compagnon — chien (spec docs/superpowers/specs/2026-07-03-jeu-pet-chien-design.md).
+// Pet compagnon — chien de guerre (spec docs/superpowers/specs/2026-07-05-chien-loadout-et-multimap-design.md).
 // Machine à états idle/follow/chase/attack : suit le joueur, attaque les ennemis proches.
-// Intégré via le registre de features (update/resetRun/onLobby) — aucun reset dispersé.
+// Devenu un bonus du système de loadout (#156, "série de points") — n'apparaît QUE via summon(),
+// plus de compagnon permanent (ancien comportement : spec 2026-07-03, remplacé le 2026-07-05).
 // Asset : pets/chien2/chien-rigged.glb (clips embarqués Walk_Cycle + Attack_Paw, tête vers +Z).
 // window.__FAST_PET__ (tests) : primitive à la place du GLB, même machine à états.
 
 const PET_URL = 'pets/chien2/chien-rigged.glb';
-const SCALE = 0.5;
+const PET_TARGET_H = 0.9;                          // moitié de la hauteur du joueur (1.8 m, cf. spawnModel)
 const FOLLOW_DIST = 1.8, STOP_DIST = 1.1;          // hystérésis follow/idle
 const SPEED_FOLLOW = 3.4, SPEED_CHASE = 4.6;
 const DETECT_R = 7, ATTACK_R = 1.3, GIVEUP_R = 11;
@@ -13,6 +14,9 @@ const HIT_RANGE = 1.9;                             // tolérance à l'impact (ci
 const ATTACK_DURATION = 22/24, ATTACK_HIT_AT = 13/24;  // secondes (clip 24 fps, impact frame 13)
 const ATTACK_DMG = 12, ATTACK_CD = 1.4;
 const TELEPORT_R = 25, PET_R = 0.4;
+const PET_HP = 150;              // vie du chien invoqué (plus l'ancien "invulnérable" permanent)
+const PET_DESPAWN_S = 30;        // disparaît tout seul si non tué avant (temps de jeu)
+const RETALIATE_DMG = 10;        // riposte de la cible si elle survit à l'attaque (combat symétrique, auto-contenu ici)
 
 export function initPet(ctx){
   const { THREE, scene, loader, getPlayerPos, enemies, damageEnemy,
@@ -26,22 +30,40 @@ export function initPet(ctx){
   let clock = 0, cdUntil = 0;
   let attackCount = 0;
   let loading = false, loaded = false;
+  let hp = PET_HP, despawnAt = 0, pendingSummon = false;
+  let groundY = 0;   // offset vertical calculé au chargement (pieds au sol) — jamais écrasé par un repositionnement X/Z
+
+  function groundAndScale(g){
+    // Normalise par la hauteur du SQUELETTE (pas la bbox — sous-estime certains modèles skinnés, cf.
+    // pitfalls CLAUDE.md), pieds au sol : même technique que buildEnemyAssets pour les ennemis.
+    g.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    let lo = Infinity, hi = -Infinity, hasBones = false;
+    g.traverse(o => { if(o.isBone){ hasBones = true; o.getWorldPosition(v); lo = Math.min(lo, v.y); hi = Math.max(hi, v.y); } });
+    const rigH = hasBones ? ((hi - lo) || 1) : 1;
+    g.scale.setScalar(PET_TARGET_H / rigH);
+    g.updateMatrixWorld(true);
+    lo = Infinity;
+    g.traverse(o => { if(o.isBone){ o.getWorldPosition(v); lo = Math.min(lo, v.y); } });
+    if(hasBones) g.position.y -= lo;
+    return g.position.y;
+  }
 
   function buildFast(){
     const g = new THREE.Group();
     const body = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, 0.4, 0.9),
+      new THREE.BoxGeometry(0.4, PET_TARGET_H, 0.9),
       new THREE.MeshStandardMaterial({ color: 0x8899bb }));
-    body.position.y = 0.35; g.add(body);
+    body.position.y = PET_TARGET_H / 2; g.add(body);
     return g;
   }
 
   function onReady(g){
     group = g;
-    group.visible = true;
+    group.visible = false;             // ne s'affiche qu'à l'invocation (loadout) — plus de compagnon permanent
     scene.add(group);
-    placeNearPlayer();
     loaded = true; loading = false;
+    if(pendingSummon){ pendingSummon = false; doSummon(); }
   }
 
   function load(){
@@ -50,7 +72,7 @@ export function initPet(ctx){
     if(window.__FAST_PET__){ onReady(buildFast()); return; }
     loader.load(PET_URL, (gltf) => {
       const g = gltf.scene;
-      g.scale.multiplyScalar(SCALE);
+      groundY = groundAndScale(g);
       clipNames = gltf.animations.map(c => c.name);
       mixer = new THREE.AnimationMixer(g);
       const wc = THREE.AnimationClip.findByName(gltf.animations, 'Walk_Cycle');
@@ -64,8 +86,24 @@ export function initPet(ctx){
   function placeNearPlayer(){
     if(!group) return;
     const p = getPlayerPos();
-    group.position.set(p.x + 1.2, 0, p.z + 1.2);
+    group.position.set(p.x + 1.2, groundY, p.z + 1.2);
   }
+
+  // Invocation (#156 loadout, touche 4) : appelée par summon() ci-dessous, ou différée si le GLB
+  // n'est pas encore chargé (pendingSummon, cf. onReady).
+  function doSummon(){
+    hp = PET_HP; despawnAt = clock + PET_DESPAWN_S;
+    target = null; attackT = -1; hitDone = false; cdUntil = 0; state = 'idle';
+    group.visible = true;
+    placeNearPlayer();
+  }
+  function summon(){
+    if(!loaded){ load(); pendingSummon = true; return false; }
+    doSummon();
+    return true;
+  }
+  function die(){ group.visible = false; }         // tué au combat (riposte) — invocable de nouveau plus tard
+  function despawn(){ group.visible = false; }      // délai écoulé sans avoir été tué
 
   function distTo(x, z){ return Math.hypot(group.position.x - x, group.position.z - z); }
 
@@ -125,6 +163,7 @@ export function initPet(ctx){
   function update(dt){
     if(!group || !group.visible) return;
     clock += dt;
+    if(clock >= despawnAt){ despawn(); return; }    // délai écoulé sans avoir été tué (#156)
     if(mixer) mixer.update(dt);
 
     if(attackT >= 0){                               // claque en cours : immobile
@@ -133,6 +172,10 @@ export function initPet(ctx){
         hitDone = true;
         if(target && target.alive && distTo(target.root.position.x, target.root.position.z) <= HIT_RANGE){
           damageEnemy(target, ATTACK_DMG); attackCount++;
+          if(target.alive){                          // riposte si la cible survit (combat symétrique, contenu ici)
+            hp = Math.max(0, hp - RETALIATE_DMG);
+            if(hp <= 0){ die(); return; }
+          }
         }
       }
       if(attackT >= ATTACK_DURATION){ attackT = -1; cdUntil = clock + ATTACK_CD; state = 'chase'; }
@@ -169,10 +212,12 @@ export function initPet(ctx){
   registerFeature({
     update,
     resetRun(){
+      // Plus de compagnon permanent (#156) : chaque run démarre SANS chien tant qu'il n'est pas invoqué
+      // via le loadout. Chargement paresseux conservé (évite un délai à la 1re invocation) mais reste caché.
       target = null; attackT = -1; hitDone = false; cdUntil = 0; state = 'idle';
-      if(!loaded){ load(); return; }               // chargement paresseux au 1er run
-      group.visible = true;
-      placeNearPlayer();
+      hp = PET_HP; despawnAt = 0; pendingSummon = false;
+      if(group) group.visible = false;
+      else if(!loaded) load();
     },
     onLobby(){
       target = null; attackT = -1;
@@ -186,7 +231,14 @@ export function initPet(ctx){
     pos: () => group ? { x: group.position.x, y: group.position.y, z: group.position.z } : { x:0, y:0, z:0 },
     state: () => state,
     attackCount: () => attackCount,
-    setPos: (x, z) => { if(group) group.position.set(x, 0, z); },
+    setPos: (x, z) => { if(group) group.position.set(x, groundY, z); },
     clips: () => clipNames.slice(),
+    summon: () => summon(),                         // invocation loadout (#156, touche 4)
+    heightM: () => group ? new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3()).y : 0,
+    hp: () => hp,
+    maxHp: () => PET_HP,
+    despawnTimeLeft: () => (group && group.visible) ? Math.max(0, despawnAt - clock) : 0,
+    damage: (n) => { if(group && group.visible){ hp = Math.max(0, hp - n); if(hp <= 0) die(); } },   // test/debug
+    forceDespawn: () => { despawnAt = clock; },      // test/debug : fait expirer le timer au prochain update()
   };
 }

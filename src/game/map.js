@@ -57,7 +57,7 @@ function buildFallbackArena(scene){
 }
 
 // ====== Nouvelle arène thématique (Portail des ruines) — resilience totale ======
-export async function buildArena(scene){
+async function buildPortalArena(scene){
   sceneRef = scene;
   try {
     if(typeof window !== 'undefined' && window.__FORCE_DECOR_FAIL__) throw new Error('decor force-fail (test)');
@@ -114,6 +114,29 @@ export async function buildArena(scene){
     // partielles issues du essai precedent — c'est acceptable (collision surabondante, jamais manquante).
     buildFallbackArena(scene);
   }
+}
+
+// ====== Registre des maps (#201) — ajouter une map future = 1 entrée ici, aucun autre code d'UI requis ======
+export const MAPS = [
+  { id:'portal', label:'Portail des ruines', build:buildPortalArena },
+  { id:'urban',  label:'Arène urbaine',      build:buildFallbackArena },
+];
+const DEFAULT_MAP_ID = 'portal';
+
+// Retire tout le décor de la map courante (meshes + colliders + lampes) avant de reconstruire —
+// le cache GLB par URL (propCache_) est volontairement conservé (rebasculer plus tard sur la même
+// map ne re-télécharge/re-parse rien).
+export function clearArenaDecor(scene){
+  for(const m of obstacleMeshes) scene.remove(m);
+  for(const l of arenaLamps) scene.remove(l);
+  obstacles.length = 0; obstacleMeshes.length = 0; arenaLamps.length = 0;
+  decorPropCount_ = 0; decorBackdropCount_ = 0;
+}
+
+export async function buildArena(scene, mapId = DEFAULT_MAP_ID){
+  sceneRef = scene;
+  const entry = MAPS.find(m => m.id === mapId) || MAPS.find(m => m.id === DEFAULT_MAP_ID);
+  await entry.build(scene);
 }
 
 // ====== Props GLB (décor thématique) : chargement + collision optionnelle ======

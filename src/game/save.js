@@ -9,7 +9,7 @@ export function defaultSave(){ return { v:1, money:0, bestWave:0, bestScore:0, b
   ownedAccessories:['helm:none','cost:none'], equipped:{ helmet:'helm:none', costume:'cost:none' },
   ownedDances:['dance:all_night','dance:boom','dance:groove'], selectedDances:['dance:all_night','dance:boom','dance:groove'],
   ownedBoosts:[], equippedBoosts:{}, unlockedAchievements:[],
-  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false, rain:false },
+  settings:{ sensitivity:1.0, volume:0.3, defaultView:'third', difficulty:'normal', hardcore:false, rain:false, mapId:'portal' },
   lifetime:{ kills:0, headshots:0, moneyEarned:0, playtime:0 },
   consumables:{ frag:12, flashbang:8, smoke:6, sticky:4, molotov:4, emp:3, medkit:3 },   // #155/#178 : stock persistant, migration auto via Object.assign(defaultSave(), p)
   selectedLoadout:['turret','mine','airstrike'],   // #156 : killstreak loadout, migration auto

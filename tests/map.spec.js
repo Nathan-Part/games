@@ -93,3 +93,36 @@ test('indicateur de chargement au boot puis masque une fois le lobby pret', asyn
   await page.waitForFunction(() => window.__game?.phase === 'lobby', null, {timeout:20000});
   await expect(page.locator('#boot-loading')).toBeHidden();
 });
+
+// ====== #201 multi-map (registre MAPS + reconstruction a chaud) ======
+test('mapList expose au moins 2 maps (portal + urban)', async ({ page }) => {
+  await startPlaying(page);
+  const list = await page.evaluate(() => window.__game.debug.mapList());
+  expect(list).toContain('portal');
+  expect(list).toContain('urban');
+});
+
+test('setMapId("urban") bascule vers l ancienne arene (grille visible, decor portail absent)', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => window.__game.debug.mapId())).toBe('portal');
+  const ok = await page.evaluate(() => window.__game.debug.setMapId('urban'));
+  expect(ok).toBe(true);
+  expect(await page.evaluate(() => window.__game.debug.mapId())).toBe('urban');
+  expect(await page.evaluate(() => window.__game.debug.mapTheme().gridVisible)).toBe(true);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-5, 6))).toBe(true);     // caisse arene urbaine
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-1.8, -9.5))).toBe(false); // colonne portail absente
+});
+
+test('setMapId("portal") revient au decor thematique (grille masquee)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('urban'));
+  await page.evaluate(() => window.__game.debug.setMapId('portal'));
+  expect(await page.evaluate(() => window.__game.debug.mapTheme().gridVisible)).toBe(false);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-1.8, -9.5))).toBe(true);  // colonne portail de retour
+});
+
+test('le choix de map est persiste (save.settings.mapId)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('urban'));
+  expect(await page.evaluate(() => window.__game.debug.save.raw().settings.mapId)).toBe('urban');
+});

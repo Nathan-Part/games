@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount } from './map.js';
+import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
 import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
@@ -289,14 +289,31 @@ function toggleView(){ setView(view === 'first' ? 'third' : 'first'); }
 
 // ====== Map : obstacles + bornes — voir src/game/map.js ======
 const PLAYER_R = 0.45;
-await buildArena(scene);
+function applyMapVisuals(mapId){ grid.visible = (mapId === 'urban'); }   // grille technique = ancienne arène urbaine uniquement
+await buildArena(scene, save.settings.mapId);
+applyMapVisuals(save.settings.mapId);
 document.getElementById('boot-loading').classList.add('hidden');
+// Reconstruit la map à chaud (#201 multi-map) : retire le décor courant puis (re)construit la map choisie.
+// Le registre MAPS (map.js) est la seule source de vérité — ajouter une map = 1 entrée, pas de code ici à changer.
+async function switchMap(id){
+  if(!MAPS.some(m => m.id === id) || id === save.settings.mapId) return false;
+  document.getElementById('boot-loading').classList.remove('hidden');
+  clearArenaDecor(scene);
+  setSetting('mapId', id);
+  await buildArena(scene, id);
+  applyMapVisuals(id);
+  document.getElementById('boot-loading').classList.add('hidden');
+  return true;
+}
 G.debug.mapHalf = MAP_HALF;
 G.debug.obstacleCount = () => obstacles.length;
 G.debug.pointInObstacle = (x, z) => pointInObstacle(x, z);
 G.debug.setObstacleTest = (cx, cz) => addBox(cx, cz, 2, 2, 1.5);
 G.debug.mapTheme = () => ({ bg: '#' + scene.background.getHexString(), gridVisible: grid.visible });
 G.debug.testAddProp = (url, opts) => addProp(url, opts);
+G.debug.mapId = () => save.settings.mapId;
+G.debug.mapList = () => MAPS.map(m => m.id);
+G.debug.setMapId = (id) => switchMap(id);
 G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
 G.debug.decorPropCount = () => decorPropCount();
 G.debug.decorBackdropCount = () => decorBackdropCount();
@@ -568,8 +585,8 @@ document.getElementById('btn-loadout').onclick = () => { renderLoadoutPanel(); o
 document.getElementById('btn-training').onclick = () => startTraining();
 function renderLoadoutPanel(){
   const el = document.getElementById('loadout-grid'); if(!el) return;
-  const LOADOUT_ICON = { turret:'grenade', mine:'sticky', airstrike:'flash', carepackage:'molotov' };
-  const LOADOUT_KEYLABEL = { turret:'L', mine:'Y', airstrike:'U', carepackage:'I' };
+  const LOADOUT_ICON = { turret:'grenade', mine:'sticky', airstrike:'flash', carepackage:'molotov', dog:'soldier' };
+  const LOADOUT_KEYLABEL = { turret:'L', mine:'Y', airstrike:'U', carepackage:'I', dog:'4' };
   let html = '';
   for(const key of LOADOUT_BONUSES){
     const on = save.selectedLoadout.includes(key);
@@ -599,6 +616,11 @@ function renderSettings(){
   if(hc){ hc.textContent = s.hardcore ? '☠ Activé' : 'Désactivé'; hc.classList.toggle('on', !!s.hardcore); }
   const rn = document.getElementById('set-rain');               // toggle pluie (#93)
   if(rn){ rn.textContent = s.rain ? '🌧 Activé' : 'Désactivé'; rn.classList.toggle('on', !!s.rain); }
+  const mp = document.getElementById('set-map');                // sélecteur de map (#201), généré depuis le registre MAPS
+  if(mp){
+    mp.innerHTML = MAPS.map(m => `<button class="set-diff-btn" data-map="${m.id}">${m.label}</button>`).join('');
+    mp.querySelectorAll('[data-map]').forEach(b => b.classList.toggle('on', b.dataset.map === s.mapId));
+  }
 }
 function openSettings(){ renderSettings(); openPanel('settings-panel'); }
 document.getElementById('set-sensitivity').oninput = e => { setSetting('sensitivity', parseFloat(e.target.value)); renderSettings(); };
@@ -607,6 +629,10 @@ document.getElementById('set-view').onclick = () => { setSetting('defaultView', 
 document.getElementById('set-diff').addEventListener('click', e => { const b = e.target.closest('.set-diff-btn'); if(b) G.debug.setDifficulty(b.dataset.diff); });   // #46
 document.getElementById('set-hardcore').onclick = () => { setSetting('hardcore', !save.settings.hardcore); renderSettings(); };   // #94 toggle hardcore persistant
 document.getElementById('set-rain').onclick = () => { setSetting('rain', !save.settings.rain); setRain(save.settings.rain); renderSettings(); };   // #93 toggle pluie persistant
+document.getElementById('set-map').addEventListener('click', async e => {                        // #201 sélecteur de map
+  const b = e.target.closest('[data-map]'); if(!b) return;
+  await switchMap(b.dataset.map); renderSettings();
+});
 addEventListener('keydown', e => {
   if(G.phase!=='lobby') return;
   if(shopOpen){                                                  // navigation boutique
@@ -649,6 +675,7 @@ addEventListener('keydown', e => {
   if(e.code==='KeyL' && G.phase==='playing') triggerLoadoutBonus('turret');            // L = tourelle prête (loadout #156)
   if(e.code==='KeyU' && G.phase==='playing') triggerLoadoutBonus('airstrike');         // U = frappe aérienne prête (loadout #156)
   if(e.code==='KeyI' && G.phase==='playing') triggerLoadoutBonus('carepackage');       // I = caisse de ravitaillement prête (loadout #156)
+  if(e.code==='Digit4' && G.phase==='playing') triggerLoadoutBonus('dog');            // 4 = chien de guerre prêt (loadout #156/#201 ; toutes les lettres A-Z sont déjà prises)
   if(e.code==='KeyH' && G.phase==='playing') throwSmoke();                             // H = grenade fumigène (#69)
   if(e.code==='KeyJ' && G.phase==='playing') throwSticky();                           // J = grenade collante (#118)
   if(e.code==='KeyK' && G.phase==='playing') throwMolotov();                          // K = molotov, zone de feu (#130)
@@ -2723,6 +2750,19 @@ function updateEnemyHpBars(){
   });
 }
 G.debug.enemyHpBarFrac = (i) => { const e=enemies[i]; return e ? Math.max(0,Math.min(1,(e.hp||0)/(e.maxHp||1))) : 0; };
+// ====== #201 barre de vie du chien de guerre (même pattern que les barres ennemies, un seul élément) ======
+function updatePetHpBar(){
+  const el = document.getElementById('pet-hp-bar'); if(!el || !model) return;
+  if(!pet.visible()){ el.style.display = 'none'; return; }
+  const p = pet.pos(), pos3 = new THREE.Vector3(p.x, p.y + EHB_HEIGHT * 0.6, p.z);
+  pos3.project(camera);
+  if(pos3.z > 1){ el.style.display = 'none'; return; }
+  const W = window.innerWidth, H = window.innerHeight;
+  const sx = Math.round((pos3.x*0.5+0.5)*W), sy = Math.round((-pos3.y*0.5+0.5)*H);
+  el.style.display = ''; el.style.left = sx+'px'; el.style.top = sy+'px';
+  const frac = Math.max(0, Math.min(1, pet.hp() / pet.maxHp()));
+  const fill = el.querySelector('.ehb-fill'); if(fill){ fill.style.width = (frac*100)+'%'; fill.style.background = frac>0.5?'#4caf50':frac>0.25?'#ff9800':'#f44336'; }
+}
 // ====== #65 Claymore / mines de proximité ======
 const MAX_MINES = 2, MINE_DETECT_R = 2, MINE_EXPLODE_R = 4, MINE_DAMAGE = 200;
 let mineStock = MAX_MINES, mines = [];
@@ -3005,11 +3045,11 @@ G.debug.ksRewardFired = (thr) => ksAwarded.has(thr);
 G.debug.ksShieldActive = () => ksShieldActive();
 G.debug.ksMoneyMult = () => ksMoneyMultiplier();
 // ====== #156 Série de points (killstreak loadout à 3 bonus) ======
-const LOADOUT_BONUSES = ['turret','mine','airstrike','carepackage'];
-const LOADOUT_THRESHOLDS = { turret:1200, mine:600, airstrike:1800, carepackage:1000 };
-const LOADOUT_NAMES = { turret:'Tourelle', mine:'Claymore', airstrike:'Frappe aérienne', carepackage:'Caisse' };
+const LOADOUT_BONUSES = ['turret','mine','airstrike','carepackage','dog'];   // #201 : chien de guerre = 5e bonus
+const LOADOUT_THRESHOLDS = { turret:1200, mine:600, airstrike:1800, carepackage:1000, dog:900 };
+const LOADOUT_NAMES = { turret:'Tourelle', mine:'Claymore', airstrike:'Frappe aérienne', carepackage:'Caisse', dog:'Chien de guerre' };
 const LOADOUT_POINTS_PER_KILL = 100;
-let loadoutPoints = { turret:0, mine:0, airstrike:0, carepackage:0 };
+let loadoutPoints = { turret:0, mine:0, airstrike:0, carepackage:0, dog:0 };
 function registerLoadoutKill(){
   for(const key of save.selectedLoadout) loadoutPoints[key] = (loadoutPoints[key]||0) + LOADOUT_POINTS_PER_KILL;
   updateLoadoutHud();
@@ -3022,7 +3062,7 @@ function toggleLoadoutBonus(key){
   else { arr.push(key); if(arr.length > 3) arr.shift(); }
   persist(); updateLoadoutHud(); return true;
 }
-function resetLoadoutPoints(){ loadoutPoints = { turret:0, mine:0, airstrike:0, carepackage:0 }; updateLoadoutHud(); }
+function resetLoadoutPoints(){ loadoutPoints = { turret:0, mine:0, airstrike:0, carepackage:0, dog:0 }; updateLoadoutHud(); }
 function updateLoadoutHud(){
   for(const key of LOADOUT_BONUSES){
     const hud = document.getElementById('ls-'+key+'-hud'), fill = document.getElementById('ls-'+key+'-fill');
@@ -3050,6 +3090,7 @@ function triggerLoadoutBonus(key){
   else if(key === 'carepackage'){ if(!model || carePackage) return false;
     const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
     spawnCarePackage(model.position.x + dir.x*3, model.position.z + dir.z*3); ok = true; }
+  else if(key === 'dog'){ pet.summon(); ok = true; }   // #201 : chien de guerre — invocation loadout uniquement (summon() diffère si le GLB charge encore, mais reste garanti)
   if(ok){ loadoutPoints[key] = 0; updateLoadoutHud(); showCallout(LOADOUT_NAMES[key].toUpperCase() + ' PRÊT UTILISÉ !'); }
   return ok;
 }
@@ -5088,13 +5129,20 @@ G.debug.petState = () => pet.state();
 G.debug.petAttackCount = () => pet.attackCount();
 G.debug.petSetPos = (x, z) => pet.setPos(x, z);
 G.debug.petClips = () => pet.clips();
+G.debug.petSummon = () => pet.summon();
+G.debug.petHp = () => pet.hp();
+G.debug.petMaxHp = () => pet.maxHp();
+G.debug.petDamage = (n) => pet.damage(n);
+G.debug.petDespawnTimeLeft = () => pet.despawnTimeLeft();
+G.debug.petForceDespawn = () => pet.forceDespawn();
+G.debug.petHeight = () => pet.heightM();
 
 // ====== Boucle ======
 const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); updateFeatures(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updatePetHpBar(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); updateFeatures(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

@@ -2,7 +2,7 @@
 
 Détail de toutes les tranches du projet (voir [`CLAUDE.md`](CLAUDE.md) pour le contexte général, l'architecture, les conventions et l'API debug). Chaque ligne = une tranche livrée avec sa description et ses fonctions debug associées. Mettre à jour ce fichier (description + statut) quand une tranche est finie.
 
-**Statut global** : tranches 1→19, 21, 23→200 terminées. Reste : 20 (mains FPS), 22 (multijoueur).
+**Statut global** : tranches 1→19, 21, 23→202 terminées. Reste : 20 (mains FPS), 22 (multijoueur).
 
 | # | Tranche | Statut |
 |---|---------|--------|
@@ -206,5 +206,7 @@ Détail de toutes les tranches du projet (voir [`CLAUDE.md`](CLAUDE.md) pour le 
 | 198 | **Caisse de ravitaillement — trousses de soin** — 7e récompense possible, +2 trousses de soin | ✅ Fait (tests non exécutés) |
 | 199 | **Succès Stylisé** — casque + costume légendaires équipés simultanément | ✅ Fait (tests non exécutés) |
 | 200 | **Power-up Vague de choc** — nova instantanée, 80 dégâts AoE dans un rayon de 8m au ramassage ; `spawnNovaBlast(x,z)` | ✅ Fait (tests non exécutés) |
+| 201 | **Chien de guerre en loadout** — le pet (#153) quitte le mode compagnon permanent : 5e bonus du système « série de points » (#156), invocable via la touche **4** une fois le seuil (900 pts) atteint ; taille corrigée (normalisée par le squelette, moitié de la hauteur du joueur, pieds au sol), PV (150), riposte de la cible touchée (combat symétrique auto-contenu dans `pet.js`), timer de despawn (30s) si non tué avant ; `summon()`, `hp()`, `maxHp()`, `despawnTimeLeft()`, debug `petSummon/petHp/petMaxHp/petDamage/petDespawnTimeLeft/petForceDespawn/petHeight` | ✅ Fait |
+| 202 | **Système multi-map** — registre `MAPS` (`map.js`) découplant la sélection de map de son code de construction ; sélecteur dans les Réglages (généré depuis le registre, pas de markup par map) permettant de revenir à l'ancienne arène urbaine ou de rebasculer sur le Portail des ruines, reconstruction à chaud (`clearArenaDecor` + `buildArena(scene, mapId)`, cache GLB conservé) ; persisté (`save.settings.mapId`) ; `mapId()`, `mapList()`, `setMapId(id)` | ✅ Fait |
 
 **Boucle d'ajout autonome en cours** : à la demande de l'utilisateur, Claude continue d'ajouter des features en autonomie (brainstorm → spec → plan → TDD) à partir du #54.
