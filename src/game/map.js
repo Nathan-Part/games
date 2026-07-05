@@ -118,14 +118,23 @@ export async function buildArena(scene){
 
 // ====== Props GLB (décor thématique) : chargement + collision optionnelle ======
 const propLoader = new GLTFLoader();
+const propCache_ = new Map();   // url -> Promise<THREE.Object3D> (le template chargé, non positionné)
 let decorPropCount_ = 0, decorBackdropCount_ = 0;
 export function decorPropCount(){ return decorPropCount_; }
 export function decorBackdropCount(){ return decorBackdropCount_; }
 
+// Charge le GLB une seule fois par URL (mutualisé entre addProp/addBackdropProp) ; les appels suivants
+// clonent le template en mémoire au lieu de re-télécharger/re-parser le même fichier (ex. decor/ruins/block.glb
+// utilisé 17x dans buildArena) — cf. finding audit "GLB charge N fois pour la meme URL".
+async function loadPropTemplate_(url){
+  if(!propCache_.has(url)) propCache_.set(url, propLoader.loadAsync(url).then(gltf => gltf.scene));
+  return propCache_.get(url);
+}
+
 export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=null } = {}){
   try {
-    const gltf = await propLoader.loadAsync(url);
-    const mesh = gltf.scene;
+    const template = await loadPropTemplate_(url);
+    const mesh = template.clone();
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotY;
     mesh.scale.setScalar(scale);
@@ -146,8 +155,8 @@ export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=nu
 
 export async function addBackdropProp(url, { x=0, z=0, y=0, scale=1, rotY=0 } = {}){
   try {
-    const gltf = await propLoader.loadAsync(url);
-    const mesh = gltf.scene;
+    const template = await loadPropTemplate_(url);
+    const mesh = template.clone();
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotY;
     mesh.scale.setScalar(scale);
