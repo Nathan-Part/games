@@ -203,7 +203,7 @@ const UTOPIA_DOOR = { zIn:2.19, zOut:4.28, xClip:3.9 };
 let utopiaDoorCount_ = 0, utopiaRoofCount_ = 0;
 export function utopiaDoorCount(){ return utopiaDoorCount_; }
 export function utopiaRoofCount(){ return utopiaRoofCount_; }
-function addUtopiaBuildingColliders(cx, cz, m, doorSide = 0){
+function addUtopiaBuildingColliders(cx, cz, m, doorSide = 0, stairSide = 0){
   for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES){
     if(doorSide && lx === 4.36){   // vitre avant scindée autour de la baie-porte (#206)
       addCollider(cx + m*4.36, cz + m*doorSide*(-1.105), 0.3, 6.59);   // grand pan côté centre (lz s·[-4.4, 2.19])
@@ -212,7 +212,8 @@ function addUtopiaBuildingColliders(cx, cz, m, doorSide = 0){
     }
     addCollider(cx + m*lx, cz + m*lz, w, d);
   }
-  noSpawnZones.push({ minX:cx-5.6, maxX:cx+5.6, minZ:cz-7.1, maxZ:cz+7.1 });   // pas de spawn ennemi dans les lobbys
+  // pas de spawn ennemi dans les lobbys ; côté escalier (#206) la zone s'élargit jusqu'au-delà de la rampe
+  noSpawnZones.push({ minX:cx - (stairSide > 0 ? 7.5 : 5.6), maxX:cx + (stairSide < 0 ? 7.5 : 5.6), minZ:cz-7.1, maxZ:cz+7.1 });
 }
 // #206 : découpe visuelle de la baie-porte dans la vitre RDC (mesh *vitre0*, matériau propre
 // VerreBleu.002) — plans de clipping en espace MONDE par instance (le GLB est cloné 8× à des
@@ -236,6 +237,80 @@ function cutBuildingGlassDoor(building, cx, cz, m, s){
     cut = true;
   });
   if(cut) utopiaDoorCount_++;
+}
+// #206 : toits accessibles des 4 bâtiments extérieurs. Mesures GLB (game = blend×0.8) : toit
+// (dalle2) à y=9.64, parapet 9.68→10.32, empreinte dalles lx [−5.52, 5.20] / lz ±6.96, jardinières
+// de rive côté façade (lx > 4.6). Le garde-corps est fait de ZONES « dessus de parapet » à 10.32
+// (marche de 0.68 > STEP_UP_MAX → mur moteur) et non de colliders AABB, qui mureraient aussi le
+// rez-de-rue (les zones le font seulement sur les fines bandes de rive, assumé).
+const UTOPIA_ROOF = { y:9.64, parY:10.32, zHalf:6.96, roofZHalf:6.64, notchZ:5.2, stairOut:-7.3, stairIn:-5.52 };
+function lxw(cx, m, lo, hi){ return m > 0 ? [cx + lo, cx + hi] : [cx - hi, cx - lo]; }   // plage lx locale → monde
+function pushUtopiaRoofZones(cx, cz, m){
+  const Z = groundZones, R = UTOPIA_ROOF, s = Math.sign(cz);
+  // ① rampe d'escalier le long du dos, départ côté centre de la map (z0), sommet à l'encoche
+  const z0 = cz - s*R.zHalf, z1 = cz + s*R.notchZ;
+  const [rx0, rx1] = lxw(cx, m, R.stairOut, R.stairIn);
+  Z.push({ kind:'ramp', minX:rx0, maxX:rx1, minZ:Math.min(z0, z1), maxZ:Math.max(z0, z1), axis:'z', c0:z0, c1:z1, y0:0, y1:R.y });
+  // ② palier d'arrivée (recouvre l'encoche du parapet : poussé AVANT les bandes, il ouvre le passage)
+  const [px0, px1] = lxw(cx, m, R.stairOut, -5.0);
+  const nz0 = cz + s*R.notchZ, nz1 = cz + s*R.zHalf;
+  Z.push({ kind:'rect', minX:px0, maxX:px1, minZ:Math.min(nz0, nz1), maxZ:Math.max(nz0, nz1), y:R.y });
+  // ③ bandes « dessus de parapet » (garde-corps moteur) : dos, façade (au droit de la colonnade), nord, sud
+  const [bx0, bx1] = lxw(cx, m, R.stairIn, -5.2), [fx0, fx1] = lxw(cx, m, 4.6, 5.2), [ax0, ax1] = lxw(cx, m, R.stairIn, 5.2);
+  Z.push({ kind:'rect', minX:bx0, maxX:bx1, minZ:cz - R.zHalf, maxZ:cz + R.zHalf, y:R.parY });
+  Z.push({ kind:'rect', minX:fx0, maxX:fx1, minZ:cz - R.zHalf, maxZ:cz + R.zHalf, y:R.parY });
+  Z.push({ kind:'rect', minX:ax0, maxX:ax1, minZ:cz + R.roofZHalf, maxZ:cz + R.zHalf, y:R.parY });
+  Z.push({ kind:'rect', minX:ax0, maxX:ax1, minZ:cz - R.zHalf, maxZ:cz - R.roofZHalf, y:R.parY });
+  // ④ le toit lui-même (borné avant les jardinières de rive côté façade)
+  const [ox0, ox1] = lxw(cx, m, -5.2, 4.6);
+  Z.push({ kind:'rect', minX:ox0, maxX:ox1, minZ:cz - R.roofZHalf, maxZ:cz + R.roofZHalf, y:R.y });
+  utopiaRoofCount_++;
+}
+// Escalier monumental en code (28 marches pleines, InstancedMesh = 1 draw call par bâtiment) +
+// jardinières condamnant visiblement les 2 angles de loggia (leur empreinte au sol est un mur
+// moteur : sans blocage visible, on foncerait dans un mur invisible).
+const stairMat_ = new THREE.MeshStandardMaterial({ color:0xf0eee8, roughness:0.85 });
+const planterMat_ = new THREE.MeshStandardMaterial({ color:0xe9e6df, roughness:0.9 });
+const hedgeMat_ = new THREE.MeshStandardMaterial({ color:0x3f7a44, roughness:0.95 });
+function addUtopiaRoofStairs(cx, cz, m){
+  const R = UTOPIA_ROOF, s = Math.sign(cz), N = 28;
+  const stepH = R.y / N, stepD = (R.zHalf + R.notchZ) / N, z0 = cz - s*R.zHalf;
+  const xc = cx + m * (R.stairOut + R.stairIn) / 2, w = R.stairIn - R.stairOut;
+  const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), stairMat_, N);
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion();
+  for(let i = 0; i < N; i++){
+    const top = (i + 1) * stepH;   // marches pleines empilées depuis le sol (look dalles utopia)
+    mtx.compose(new THREE.Vector3(xc, top/2, z0 + s*(i + 0.5)*stepD), q, new THREE.Vector3(w, top, stepD));
+    inst.setMatrixAt(i, mtx);
+  }
+  inst.castShadow = inst.receiveShadow = true;
+  sceneRef.add(inst); obstacleMeshes.push(inst);
+  for(const lz of [5.0, -5.0]){   // jardinières d'angle (embouchure de la colonnade)
+    const px = cx + m*5.0, pz = cz + m*lz;
+    const socle = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.85, 1.1), planterMat_);
+    socle.position.set(px, 0.425, pz);
+    const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.9), hedgeMat_);
+    hedge.position.set(px, 1.06, pz);
+    for(const o of [socle, hedge]){ o.castShadow = o.receiveShadow = true; sceneRef.add(o); obstacleMeshes.push(o); }
+    addCollider(px, pz, 1.3, 1.2);
+  }
+}
+// Encoche visuelle du parapet à l'arrivée de l'escalier (même technique de clipping que la porte)
+function cutParapetNotch(building, cx, cz, m){
+  const R = UTOPIA_ROOF, s = Math.sign(cz);
+  const zA = cz + s*R.notchZ, zB = cz + s*R.zHalf;
+  const planes = [
+    new THREE.Plane(new THREE.Vector3(0, 0, -1), Math.min(zA, zB)),
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), -Math.max(zA, zB)),
+    m > 0 ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -(cx - 5.0))      // jeté si x < cx−5.0 (dos à −x)
+          : new THREE.Plane(new THREE.Vector3(-1, 0, 0), cx + 5.0),       // jeté si x > cx+5.0 (dos à +x)
+  ];
+  building.traverse(o => {
+    if(!o.isMesh || !/parapet/.test(o.name) || Array.isArray(o.material)) return;
+    o.material = o.material.clone();
+    o.material.clippingPlanes = planes;
+    o.material.clipIntersection = true;
+  });
 }
 // Tout matériau Blender en alpha BLEND (verre des vitres, eau des canaux/rivière, feuillage alpha...)
 // charge en depthWrite:false via GLTFLoader — deux surfaces transparentes proches (ex. eau + plante,
@@ -275,9 +350,12 @@ function pushUtopiaGroundZones(){
     Z.push({ kind:'grid', minX:h.minX, maxX:h.maxX, minZ:h.minZ, maxZ:h.maxZ, nx:h.nx, nz:h.nz, data:h.data });
   for(const m of UTOPIA_DATA.medallions)
     Z.push({ kind:'disk', x:m.x, z:m.z, r:m.r, y:0.176 });
-  // RdC des 8 bâtiments : dalle du blend à z=0.13 → terrasse +0.104 en jeu
-  for(const [bx, bz] of UTOPIA_DATA.buildings)
+  // RdC à +0.104 pour les 4 bâtiments du cœur ; les 4 extérieurs (#206) ont un TOIT praticable
+  // (une seule surface par (x,z) : leur RdC n'existe plus pour le moteur)
+  for(const [bx, bz, m] of UTOPIA_DATA.buildings){
+    if(Math.abs(bz) > 20){ pushUtopiaRoofZones(bx, bz, m); continue; }
     Z.push({ kind:'rect', minX:bx-4.16, maxX:bx+4.16, minZ:bz-5.76, maxZ:bz+5.76, y:0.104 });
+  }
 }
 async function buildUtopiaArena(scene){
   sceneRef = scene;
@@ -291,8 +369,9 @@ async function buildUtopiaArena(scene){
       // #206 : 4 bâtiments du cœur (|z|<20) = halls visitables par une baie-porte ;
       // 4 bâtiments extérieurs (z=±31.2) = toits accessibles par escalier (une seule surface par (x,z))
       const core = Math.abs(bz) < 20, s = m * Math.sign(bz);
-      addUtopiaBuildingColliders(bx, bz, m, core ? s : 0);
-      if(core && b) cutBuildingGlassDoor(b, bx, bz, m, s);
+      addUtopiaBuildingColliders(bx, bz, m, core ? s : 0, core ? 0 : m);
+      if(core){ if(b) cutBuildingGlassDoor(b, bx, bz, m, s); }
+      else { if(b) cutParapetNotch(b, bx, bz, m); addUtopiaRoofStairs(bx, bz, m); }
     }
     if(!anyBuilding) throw new Error('aucun batiment utopia charge');
     // #205 : sol du blend (dalles + socle + rails + néons/inlays + médaillons plats) — remplace

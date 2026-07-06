@@ -205,14 +205,39 @@ test('utopia : si le decor echoue, fallback arene urbaine', async ({ page }) => 
 });
 
 // ====== #205 map utopia complete (esplanade entiere, 8 batiments, tour, fog/ombres par map) ======
-test('205 utopia complete : 8 lobbys, nouveau batiment BatG0 visitable, RdC a +0.104', async ({ page }) => {
+test('205 utopia complete : 8 lobbys, batiments exterieurs presents (BatG0 = toit #206)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => window.__game.debug.setMapId('utopia'));
   expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(8);
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.3, 36.2))).toBe(false);  // entree angle BatG0 (offset des tests #203 : bz+5.0)
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, 31.2))).toBe(true);  // vitre avant pleine BatG0
-  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 31.2))).toBeCloseTo(0.104, 3);
-  expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-16.64, 31.2))).toBe(true);    // lobby BatG0 protege
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 31.2))).toBeCloseTo(9.64, 2);   // #206 : toit praticable
+  expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-16.64, 31.2))).toBe(true);    // empreinte BatG0 protegee
+});
+
+// ====== #206 : toits accessibles des 4 batiments exterieurs (escalier code + zones moteur) ======
+test('206 toits : rampe praticable, toit a 9.64, parapet garde-corps moteur, angles condamnes', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  // BatG0 (-16.64, 31.2, m=+1) : escalier au dos (x [-23.94,-22.16]), depart cote place z=24.24
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-23, 24.24))).toBeCloseTo(0, 2);       // pied de rampe
+  const mid = await page.evaluate(() => window.__game.debug.groundHeightAt(-23, 30.32));                     // mi-rampe
+  expect(mid).toBeGreaterThan(4);
+  expect(mid).toBeLessThan(6);
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-22.5, 37.5))).toBeCloseTo(9.64, 2);   // palier d'arrivee (encoche)
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 31.2))).toBeCloseTo(9.64, 2);  // toit
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 38.0))).toBeCloseTo(10.32, 2); // bande parapet nord = marche infranchissable
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-11.7, 31.2))).toBeCloseTo(10.32, 2);  // bande parapet facade
+  // angles de loggia condamnes par jardinieres (sinon mur moteur invisible)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.04, 36.2))).toBe(true);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.04, 26.2))).toBe(true);
+  // symetrie : les 3 autres batiments exterieurs ont aussi leur toit
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(16.64, 31.2))).toBeCloseTo(9.64, 2);
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(16.64, -31.2))).toBeCloseTo(9.64, 2);
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, -31.2))).toBeCloseTo(9.64, 2);
+  expect(await page.evaluate(() => window.__game.debug.utopiaRoofCount())).toBe(4);
+  // personne ne spawn sur la rampe ; les batiments du coeur gardent leur RdC a +0.104
+  expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-23, 31.2))).toBe(true);
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 10.4))).toBeCloseTo(0.104, 3);
 });
 
 // ====== #206 : tuile map illustree ======
