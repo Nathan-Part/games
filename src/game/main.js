@@ -93,11 +93,11 @@ function rarityBadge(key){ const r = rarityInfo(key);   // M-8 : le hex litéral
 function ico(name){ return `<svg class="ico" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function statBar(label, pct, text){ const p = Math.max(4, Math.min(100, Math.round(pct)));   // M-7 : pct numérique
   return `<div class="statbar"><span class="lbl">${label}</span><span class="trk"><i style="width:${p}%"></i></span><span class="val">${text}</span></div>`; }
-function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned,data,img}
+function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned,data,img,cls}
   // thumb : icône par défaut, recouverte par l'image `img` si fournie (onerror -> retire l'img, l'icône réapparaît)
   const thumb = `<div class="thumb${o.img?' has-img':''}">${ico(o.icon)}`
     + `${o.img?`<img class="thumb-img" src="${o.img}" alt="" loading="lazy" onerror="this.remove()">`:''}</div>`;
-  return `<div class="icard${o.on?' on':''}"${o.data||''} style="--rc:${o.rc}">`
+  return `<div class="icard${o.on?' on':''}${o.cls?' '+o.cls:''}"${o.data||''} style="--rc:${o.rc}">`
     + `${o.owned?`<span class="ribbon">${ico('check')}</span>`:''}`
     + thumb + `<div class="nm">${o.name}</div>`
     + `<div class="ic-meta">${rarityBadge(o.rarity)}${o.sub?`<span class="ic-sub">${o.sub}</span>`:''}</div>`
@@ -1381,7 +1381,7 @@ function updateShopScene(){   // boutique => scène CLAIRE ; lobby => vitrine TR
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
   else if(shopOpen && shopTab === 'player'){ camera.position.set(0, 1.95, 6.8); camera.lookAt(0, 1.46, 0); }  // même caméra que le lobby (#25) : c'est la seule calée sur le podium du fond lobby-bg.jpg (retour Nathan : perso pas centré dessus)
-  else if(shopOpen && (shopTab === 'accessories' || shopTab === 'boost')){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche (#26/#28)
+  else if(shopOpen && (shopTab === 'accessories' || shopTab === 'boost')){ camera.position.set(0.3, 1.5, 4.0); camera.lookAt(-0.35, 1.0, 0); }  // perso légèrement à droite, bloc à gauche (#26/#28) — décalage réduit (retour Nathan : trop décalé/moche)
   else setLobbyCamera();
 }
 function updateShopTabs(){
@@ -1521,12 +1521,8 @@ function renderShop(){
       const eq = save.equippedBoosts[bo.slot] === bo.id;
       const statTxt = bo.stat === 'health' ? `+${bo.bonus} Vie` : bo.stat === 'speed' ? `+${Math.round(bo.bonus*100)}% Vit.` : `+${bo.bonus} Régén`;
       let foot;
-      if(eq){  // équipé → cliquer dé-équipe (toggle) ; + bouton run-based (#53) désactiver pour la partie
-        const runOff = isBoostRunDisabled(bo.slot);
-        const runBtn = runOff
-          ? `<button class="icbtn" data-requiprun="${bo.slot}" title="Réactiver pour cette partie">↻ Run</button>`
-          : `<button class="icbtn" data-unequiprun="${bo.slot}" title="Désactiver pour cette partie seulement">✕ Run</button>`;
-        foot = `<button class="icbtn ${runOff?'':'on'}" data-equipboost="${bo.id}">${ico('check')} ${runOff?'Off (run)':'Équipé'}</button>${runBtn}`;
+      if(eq){   // équipé → cliquer dé-équipe (toggle) — retour Nathan : plus de bouton "Run" séparé, trop confus
+        foot = `<button class="icbtn on" data-equipboost="${bo.id}">${ico('check')} Équipé</button>`;
       }
       else if(owned)
         foot = `<button class="icbtn" data-equipboost="${bo.id}">Équiper</button>`;
@@ -1545,65 +1541,71 @@ function renderShop(){
     html += `</div>`;
   } else {   // #207 onglet Accessoires : entête + grille d'images (gauche) + panneau détail (bas-droite)
     const slot = shopAccSlot;
-    html += `<div class="shop-acc-head"><h2 class="shop-title">Accessoires</h2>`
+    html += `<div class="shop-acc-head acc-head-right"><h2 class="shop-title">Accessoires</h2>`
           + `<div class="subtabs"><button class="subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Masque</button>`
           + `<button class="subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
           + `<button class="subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
     if(slot === 'dance'){   // Danses (#27) : C-6 — TOUJOURS aperçu ▶, PUIS acheter (si !owned) SINON sélectionner
       const sel = save.selectedDances;
       html += `<div class="shop-sub2">Aperçu ▶ libre · achète puis sélectionne 3 (touches 1/2/3) — ${sel.length}/3</div></div>`;
-      html += `<div class="shop-acc-list"><div class="shop-grid">`;
+      html += `<div class="shop-acc-list acc-bottom dance-list"><div class="acc-panel-scroll"><div class="shop-grid">`;
       for(const d of DANCES){
         const owned = save.ownedDances.includes(d.id), on = sel.includes(d.id);
         let foot = `<button class="icbtn" data-previewdance="${d.id}" title="Aperçu">${ico('play')}</button>`;
         if(!owned) foot += `<button class="icbtn buy" data-buydance="${d.id}"${save.money >= d.price ? '' : ' disabled'}>${ico('coin')}${d.price}</button>`;
         else foot += `<button class="icbtn${on ? ' on' : ''}" data-seldance="${d.id}">${on ? 'Sélect.' : 'Choisir'}</button>`;
-        html += itemCard({ rc:rarityInfo(d.rarity).color, icon:'emote', name:d.name, rarity:d.rarity, foot, on, owned });
+        html += itemCard({ rc:rarityInfo(d.rarity).color, icon:'emote', name:d.name, rarity:d.rarity, foot, on, owned, cls:'dcard' });
       }
-      html += `</div></div>`;
+      html += `</div></div></div>`;
     } else {   // Masque / Costume — cliquer la tuile = aperçu sur le perso (essayer avant d'acheter)
-      // #retour Nathan : plus de nom/prix sur la carte (trop gros, images coupées) — tuiles compactes
-      // sans texte groupées par rareté (1 ligne par rareté, Commun en haut → Légendaire en bas) ;
-      // le détail (nom/desc/bonus/acheter) reste dans le panneau de droite (`focus`, inchangé).
+      // retour Nathan (8e) : le bouton Acheter/Équiper est remonté DANS le panneau, juste sous les tuiles
+      // (footer fixe, hors zone de scroll) — trop loin du perso sinon vu que le panneau est passé à droite.
       const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot], prev = shopAccPreview[slot];
       html += `<div class="shop-sub2">${ico('eye')} Clique un article pour l'essayer sur ton perso, puis achète</div></div>`;
-      html += `<div class="shop-acc-list"><div class="acc-rarity-rows">`;
+      // retour Nathan : équiper "Aucun" puis recliquer "Équiper" ré-équipait un autre masque (le repli ignorait
+      // l'article équipé quand son prix est 0, donc retombait sur cat[1]) — le focus doit rester l'article
+      // vraiment équipé même si c'est "Aucun", tant qu'aucun aperçu n'est actif
+      const focus = accessoryById(slot, prev) || cat.find(a => a.id === eqId) || cat[1] || cat[0];
+      html += `<div class="shop-acc-list acc-bottom"><div class="acc-panel-scroll"><div class="acc-rarity-rows">`;
       for(const rk of RARITY_ORDER){
         const items = cat.filter(a => a.rarity === rk);
         if(!items.length) continue;
         html += `<div class="acc-rrow" style="--rc:${rarityInfo(rk).color}">`
-          + `<span class="acc-rrow-label">${rarityInfo(rk).name}</span><div class="acc-rrow-items">`
+          + `<div class="acc-rrow-head">${rarityBadge(rk)}<span class="acc-rrow-rule"></span></div><div class="acc-rrow-items">`
           + items.map(a => {
-              const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
+              const eq = eqId === a.id, owned = save.ownedAccessories.includes(a.id);
               const on = prev ? (a.id === prev) : eq;
-              return `<button class="acctile${on?' on':''}" data-prevacc="${a.id}" style="--rc:${rarityInfo(a.rarity).color}" title="${a.name}">`
-                + `${ico(slot==='helmet'?'helmet':'vest')}${a.img?`<img class="thumb-img" src="${a.img}" alt="" loading="lazy" onerror="this.remove()">`:''}`
-                + `${owned?`<span class="acctile-check">${ico('check')}</span>`:''}`
+              return `<button class="acctile${on?' on':''}${owned?'':' locked'}" data-prevacc="${a.id}" style="--rc:${rarityInfo(a.rarity).color}" title="${a.name}${owned?'':' (non possédé)'}">`
+                + (a.price === 0 ? `<span class="acctile-none" aria-hidden="true">🚫</span>`
+                  : `${ico(slot==='helmet'?'helmet':'vest')}${a.img?`<img class="thumb-img" src="${a.img}" alt="" loading="lazy" onerror="this.remove()">`:''}`)
+                + `${on?`<span class="acctile-check">${ico('check')}</span>`:''}`
+                + `${owned?'':`<span class="acctile-lock" title="Non possédé">${ico('lock')}</span>`}`
                 + `</button>`;
             }).join('')
           + `</div></div>`;
       }
       html += `</div></div>`;
-      // panneau détail (bas-droite) : article survolé/essayé (preview) sinon équipé (si réel) sinon 1er non-"Aucun"
-      const focus = accessoryById(slot, prev) || cat.find(a => a.id === eqId && a.price > 0) || cat[1] || cat[0];
       if(focus){
-        const owned = save.ownedAccessories.includes(focus.id), eq = eqId === focus.id, frc = rarityInfo(focus.rarity).color;
-        html += `<aside class="shop-acc-detail" style="--rc:${frc}"><div class="acc-detail-h"><span class="acc-detail-nm">${focus.name}</span>${rarityBadge(focus.rarity)}</div>`;
-        if(focus.desc) html += `<p class="acc-detail-desc">${focus.desc}</p>`;
-        html += `<div class="acc-detail-bonuses">` + (focus.bonuses || []).map(b =>
-            `<div class="skill-row"><span class="skill-ic">${ico(b.icon)}</span><div class="skill-txt"><span class="skill-nm">+ ${b.name}</span><span class="skill-de">${b.desc}</span></div></div>`).join('') + `</div>`;
-        html += `<div class="acc-detail-foot">`;
-        if(eq) html += `<div class="shop-badge">${ico('check')} Équipé</div>`;
-        else if(owned) html += `<button class="shop-cta" data-selacc="${focus.id}">Équiper</button>`;
+        const fOwned = save.ownedAccessories.includes(focus.id), fEq = eqId === focus.id;
+        html += `<div class="acc-buy-bar">`;
+        if(fEq) html += `<div class="shop-badge">${ico('check')} Équipé</div>`;
+        else if(fOwned) html += `<button class="shop-cta" data-selacc="${focus.id}">Équiper</button>`;
         else if(focus.price > 0) html += `<button class="shop-cta buy" data-buyacc="${focus.id}"${save.money >= focus.price ? '' : ' disabled'}>${ico('coin')}${focus.price} Acheter</button>`;
         else html += `<button class="shop-cta" data-selacc="${focus.id}">Équiper</button>`;
-        html += `</div></aside>`;
+        html += `</div>`;
       }
+      html += `</div>`;
     }
   }
+  // retour Nathan : cliquer un article recréait tout le HTML (perd le scroll -> la liste "remontait" toute seule) ;
+  // on capture/restaure le défilement de la zone scrollable pour que le clic ne bouge plus la liste
+  const prevScroll = info.querySelector('.acc-panel-scroll');
+  const scrollTop = prevScroll ? prevScroll.scrollTop : 0;
   info.className = 'shop-info'
     + (shopTab === 'weapons' ? ' tab-weapons' : shopTab === 'player' ? ' tab-player' : shopTab === 'accessories' ? ' tab-acc' : ' grid');   // #207 layout par onglet ; boost/consommables gardent la grille dockée
   info.innerHTML = html;
+  const nextScroll = info.querySelector('.acc-panel-scroll');
+  if(nextScroll) nextScroll.scrollTop = scrollTop;
   info.querySelectorAll('[data-wcat]').forEach(b => b.onclick = () => {
     shopWeaponCategory = b.dataset.wcat;   // #49 : reset index à 0 dans la nouvelle catégorie
     setShopWeapon(0);
@@ -1621,8 +1623,6 @@ function renderShop(){
   info.querySelectorAll('[data-buyboost]').forEach(b => b.onclick = () => { if(buyBoost(b.dataset.buyboost)) renderShop(); });
   info.querySelectorAll('[data-buycons]').forEach(b => b.onclick = () => { if(buyConsumable(b.dataset.buycons)) renderShop(); });
   info.querySelectorAll('[data-equipboost]').forEach(b => b.onclick = () => { if(equipBoost(b.dataset.equipboost)) renderShop(); });
-  info.querySelectorAll('[data-unequiprun]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(unequipBoostRun(b.dataset.unequiprun)) renderShop(); });   // #53 désactiver pour la partie
-  info.querySelectorAll('[data-requiprun]').forEach(b => b.onclick = (e) => { e.stopPropagation(); if(requipBoostRun(b.dataset.requiprun)) renderShop(); });        // #53 réactiver pour la partie
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
   info.querySelectorAll('[data-previewdance]').forEach(b => b.onclick = () => { previewDance(b.dataset.previewdance); });   // aperçu live (même non possédée)
   info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { if(toggleDance(b.dataset.seldance)) renderShop(); });

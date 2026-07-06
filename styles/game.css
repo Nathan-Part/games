@@ -95,6 +95,12 @@
   .thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center}
   .icard .ribbon{position:absolute;top:8px;right:8px;color:var(--ok);width:18px;height:18px}
   .icard .ic-foot{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap}
+  /* retour Nathan : meilleur UI pour les danses — médaillon coloré (rareté) derrière la note, au lieu d'une icône plate */
+  .icard.dcard .thumb{height:88px;border-radius:16px;margin-bottom:2px;
+    background:radial-gradient(circle at 50% 38%, color-mix(in srgb,var(--rc) 26%,transparent), color-mix(in srgb,var(--rc) 8%,transparent) 75%);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rc) 40%,transparent)}
+  .icard.dcard .thumb .ico{width:52px;height:52px}
+  .icard.dcard:hover .thumb{box-shadow:inset 0 0 0 1.5px var(--rc)}
   #app{position:fixed;inset:0;background:#0b0c0e url(../assets/img/lobby-bg.jpg) center/cover no-repeat}
   canvas{display:block}
   /* ===================== ACCUEIL « utopie » (refonte 2026-07-05, maquette refactor/modele.png) ===================== */
@@ -721,7 +727,7 @@
   .shop-hero .shop-wname{justify-content:flex-start}
   .shop-desc{margin:0;font-family:var(--font-ui);font-size:var(--t-md);line-height:1.42;color:var(--text-2);max-width:340px}
   /* --- PANNEAUX SOMBRES translucides (stats / compétences / détail accessoire) --- */
-  .shop-stats-panel,.shop-acc-detail{z-index:2;display:flex;flex-direction:column;gap:12px;padding:16px 18px;color:#eef1f6;
+  .shop-stats-panel{z-index:2;display:flex;flex-direction:column;gap:12px;padding:16px 18px;color:#eef1f6;
     background:linear-gradient(158deg, rgba(22,24,36,.93), rgba(13,15,24,.9));box-shadow:0 20px 54px rgba(10,12,30,.5),inset 0 0 0 1px rgba(255,255,255,.06);
     --ch:14px;clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   .tab-weapons .shop-stats-panel{position:absolute;right:28px;top:84px;width:min(27vw,326px)}
@@ -774,36 +780,75 @@
   .wcard-check{position:absolute;top:8px;right:8px;width:18px;height:18px;color:var(--accent-2)}
   .wcard-check .ico{width:18px;height:18px}
   /* --- ONGLET ACCESSOIRES : entete + grille d'images (gauche) + panneau detail (bas-droite) --- */
-  .tab-acc .shop-acc-head{position:absolute;left:30px;top:74px;z-index:2;display:flex;flex-direction:column;gap:12px;align-items:flex-start;max-width:min(50vw,560px)}
+  .tab-acc .shop-acc-head{position:absolute;left:30px;top:74px;z-index:2;display:flex;flex-direction:column;gap:12px;align-items:flex-start;max-width:min(36vw,420px)}
+  /* retour Nathan (7e) : les 3 sous-onglets (Masque/Costume/Danses) dockent TOUS la même entête à droite,
+     au-dessus de leur liste — au départ Danses était restée à gauche (##207/6e) mais le saut visuel d'un
+     sous-onglet à l'autre gênait plus qu'autre chose ; un seul emplacement pour les 3, plus de saut. */
+  .tab-acc .shop-acc-head.acc-head-right{left:auto;right:30px;max-width:min(28vw,300px)}
   .shop-title{margin:0;position:relative;padding-bottom:9px;font-family:var(--font-display);font-weight:800;font-size:var(--t-2xl);
     text-transform:uppercase;letter-spacing:.02em}
   .shop-title::after{content:"";position:absolute;left:0;bottom:0;width:56px;height:3px;background:var(--accent)}
   .tab-acc .shop-sub2{color:var(--text-2)}
-  .tab-acc .shop-acc-list{position:absolute;left:30px;top:224px;bottom:24px;width:min(47vw,548px);z-index:2;overflow-y:auto;padding-right:6px}
+  /* base : position/fallback — les 3 sous-onglets passent tous par .acc-bottom ci-dessous désormais
+     (plus de variante gauche-large séparée) ; le scroll lui-même vit dans .acc-panel-scroll (enfant) */
+  .tab-acc .shop-acc-list{position:absolute;left:30px;top:224px;bottom:24px;width:min(36vw,420px);z-index:2}
   .tab-acc .shop-acc-list .shop-grid{grid-template-columns:repeat(2,1fr)}
-  .tab-acc .shop-acc-detail{position:absolute;right:26px;bottom:24px;width:min(28vw,360px)}
-  /* masques/costumes (retour Nathan) : tuiles compactes SANS nom, groupées 1 ligne par rareté (Commun→Légendaire) */
-  .acc-rarity-rows{display:flex;flex-direction:column;gap:14px}
-  .acc-rrow{display:flex;align-items:center;gap:12px}
-  .acc-rrow-label{flex:0 0 76px;font-family:var(--font-display);font-weight:700;text-transform:uppercase;
-    font-size:11px;letter-spacing:.05em;color:var(--rc,var(--text-2))}
-  .acc-rrow-items{display:flex;flex-wrap:wrap;gap:8px}
-  .acctile{position:relative;width:58px;height:58px;flex:0 0 auto;padding:0;border:0;cursor:pointer;overflow:hidden;
-    display:flex;align-items:center;justify-content:center;background:var(--bg-600);color:var(--rc,var(--accent));
-    box-shadow:inset 0 0 0 1px var(--line);transition:transform .15s,box-shadow .15s;--ch:7px;
-    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
-  .acctile .ico{width:24px;height:24px}
-  .acctile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center}
-  .acctile:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--rc,var(--accent))}
-  .acctile:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--rc,var(--accent))}
-  .acctile.on{box-shadow:inset 0 0 0 2px var(--rc,var(--accent)),0 6px 16px -4px color-mix(in srgb,var(--rc,var(--accent)) 55%,transparent)}
-  .acctile-check{position:absolute;top:2px;right:2px;width:14px;height:14px;color:var(--ok)}
-  .acctile-check .ico{width:14px;height:14px}
-  .acc-detail-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .acc-detail-nm{font-family:var(--font-display);font-weight:800;text-transform:uppercase;font-size:var(--t-xl);letter-spacing:.02em;color:#fff}
-  .acc-detail-desc{margin:0;font-size:13px;line-height:1.4;color:#9aa3b4}
-  .acc-detail-bonuses{display:flex;flex-direction:column;gap:10px}
-  .acc-detail-foot{margin-top:4px;display:flex;gap:10px;flex-wrap:wrap}
+  /* Danses : colonne étroite (comme masque/costume) → 1 seule colonne de cartes au lieu de 2 */
+  .tab-acc .shop-acc-list.dance-list .shop-grid{grid-template-columns:1fr}
+  /* retour Nathan (8e) : bouton Acheter/Équiper remonté dans le panneau, juste sous les tuiles (footer fixe,
+     hors zone de scroll) — trop loin des articles quand il flottait sous le perso, panneau passé à droite (7e) */
+  .acc-buy-bar{flex:0 0 auto;display:flex;gap:10px;padding-top:14px;margin-top:2px;border-top:1px solid rgba(20,24,40,.1)}
+  .acc-buy-bar .shop-cta,.acc-buy-bar .shop-badge{width:100%;justify-content:center}
+  /* retour Nathan (5e, 6e, 7e, puis 8e) : le menu masques/costumes/danses docké à droite sous son entête,
+     sur un fond carte unique (toute la section, couleur claire comme la sidebar) ; colonne flex pour garder
+     le bouton Acheter/Équiper toujours visible sous la zone de scroll (jamais caché par le défilement) */
+  .tab-acc .shop-acc-list.acc-bottom{left:auto;right:30px;top:214px;bottom:auto;width:min(30vw,320px);max-height:calc(100% - 244px);
+    padding:16px 16px 14px 14px;display:flex;flex-direction:column;
+    background:linear-gradient(158deg, rgba(255,255,255,.94), rgba(255,255,255,.74));
+    box-shadow:0 20px 54px -10px rgba(10,12,30,.28),inset 0 0 0 1px rgba(255,255,255,.6);
+    --ch:14px;clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .acc-panel-scroll{overflow-y:auto;min-height:0;padding-right:10px;scrollbar-width:thin;scrollbar-color:rgba(157,107,255,.5) transparent}
+  .acc-panel-scroll::-webkit-scrollbar{width:6px}
+  .acc-panel-scroll::-webkit-scrollbar-track{background:transparent}
+  .acc-panel-scroll::-webkit-scrollbar-thumb{background:rgba(157,107,255,.45);border-radius:3px}
+  .acc-panel-scroll::-webkit-scrollbar-thumb:hover{background:rgba(157,107,255,.7)}
+  .acc-bottom .acc-rarity-rows{gap:14px}
+  .acc-bottom .acctile{width:104px;height:104px}
+  .acc-bottom .acctile .ico{width:40px;height:40px}
+  /* masques/costumes (retour Nathan) : un badge verre dépoli discret (pas un cadre dur) derrière chaque icône,
+     groupées par rareté (Commun→Légendaire) — badge de rareté + liseré de sa couleur au-dessus de chaque groupe
+     (retour Nathan 6e : au-dessus des articles, pas sur le côté), tuiles libres de passer à la ligne si besoin. */
+  .acc-rarity-rows{display:flex;flex-direction:column;gap:12px}
+  .acc-rrow{display:flex;flex-direction:column;gap:8px}
+  .acc-rrow-head{display:flex;align-items:center;gap:10px}
+  .acc-rrow-rule{flex:1 1 auto;height:2px;border-radius:2px;background:var(--rc);opacity:.6}
+  .acc-rrow-items{display:flex;flex-wrap:wrap;gap:10px;padding:2px 2px 4px}
+  .acctile{position:relative;width:118px;height:118px;flex:0 0 auto;padding:0;border:0;cursor:pointer;overflow:visible;
+    display:flex;align-items:center;justify-content:center;background:none;color:var(--rc,var(--accent));
+    transition:transform .15s,filter .15s}
+  .acctile::before{content:"";position:absolute;inset:9%;z-index:0;border-radius:50%;
+    background:radial-gradient(circle at 50% 36%, rgba(255,255,255,.20), rgba(9,11,20,.42) 72%);
+    box-shadow:0 10px 22px -8px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.12);
+    backdrop-filter:blur(3px);transition:box-shadow .15s}
+  .acctile .ico{width:44px;height:44px;position:relative;z-index:1}
+  .acctile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;z-index:1}
+  .acctile-none{position:relative;z-index:1;font-size:36px;line-height:1;filter:grayscale(.15)}
+  .acctile:hover{transform:translateY(-3px)}
+  .acctile:hover::before{box-shadow:0 10px 22px -8px rgba(0,0,0,.45),inset 0 0 0 1px var(--rc,var(--accent))}
+  .acctile:focus-visible{outline:none}
+  .acctile:focus-visible::before{box-shadow:0 10px 22px -8px rgba(0,0,0,.45),inset 0 0 0 2px var(--rc,var(--accent))}
+  .acctile.on::before{box-shadow:0 10px 22px -8px rgba(0,0,0,.45),inset 0 0 0 2px var(--rc,var(--accent)),0 0 18px -2px var(--rc,var(--accent))}
+  .acctile-check{position:absolute;top:0;right:8px;width:18px;height:18px;color:var(--ok);z-index:2;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.7))}
+  .acctile-check .ico{width:18px;height:18px}
+  /* retour Nathan : distinguer d'un coup d'œil les articles déjà possédés de ceux à acheter —
+     non possédé = tuile assombrie + petit cadenas (coin opposé au check, les deux peuvent coexister
+     si on essaie/preview un article qu'on n'a pas encore acheté) */
+  .acctile.locked{opacity:.55}
+  .acctile.locked:hover{opacity:.85}
+  .acctile-lock{position:absolute;bottom:2px;right:6px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;
+    color:#eef1f6;background:rgba(20,22,34,.65);border-radius:50%;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .acctile-lock .ico{width:10px;height:10px}
 
 #boot-loading{
   position:fixed; inset:0; z-index:50;

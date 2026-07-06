@@ -789,20 +789,20 @@ test('#207 armes : cliquer une carte du carrousel change l arme héro', async ({
   expect(await page.evaluate(() => __game.debug.shop.previewWeapon())).toBe('sniper');
 });
 
-test('#207 accessoires : la carte masque affiche l image PNG + panneau détail avec bonus', async ({ page }) => {
+test('accessoires : la tuile masque affiche l image PNG + bouton acheter/équiper sous le perso (pas de panneau détail)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.backToHome());
   await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('accessories'); });
   expect(await page.evaluate(() => document.getElementById('shop-info').classList.contains('tab-acc'))).toBe(true);
-  // la carte "Insectoïde" affiche l'image réelle (mask/insect-viber)
+  // la tuile "Insectoïde" affiche l'image réelle (mask/insect-viber)
   const src = await page.evaluate(() => {
     const card = document.querySelector('#shop-info .shop-acc-list [data-prevacc="helm:insect"] img.thumb-img');
     return card ? card.getAttribute('src') : null;
   });
   expect(src).toContain('insect-viber');
-  // panneau détail présent avec au moins un bonus
-  await expect(page.locator('#shop-info .shop-acc-detail')).toBeVisible();
-  expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-acc-detail .acc-detail-bonuses .skill-row').length)).toBeGreaterThan(0);
+  // retour Nathan (4e) : plus de panneau détail (nom/desc/bonus) — juste Acheter/Équiper sous le perso
+  expect(await page.evaluate(() => document.querySelector('#shop-info .shop-acc-detail'))).toBeNull();
+  await expect(page.locator('#shop-info .acc-buy-bar')).toBeVisible();
 });
 
 test('perso : hero desc + stats centrées (compétences retirées, retour Nathan)', async ({ page }) => {
