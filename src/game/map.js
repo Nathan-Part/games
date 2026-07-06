@@ -196,9 +196,46 @@ const UTOPIA_BUILDING_BOXES = [
   [ 0.16,3.12,3.2,3.2],                           // salon (canapés + table basse)
   [-1.9,-5.85,5.56,2.22],                         // salle vitrée d'angle nord-ouest (fermée : porte trop étroite)
 ];
-function addUtopiaBuildingColliders(cx, cz, m){
-  for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES) addCollider(cx + m*lx, cz + m*lz, w, d);
+// #206 : porte des bâtiments du cœur = la baie vitrée frontale EXTÉRIEURE (côté opposé au centre
+// de la place — l'autre côté est bloqué dehors par canal + parterre). Baie entre meneaux :
+// lz ∈ s·[2.19, 4.28] (s = m·sign(cz)), soit z monde = cz + sign(cz)·[2.19, 4.28], largeur 2.09.
+const UTOPIA_DOOR = { zIn:2.19, zOut:4.28, xClip:3.9 };
+let utopiaDoorCount_ = 0, utopiaRoofCount_ = 0;
+export function utopiaDoorCount(){ return utopiaDoorCount_; }
+export function utopiaRoofCount(){ return utopiaRoofCount_; }
+function addUtopiaBuildingColliders(cx, cz, m, doorSide = 0){
+  for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES){
+    if(doorSide && lx === 4.36){   // vitre avant scindée autour de la baie-porte (#206)
+      addCollider(cx + m*4.36, cz + m*doorSide*(-1.105), 0.3, 6.59);   // grand pan côté centre (lz s·[-4.4, 2.19])
+      addCollider(cx + m*4.36, cz + m*doorSide*4.34, 0.3, 0.12);       // bouchon du meneau extérieur (lz s·[4.28, 4.4])
+      continue;
+    }
+    addCollider(cx + m*lx, cz + m*lz, w, d);
+  }
   noSpawnZones.push({ minX:cx-5.6, maxX:cx+5.6, minZ:cz-7.1, maxZ:cz+7.1 });   // pas de spawn ennemi dans les lobbys
+}
+// #206 : découpe visuelle de la baie-porte dans la vitre RDC (mesh *vitre0*, matériau propre
+// VerreBleu.002) — plans de clipping en espace MONDE par instance (le GLB est cloné 8× à des
+// positions/rotations différentes, le matériau est donc cloné par bâtiment), clipIntersection :
+// le fragment n'est jeté que dans l'intersection des 3 demi-espaces = le trou, bords sur les
+// meneaux. renderer.localClippingEnabled est activé côté main.js.
+function cutBuildingGlassDoor(building, cx, cz, m, s){
+  const zA = cz + m*s*UTOPIA_DOOR.zIn, zB = cz + m*s*UTOPIA_DOOR.zOut;
+  const planes = [
+    new THREE.Plane(new THREE.Vector3(0, 0, -1), Math.min(zA, zB)),      // jeté si z > zMin
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), -Math.max(zA, zB)),      // jeté si z < zMax
+    m > 0 ? new THREE.Plane(new THREE.Vector3(-1, 0, 0), cx + UTOPIA_DOOR.xClip)     // jeté si x > cx+3.9 (façade +x)
+          : new THREE.Plane(new THREE.Vector3(1, 0, 0), -(cx - UTOPIA_DOOR.xClip)),  // jeté si x < cx−3.9 (façade −x)
+  ];
+  let cut = false;
+  building.traverse(o => {
+    if(!o.isMesh || !/vitre0/.test(o.name) || Array.isArray(o.material)) return;
+    o.material = o.material.clone();
+    o.material.clippingPlanes = planes;
+    o.material.clipIntersection = true;
+    cut = true;
+  });
+  if(cut) utopiaDoorCount_++;
 }
 // Tout matériau Blender en alpha BLEND (verre des vitres, eau des canaux/rivière, feuillage alpha...)
 // charge en depthWrite:false via GLTFLoader — deux surfaces transparentes proches (ex. eau + plante,
@@ -251,7 +288,11 @@ async function buildUtopiaArena(scene){
     for(const [bx, bz, m] of UTOPIA_DATA.buildings){
       const b = await addProp('decor/utopia/building.glb', { x:bx, z:bz, scale:0.8, rotY: m < 0 ? Math.PI : 0 });
       if(b) anyBuilding = b;
-      addUtopiaBuildingColliders(bx, bz, m);
+      // #206 : 4 bâtiments du cœur (|z|<20) = halls visitables par une baie-porte ;
+      // 4 bâtiments extérieurs (z=±31.2) = toits accessibles par escalier (une seule surface par (x,z))
+      const core = Math.abs(bz) < 20, s = m * Math.sign(bz);
+      addUtopiaBuildingColliders(bx, bz, m, core ? s : 0);
+      if(core && b) cutBuildingGlassDoor(b, bx, bz, m, s);
     }
     if(!anyBuilding) throw new Error('aucun batiment utopia charge');
     // #205 : sol du blend (dalles + socle + rails + néons/inlays + médaillons plats) — remplace
@@ -324,6 +365,7 @@ export function clearArenaDecor(scene){
   groundZones.length = 0; playerSpawn.x = 0; playerSpawn.z = 0;   // #204 : sol plat + spawn origine par défaut
   MAP_BOUNDS.minX = -MAP_HALF; MAP_BOUNDS.maxX = MAP_HALF; MAP_BOUNDS.minZ = -MAP_HALF; MAP_BOUNDS.maxZ = MAP_HALF;   // #205
   decorPropCount_ = 0; decorBackdropCount_ = 0;
+  utopiaDoorCount_ = 0; utopiaRoofCount_ = 0;   // #206
 }
 
 export async function buildArena(scene, mapId = DEFAULT_MAP_ID){

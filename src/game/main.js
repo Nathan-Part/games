@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, MAP_BOUNDS, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone, groundHeight, playerSpawn } from './map.js';
+import { MAP_HALF, MAP_BOUNDS, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone, groundHeight, playerSpawn, utopiaDoorCount, utopiaRoofCount } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
 import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
@@ -251,6 +251,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;   // #206 : baies-portes/encoches découpées par clippingPlanes (map.js)
 app.appendChild(renderer.domElement);
 
 const hemi = new THREE.HemisphereLight(0x9bb6ff, 0x1a1d26, 0.9); scene.add(hemi);
@@ -368,6 +369,8 @@ G.debug.shadowHalfGet = () => (MAP_VISUALS[save.settings.mapId] || MAP_VISUALS.p
 G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
 G.debug.decorPropCount = () => decorPropCount();
 G.debug.decorBackdropCount = () => decorBackdropCount();
+G.debug.utopiaDoorCount = () => utopiaDoorCount();                              // #206 : baies-portes découpées
+G.debug.utopiaRoofCount = () => utopiaRoofCount();                              // #206 : toits accessibles
 G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; model.position.y = groundY + groundHeight(x, z); velY = 0; grounded = true; } };   // #204 : pose au sol local
 G.debug.playerFootY = () => model ? model.position.y - groundY : 0;   // #204 : hauteur des pieds au-dessus du zéro map
 

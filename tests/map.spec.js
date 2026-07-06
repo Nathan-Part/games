@@ -226,6 +226,25 @@ test('206 tuile map : la carte utopia porte background.png, pas les autres', asy
   await expect(portal).not.toHaveClass(/has-img/);
 });
 
+// ====== #206 : portes RDC des 4 batiments du coeur (baie frontale exterieure decoupee) ======
+test('206 portes : baie franchissable cote exterieur, vitre pleine au centre, 4 baies decoupees', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  // batiment est-nord (16.64, 10.4) : porte a z = 10.4 + [2.19, 4.28] sur la facade x=12.28
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.28, 13.5))).toBe(false);   // dans la baie
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.28, 10.4))).toBe(true);    // vitre pleine au droit du centre
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.28, 11.5))).toBe(true);    // grand pan cote centre
+  // batiment est-sud (16.64, -10.4) : porte symetrique (cote oppose au centre de la place)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.28, -13.5))).toBe(false);
+  // batiment ouest-nord (-16.64, 10.4) : facade a x=-12.28
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, 13.5))).toBe(false);
+  // l'interieur derriere la porte reste praticable (RdC +0.104)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(13.5, 13.5))).toBe(false);
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(13.5, 13.5))).toBeCloseTo(0.104, 3);
+  // 4 baies vitrees decoupees visuellement (clipping par instance)
+  expect(await page.evaluate(() => window.__game.debug.utopiaDoorCount())).toBe(4);
+});
+
 test('205 utopia complete : fog/ombres/far par map, tour collidee, decor pose', async ({ page }) => {
   await startPlaying(page);
   expect(await page.evaluate(() => window.__game.debug.shadowHalfGet())).toBe(20);                  // portal : historique
