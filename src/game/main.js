@@ -290,6 +290,9 @@ let model = null, mixer = null, lobbyIdle = false;
 let velY = 0, grounded = true, groundY = 0, doubleJumpAvailable = false;   // #135
 const CAM_DIST = 5.5; let camYaw = 0, camPitch = 0.25, camDist = 5.5;
 const JUMP_SPEED = 6, GRAVITY = 18;
+// #204 : sol à hauteur variable — montée ≤ STEP_UP_MAX instantanée (gradins 0.48, marches, RdC),
+// au-delà = mur ; descente > STEP_DOWN_SNAP = chute (joueur) / glisse à ENEMY_DESCENT_SPEED (ennemis)
+const STEP_UP_MAX = 0.55, STEP_DOWN_SNAP = 0.5, ENEMY_DESCENT_SPEED = 8;
 const EYE_HEIGHT = 1.62;                       // hauteur des yeux (vue 1re personne)
 let view = 'third';                            // 'third' | 'first'
 function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } // masqué en FPS (viewmodel à la place)
@@ -354,7 +357,8 @@ G.debug.playerSpawnPoint = () => ({ x: playerSpawn.x, z: playerSpawn.z });      
 G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
 G.debug.decorPropCount = () => decorPropCount();
 G.debug.decorBackdropCount = () => decorBackdropCount();
-G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; } };
+G.debug.setPos = (x, z) => { if(model){ model.position.x = x; model.position.z = z; model.position.y = groundY + groundHeight(x, z); velY = 0; grounded = true; } };   // #204 : pose au sol local
+G.debug.playerFootY = () => model ? model.position.y - groundY : 0;   // #204 : hauteur des pieds au-dessus du zéro map
 
 // ====== Assets + galerie de personnages : voir src/game/assets.js ======
 const ROOT_BONE = 'Hips';
@@ -558,6 +562,7 @@ async function startGame(){
   if(!model) await spawnModel(char);                            // sécurité (normalement déjà affiché)
   if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
   if(G.phase !== 'loading') return;   // backToHome() appelé pendant le chargement → on n'écrase pas le lobby (HUD/cibles fantômes)
+  model.position.set(playerSpawn.x, groundY + groundHeight(playerSpawn.x, playerSpawn.z), playerSpawn.z);   // #204 : spawn par map (utopia : fond de l'amphithéâtre)
   model.rotation.y = 0;
   mixer = new THREE.AnimationMixer(model);                      // mixer de jeu sur le modèle déjà chargé
   danceActionCache = {}; dancing = false; danceAction = null; meleeAnimCache = null;   // nouvelles actions de danse sur ce mixer (#27)
@@ -921,11 +926,20 @@ function updateController(dt){
     const o = pushOutCircleAABB(model.position.x, model.position.z, PLAYER_R, b);
     model.position.x = o.x; model.position.z = o.z;
   }
+  // #204 : sol à hauteur variable — montée ≤ STEP_UP_MAX instantanée, marche trop haute = mur
+  // (revert au début de frame), descente > STEP_DOWN_SNAP = passage en chute (gravité ci-dessous)
+  const gh_ = groundY + groundHeight(model.position.x, model.position.z);
+  if(gh_ - model.position.y > STEP_UP_MAX){ model.position.x = px0_; model.position.z = pz0_; }
+  else if(grounded){
+    if(model.position.y - gh_ <= STEP_DOWN_SNAP) model.position.y = gh_;
+    else { grounded = false; velY = 0; }
+  }
   // saut (vertical, gravité)
   if(!grounded){
     velY -= GRAVITY*dt;
     model.position.y += velY*dt;
-    if(model.position.y <= groundY){ model.position.y = groundY; velY = 0; grounded = true; doubleJumpAvailable = false; }   // #135 : réarmé seulement par un nouveau saut au sol
+    const landY = groundY + groundHeight(model.position.x, model.position.z);   // #204 : sol local sous le joueur
+    if(model.position.y <= landY){ model.position.y = landY; velY = 0; grounded = true; doubleJumpAvailable = false; }   // #135 : réarmé seulement par un nouveau saut au sol
   }
   setLoco(locomotionState(speed, input.sprint && !staminaDepleted));
   runDistance_ += Math.hypot(model.position.x - px0_, model.position.z - pz0_);   // #163
@@ -3852,7 +3866,7 @@ function restartGame(){
   document.getElementById('gameover').classList.add('hidden');
   endDance();                                                  // pas de danse résiduelle au restart (#27)
   resetRunBoosts();                                            // #53 : les boosts désactivés "pour la partie" reviennent au restart
-  if(model){ model.position.set(0, groundY, 0); model.rotation.y = 0; velY = 0; grounded = true; doubleJumpAvailable = false; }
+  if(model){ model.position.set(playerSpawn.x, groundY + groundHeight(playerSpawn.x, playerSpawn.z), playerSpawn.z); model.rotation.y = 0; velY = 0; grounded = true; doubleJumpAvailable = false; }   // #204 : spawn par map
   applyPlayerStats(); health = maxHealth; G.health = health; lastDamageAt = -999; updateHealthHud();
   resetRunState();       // reset commun startGame/restartGame (étape 4 — source unique)
   updateCombatHud();
