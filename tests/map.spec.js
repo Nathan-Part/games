@@ -254,6 +254,20 @@ test('206 toits : rampe praticable, toit a 9.64, parapet garde-corps moteur, ang
   expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 10.4))).toBeCloseTo(0.104, 3);
 });
 
+// ====== #206ter : bug remonte par Nathan ("marcher sur la riviere ne doit pas etre possible") ======
+// Cause racine : les segments generes (extract205.py) sont troues au droit de chaque pont sur une
+// largeur plus grande que le garde-corps du pont (z=+-1.84) — un couloir d'~1.4 m restait ouvert
+// (ni obstacle, ni zone de sol) de chaque cote, permettant de marcher sur l'eau a hauteur 0.
+test('206ter : le couloir riviere pres des ponts est bouche (plus de marche sur l eau)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  // pont central (x 40.19-50.59, rail a z=+-1.84) : le couloir z in [1.84,3.2) est desormais bloque
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(45, 3))).toBe(true);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(45, -3))).toBe(true);
+  // le pont lui-meme reste praticable (zone arch inchangee)
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(45, 0))).toBeCloseTo(0.852, 2);
+});
+
 // ====== #206 : tuile map illustree ======
 test('206 tuile map : la carte utopia porte background.png, pas les autres', async ({ page }) => {
   await page.goto('/game.html#map');

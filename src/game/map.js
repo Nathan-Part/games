@@ -395,7 +395,18 @@ async function buildUtopiaArena(scene){
     for(const [cx, cz, w, d] of UTOPIA_PROPS_COLLIDERS) addCollider(cx, cz, w, d);
     // #205 : rivière (segments troués aux ponts), garde-corps des ponts, colliders d'instance
     for(const [cx, cz, w, d] of UTOPIA_DATA.river) addCollider(cx, cz, w, d);
-    for(const b of UTOPIA_DATA.bridges) for(const [cx, cz, w, d] of b.rails) addCollider(cx, cz, w, d);
+    for(const b of UTOPIA_DATA.bridges){
+      for(const [cx, cz, w, d] of b.rails) addCollider(cx, cz, w, d);
+      // #206ter : bug remonté par Nathan ("marcher sur la rivière ne doit pas être possible") —
+      // les segments générés (extract205.py) troués au droit de chaque pont laissent un couloir
+      // ouvert d'environ 1,4 m entre le garde-corps (z=±1.84) et la reprise du collider rivière,
+      // sans obstacle NI zone de sol : on y marche sur l'eau à hauteur 0. Bouché ici par 2 pavés
+      // collider (un de chaque rive), largeur du pont, débordant largement sur les segments
+      // rivière déjà en place (chevauchement sans conséquence, juste redondant).
+      const midX = (b.minX + b.maxX) / 2, w = b.maxX - b.minX, plug = 4;
+      addCollider(midX, b.maxZ + plug/2, w, plug);
+      addCollider(midX, b.minZ - plug/2, w, plug);
+    }
     for(const [cx, cz, w, d] of UTOPIA_DATA.colliders) addCollider(cx, cz, w, d);
     // Bandes de façade fleuries des 4 nouveaux bâtiments (au cœur, le parterre les couvre déjà)
     for(const [fx, fz] of [[-10.84, 31.2], [-10.84, -31.2], [10.84, 31.2], [10.84, -31.2]])
