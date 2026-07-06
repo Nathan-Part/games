@@ -198,10 +198,13 @@ function addUtopiaBuildingColliders(cx, cz, m){
   for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES) addCollider(cx + m*lx, cz + m*lz, w, d);
   noSpawnZones.push({ minX:cx-5.6, maxX:cx+5.6, minZ:cz-7.1, maxZ:cz+7.1 });   // pas de spawn ennemi dans les lobbys
 }
-// Le verre des vitres (matériau Blender alpha BLEND) charge en depthWrite:false via GLTFLoader — les décors
-// opaques (feuillage, pots) DEVANT la vitre se trient alors mal en tri de transparence et semblent flotter
-// derrière/à l'intérieur du bâtiment. On force depthWrite pour que la vitre occlue correctement.
-function fixGlassDepthWrite(mesh){
+// Tout matériau Blender en alpha BLEND (verre des vitres, eau des canaux/rivière, feuillage alpha...)
+// charge en depthWrite:false via GLTFLoader — deux surfaces transparentes proches (ex. eau + plante,
+// verre + pot) se trient alors mal entre elles et semblent flotter l'une derrière/à travers l'autre
+// (glace "à l'intérieur" du bâtiment, lac "sous" les plantes, eau visible dans les escaliers du dessous).
+// On force depthWrite sur TOUT matériau transparent — appliqué dans addProp, donc sur chaque prop
+// de chaque map (le fix est générique, pas spécifique aux bâtiments utopia).
+function fixTransparentDepthWrite(mesh){
   mesh.traverse(o => {
     if(!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -245,7 +248,7 @@ async function buildUtopiaArena(scene){
     let anyBuilding = null;
     for(const [bx, bz, m] of UTOPIA_DATA.buildings){
       const b = await addProp('decor/utopia/building.glb', { x:bx, z:bz, scale:0.8, rotY: m < 0 ? Math.PI : 0 });
-      if(b){ fixGlassDepthWrite(b); anyBuilding = b; }
+      if(b) anyBuilding = b;
       addUtopiaBuildingColliders(bx, bz, m);
     }
     if(!anyBuilding) throw new Error('aucun batiment utopia charge');
@@ -356,6 +359,7 @@ export async function addProp(url, { x=0, z=0, y=0, scale=1, rotY=0, collider=nu
     // shadow:false pour le décor répété en grand nombre (arbres, rochers) — chaque caster GLB coûte cher
     // à projeter dans la shadow map 2048×2048 du keyLight ; réservé aux pièces architecturales (portail/ruines/château).
     mesh.traverse(o => { if(o.isMesh){ o.castShadow = shadow; o.receiveShadow = true; } });
+    fixTransparentDepthWrite(mesh);
     sceneRef.add(mesh);
     obstacleMeshes.push(mesh);
     decorPropCount_++;
