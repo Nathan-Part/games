@@ -154,6 +154,16 @@ function addUtopiaBuildingColliders(cx, cz, m){
   for(const [lx, lz, w, d] of UTOPIA_BUILDING_BOXES) addCollider(cx + m*lx, cz + m*lz, w, d);
   noSpawnZones.push({ minX:cx-5.6, maxX:cx+5.6, minZ:cz-7.1, maxZ:cz+7.1 });   // pas de spawn ennemi dans les lobbys
 }
+// Le verre des vitres (matériau Blender alpha BLEND) charge en depthWrite:false via GLTFLoader — les décors
+// opaques (feuillage, pots) DEVANT la vitre se trient alors mal en tri de transparence et semblent flotter
+// derrière/à l'intérieur du bâtiment. On force depthWrite pour que la vitre occlue correctement.
+function fixGlassDepthWrite(mesh){
+  mesh.traverse(o => {
+    if(!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for(const m of mats) if(m && m.transparent) m.depthWrite = true;
+  });
+}
 const utopiaMat = {
   marble: () => new THREE.MeshStandardMaterial({ color:0xe9edf4, roughness:0.4, metalness:0.05 }),
   padDark:() => new THREE.MeshStandardMaterial({ color:0x2b3138, roughness:0.5, metalness:0.3 }),
@@ -169,6 +179,7 @@ async function buildUtopiaArena(scene){
     const bEN = await addProp('decor/utopia/building.glb', { x: 16.64, z:-10.4, scale:0.8, rotY:Math.PI });
     const bES = await addProp('decor/utopia/building.glb', { x: 16.64, z: 10.4, scale:0.8, rotY:Math.PI });
     if(!bWN && !bWS && !bEN && !bES) throw new Error('aucun batiment utopia charge');
+    for(const b of [bWN, bWS, bEN, bES]) if(b) fixGlassDepthWrite(b);
     addUtopiaBuildingColliders(-16.64, -10.4, 1); addUtopiaBuildingColliders(-16.64, 10.4, 1);
     addUtopiaBuildingColliders( 16.64, -10.4,-1); addUtopiaBuildingColliders( 16.64, 10.4,-1);
     // Sol dallé clair avec trous au droit des canaux (l'eau des GLB est en contrebas)
