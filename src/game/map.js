@@ -285,6 +285,12 @@ function addUtopiaRoofStairs(cx, cz, m){
   }
   inst.castShadow = inst.receiveShadow = true;
   sceneRef.add(inst); obstacleMeshes.push(inst);
+  // #206bis : garde-corps solide sur le flanc EXTÉRIEUR de l'escalier (collider AABB normal,
+  // résolu par pushOutCircleAABB AVANT le test de hauteur de sol) — sans lui, un joueur qui longe
+  // le dos du bâtiment et entre dans le couloir de la rampe PAR LE CÔTÉ fait sauter groundHeight de
+  // 0 à plusieurs mètres d'un coup (>STEP_UP_MAX), ce qui annule tout mouvement de la frame en
+  // boucle = mur invisible ("bloqué, ne peut pas avancer"). Le couloir reste praticable de face.
+  addCollider(cx + m*R.stairOut, z0 + s*(R.zHalf + R.notchZ)/2, 0.3, R.zHalf + R.notchZ);
   for(const lz of [5.0, -5.0]){   // jardinières d'angle (embouchure de la colonnade)
     const px = cx + m*5.0, pz = cz + m*lz;
     const socle = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.85, 1.1), planterMat_);

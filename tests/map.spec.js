@@ -214,6 +214,20 @@ test('205 utopia complete : 8 lobbys, batiments exterieurs presents (BatG0 = toi
   expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-16.64, 31.2))).toBe(true);    // empreinte BatG0 protegee
 });
 
+// ====== #206bis : bug remonte par Nathan ("bloque, ne peut pas avancer" sur le toit) ======
+// Cause racine (reproduite en mouvement reel, pas en teleportation) : approcher la cage
+// d'escalier PAR LE COTE fait sauter groundHeight de 0 a plusieurs metres d'un coup (> STEP_UP_MAX),
+// ce qui annule tout le deplacement de la frame en boucle = mur invisible. Fix : garde-corps solide
+// sur le flanc EXTERIEUR de chaque escalier (le joueur bute normalement dessus au lieu du a-coup).
+test('206bis : garde-corps solide sur le flanc exterieur de l escalier (evite le mur invisible)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  // BatG0 (-16.64,31.2,m=1) : flanc exterieur x = cx + m*stairOut = -23.94, mi-hauteur de la rampe z=30.32
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-23.94, 30.32))).toBe(true);
+  // le couloir de la rampe reste libre (approche frontale toujours praticable)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-23, 30.32))).toBe(false);
+});
+
 // ====== #206 : toits accessibles des 4 batiments exterieurs (escalier code + zones moteur) ======
 test('206 toits : rampe praticable, toit a 9.64, parapet garde-corps moteur, angles condamnes', async ({ page }) => {
   await startPlaying(page);
