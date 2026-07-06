@@ -1024,3 +1024,37 @@ test('#158 : le HUD entrainement est visible en entrainement, masque au retour m
   await page.evaluate(() => __game.debug.backToHome());
   expect(await page.evaluate(() => document.getElementById('training-hud').classList.contains('hidden'))).toBe(true);
 });
+
+// ====== Degats de chute (demande Nathan, coherence avec les toits #206 sans garde-corps) ======
+test('chute : aucun degat sous la hauteur de securite (petit saut/petite marche)', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.fallDamageFor(1))).toBe(0);
+  expect(await page.evaluate(() => __game.debug.fallDamageFor(3))).toBe(0);
+});
+
+test('chute : degats proportionnels au-dela de la hauteur de securite, plafonnes', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => __game.debug.fallDamageFor(5))).toBe(10);    // (5-3)*5
+  expect(await page.evaluate(() => __game.debug.fallDamageFor(9.64))).toBe(33); // toit #206, (9.64-3)*5 arrondi
+  expect(await page.evaluate(() => __game.debug.fallDamageFor(100))).toBe(40);  // plafond, jamais letal a lui seul
+});
+
+test('chute : une vraie chute depuis une grande hauteur inflige les degats a l atterrissage', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));   // le bouclier absorbe sinon (memoire projet)
+  const before = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.forceFallFrom(15));
+  await page.waitForTimeout(1500);   // laisse la gravite ramener le joueur au sol
+  const after = await page.evaluate(() => __game.debug.playerHealth());
+  expect(after).toBeLessThan(before);
+});
+
+test('chute : sauter normalement (petite hauteur) n inflige aucun degat', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.setShield(0));
+  const before = await page.evaluate(() => __game.debug.playerHealth());
+  await page.evaluate(() => __game.debug.jump());
+  await page.waitForTimeout(1200);
+  const after = await page.evaluate(() => __game.debug.playerHealth());
+  expect(after).toBe(before);
+});

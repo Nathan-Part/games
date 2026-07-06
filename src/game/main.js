@@ -296,6 +296,13 @@ const JUMP_SPEED = 6, GRAVITY = 18;
 // #204 : sol à hauteur variable — montée ≤ STEP_UP_MAX instantanée (gradins 0.48, marches, RdC),
 // au-delà = mur ; descente > STEP_DOWN_SNAP = chute (joueur) / glisse à ENEMY_DESCENT_SPEED (ennemis)
 const STEP_UP_MAX = 0.55, STEP_DOWN_SNAP = 0.5, ENEMY_DESCENT_SPEED = 8;
+// Dégâts de chute (demande Nathan, cohérence avec les toits #206 à 9.64 m sans garde-corps côté
+// escalier) : aucun dégât sous FALL_SAFE (sauts normaux ~1 m, petites marches) ; au-delà, dégâts
+// proportionnels à la hauteur de chute, plafonnés (jamais léthal à eux seuls). airPeakY_ suit le
+// point le plus haut atteint pendant la phase aérienne (init paresseuse dans updateController —
+// couvre saut ET pas dans le vide, sans toucher les handlers de saut).
+const FALL_SAFE = 3.0, FALL_DMG_PER_M = 5, FALL_DMG_MAX = 40;
+let airPeakY_ = null;
 const EYE_HEIGHT = 1.62;                       // hauteur des yeux (vue 1re personne)
 let view = 'third';                            // 'third' | 'first'
 function applyViewVisibility(){ if(model) model.visible = (view === 'third'); } // masqué en FPS (viewmodel à la place)
@@ -965,10 +972,16 @@ function updateController(dt){
   }
   // saut (vertical, gravité)
   if(!grounded){
+    if(airPeakY_ === null || model.position.y > airPeakY_) airPeakY_ = model.position.y;   // sommet de la phase aérienne (saut ou pas dans le vide)
     velY -= GRAVITY*dt;
     model.position.y += velY*dt;
     const landY = groundY + groundHeight(model.position.x, model.position.z);   // #204 : sol local sous le joueur
-    if(model.position.y <= landY){ model.position.y = landY; velY = 0; grounded = true; doubleJumpAvailable = false; }   // #135 : réarmé seulement par un nouveau saut au sol
+    if(model.position.y <= landY){
+      const fallDist = airPeakY_ - landY;
+      model.position.y = landY; velY = 0; grounded = true; doubleJumpAvailable = false;   // #135 : réarmé seulement par un nouveau saut au sol
+      if(fallDist > FALL_SAFE) damagePlayer(Math.min(FALL_DMG_MAX, Math.round((fallDist - FALL_SAFE) * FALL_DMG_PER_M)));
+      airPeakY_ = null;
+    }
   }
   setLoco(locomotionState(speed, input.sprint && !staminaDepleted));
   runDistance_ += Math.hypot(model.position.x - px0_, model.position.z - pz0_);   // #163
@@ -3655,6 +3668,8 @@ function updateHealth(dt){
 }
 G.debug.damagePlayer = (a) => damagePlayer(a);
 G.debug.playerHealth = () => health;
+G.debug.forceFallFrom = (y) => { if(!model) return; model.position.y = y; grounded = false; airPeakY_ = null; };   // dégâts de chute : place le joueur en l'air, la gravité fait le reste
+G.debug.fallDamageFor = (h) => h <= FALL_SAFE ? 0 : Math.min(FALL_DMG_MAX, Math.round((h - FALL_SAFE) * FALL_DMG_PER_M));   // formule pure (tests)
 G.debug.secondWindAvailable = () => !secondWindUsed;
 G.debug.secondWindUsed = () => secondWindUsed;
 G.debug.secondWindInvulnActive = () => nowS() < secondWindInvulnUntil;
