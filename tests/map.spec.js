@@ -165,7 +165,7 @@ test('utopia : les interieurs de batiments sont interdits au spawn ennemi', asyn
   await startPlaying(page);
   expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(0);       // portal : aucune zone
   await page.evaluate(() => window.__game.debug.setMapId('utopia'));
-  expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(4);       // 4 lobbys proteges
+  expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(8);       // #205 : 8 lobbys proteges (map complete)
   expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-14.6, -13))).toBe(true);  // interieur NW
   expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(0, 0))).toBe(false);       // place libre
 });
@@ -202,4 +202,24 @@ test('utopia : si le decor echoue, fallback arene urbaine', async ({ page }) => 
   await page.evaluate(() => window.__game.debug.setMapId('utopia'));
   expect(await page.evaluate(() => window.__game.debug.mapId())).toBe('utopia');
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-5, 6))).toBe(true);        // caisse arene urbaine
+});
+
+// ====== #205 map utopia complete (esplanade entiere, 8 batiments, tour, fog/ombres par map) ======
+test('205 utopia complete : 8 lobbys, nouveau batiment BatG0 visitable, RdC a +0.104', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.noSpawnZoneCount())).toBe(8);
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.3, 36.2))).toBe(false);  // entree angle BatG0 (offset des tests #203 : bz+5.0)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.28, 31.2))).toBe(true);  // vitre avant pleine BatG0
+  expect(await page.evaluate(() => window.__game.debug.groundHeightAt(-16.64, 31.2))).toBeCloseTo(0.104, 3);
+  expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-16.64, 31.2))).toBe(true);    // lobby BatG0 protege
+});
+
+test('205 utopia complete : fog/ombres/far par map, tour collidee, decor pose', async ({ page }) => {
+  await startPlaying(page);
+  expect(await page.evaluate(() => window.__game.debug.shadowHalfGet())).toBe(20);                  // portal : historique
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.shadowHalfGet())).toBe(100);
+  expect(await page.evaluate(() => window.__game.debug.decorPropCount())).toBeGreaterThanOrEqual(13); // 8 batiments + sol/place/riviere/collines/vegetation/avenue/tour/plaza/passerelles/drone
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-57.6, 0))).toBe(true);      // emprise de la tour SW
 });

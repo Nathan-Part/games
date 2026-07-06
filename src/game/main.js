@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone, groundHeight, playerSpawn } from './map.js';
+import { MAP_HALF, MAP_BOUNDS, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone, groundHeight, playerSpawn } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
 import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
@@ -236,7 +236,9 @@ const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog, SHOP_BG = new
 const MAP_VISUALS = {
   portal: { bg:0x0a0a16, fog:[0x0a0a16,18,60],   grid:false, stars:true,  hemi:0.9, key:[0xfff2e0,2.4] },
   urban:  { bg:0x0a0a16, fog:[0x0a0a16,18,60],   grid:true,  stars:true,  hemi:0.9, key:[0xfff2e0,2.4] },
-  utopia: { bg:0xbfdcff, fog:[0xdceafc,34,110],  grid:false, stars:false, hemi:1.6, key:[0xfff8ec,3.0], sky:'decor/utopia/skybox.jpg' },
+  // #205 : map complète — fog lointain (esplanade 153×185), ombres élargies, far caméra poussé,
+  // sol bitume urbain masqué (utopia apporte son propre sol GLB, coplanaire sinon)
+  utopia: { bg:0xbfdcff, fog:[0xdceafc,60,260],  grid:false, stars:false, hemi:1.6, key:[0xfff8ec,3.0], sky:'decor/utopia/skybox.jpg', shadowHalf:100, far:420, urbanGround:false },
 };
 let matchBg_ = SCENE_BG, matchFog_ = SCENE_FOG, matchHemi_ = 0.9;
 const skyCache_ = {};   // url -> Texture équirect (chargée une fois, survit aux switchs de map)
@@ -312,6 +314,13 @@ function applyMapVisuals(mapId){   // #203 : ambiance de match par map (fond/fog
   matchHemi_ = v.hemi;
   keyLight.color.setHex(v.key[0]); keyLight.intensity = v.key[1];
   grid.visible = !!v.grid; stars.visible = !!v.stars;
+  // #205 : ombres + far caméra par map (grande esplanade utopia)
+  const sh = v.shadowHalf || 20;
+  keyLight.shadow.camera.left = -sh; keyLight.shadow.camera.right = sh;
+  keyLight.shadow.camera.top = sh; keyLight.shadow.camera.bottom = -sh;
+  keyLight.shadow.camera.far = sh >= 100 ? 280 : 60;
+  keyLight.shadow.camera.updateProjectionMatrix();
+  camera.far = v.far || 200; camera.updateProjectionMatrix();
   // NB : appelée au boot avant l'état boutique/lobby → ne PAS appeler updateShopScene ici ;
   // c'est elle qui relira matchBg_/matchFog_/matchHemi_ à chaque changement d'état.
   if(v.sky){   // skybox panoramique : remplace la couleur unie une fois chargée (résilient : couleur sinon)
@@ -354,6 +363,8 @@ G.debug.mapList = () => MAPS.map(m => m.id);
 G.debug.setMapId = (id) => switchMap(id);
 G.debug.groundHeightAt = (x, z) => groundHeight(x, z);                          // #204 (pur)
 G.debug.playerSpawnPoint = () => ({ x: playerSpawn.x, z: playerSpawn.z });      // #204
+G.debug.mapBoundsGet = () => ({ ...MAP_BOUNDS });                               // #205
+G.debug.shadowHalfGet = () => (MAP_VISUALS[save.settings.mapId] || MAP_VISUALS.portal).shadowHalf || 20;   // #205
 G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
 G.debug.decorPropCount = () => decorPropCount();
 G.debug.decorBackdropCount = () => decorBackdropCount();
@@ -918,9 +929,9 @@ function updateController(dt){
     if(staminaDepleted && stamina>=STAMINA_MIN_RUN) staminaDepleted=false;
     updateStaminaHud();
   }
-  // bornes de map
-  model.position.x = Math.max(-MAP_HALF, Math.min(MAP_HALF, model.position.x));
-  model.position.z = Math.max(-MAP_HALF, Math.min(MAP_HALF, model.position.z));
+  // bornes de map (#205 : rectangulaires, par map)
+  model.position.x = Math.max(MAP_BOUNDS.minX, Math.min(MAP_BOUNDS.maxX, model.position.x));
+  model.position.z = Math.max(MAP_BOUNDS.minZ, Math.min(MAP_BOUNDS.maxZ, model.position.z));
   // collision obstacles
   for(const b of obstacles){
     const o = pushOutCircleAABB(model.position.x, model.position.z, PLAYER_R, b);
@@ -1248,7 +1259,7 @@ function updateShopScene(){   // boutique => scène CLAIRE ; lobby => vitrine TR
   const weaponsView = shopOpen && shopTab === 'weapons';
   const studioView = shopOpen && (shopTab === 'weapons' || shopTab === 'player');   // vitrine 3D centrée (arme ou perso)
   const lobbyView = !shopOpen && G.phase === 'lobby';     // accueil : perso seul au-dessus du podium de l'image de fond
-  ground.visible = !studioView && !lobbyView;
+  ground.visible = !studioView && !lobbyView && (MAP_VISUALS[save.settings.mapId]?.urbanGround !== false);   // #205 : utopia a son propre sol GLB
   const mv = MAP_VISUALS[save.settings.mapId] || MAP_VISUALS.portal;   // #203 : grille/étoiles selon la map
   grid.visible = !!mv.grid && !shopOpen && !lobbyView;
   stars.visible = !!mv.stars && !shopOpen && !lobbyView;
@@ -4207,8 +4218,8 @@ function randomSpawn(){
   let best = null, horsObstacle = null;
   for(let attempt = 0; attempt < 12; attempt++){
     const a = Math.random()*Math.PI*2, r = DETECT_RADIUS + 3 + Math.random()*6;
-    const x = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, px + Math.cos(a)*r));
-    const z = Math.max(-MAP_HALF*0.95, Math.min(MAP_HALF*0.95, pz + Math.sin(a)*r));
+    const x = Math.max(MAP_BOUNDS.minX*0.97, Math.min(MAP_BOUNDS.maxX*0.97, px + Math.cos(a)*r));   // #205 : bornes par map
+    const z = Math.max(MAP_BOUNDS.minZ*0.97, Math.min(MAP_BOUNDS.maxZ*0.97, pz + Math.sin(a)*r));
     if(!best) best = { x, z };
     if(pointInObstacle(x, z)) continue;
     if(!inNoSpawnZone(x, z)) return { x, z };            // idéal : ni obstacle, ni intérieur de bâtiment (#203)
@@ -4371,6 +4382,9 @@ function updateEnemies(dt){
         moveToward(e, e.target.x, e.target.z, ENEMY_WALK*spec.speedMult, dt); desired = 'walk'; }
     }
     clampEnemy(e);
+    // #205 : les ennemis restent dans les bornes de la map (poursuite/flank aux abords du bord)
+    e.root.position.x = Math.max(MAP_BOUNDS.minX, Math.min(MAP_BOUNDS.maxX, e.root.position.x));
+    e.root.position.z = Math.max(MAP_BOUNDS.minZ, Math.min(MAP_BOUNDS.maxZ, e.root.position.z));
     // #204 : suivi du sol — marche trop haute = mur (revert vers ex/ez de début de frame, la
     // déviation anti-blocage fera longer la paroi) ; montée ≤ STEP_UP_MAX instantanée ;
     // descente lissée à ENEMY_DESCENT_SPEED (pas de gravité ennemie, suffisant pour 1.92 m).
@@ -5252,6 +5266,7 @@ const pet = initPet({
   enemies, damageEnemy,
   obstacles, MAP_HALF, pushOutCircleAABB,
   groundHeight,   // #204 : le chien suit le sol à hauteur variable
+  MAP_BOUNDS,     // #205 : bornes par map
   registerFeature,
 });
 G.debug.petLoaded = () => pet.loaded();

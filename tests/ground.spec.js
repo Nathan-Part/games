@@ -13,7 +13,8 @@ const toUtopia = async (page) => {
 test('204 groundHeight utopia : fond, gradins, rampe, rive, RdC', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => window.__game.debug.setMapId('utopia'));
-  expect(await gh(page, 2, 2)).toBeCloseTo(-1.92, 2);           // fond
+  expect(await gh(page, 2, 2)).toBeCloseTo(-1.744, 2);          // socle du médaillon (#205 : fond +0.176, r≤3.44)
+  expect(await gh(page, 4, 4)).toBeCloseTo(-1.92, 2);           // fond nu (hors socle)
   expect(await gh(page, 5.4, 5.4)).toBeCloseTo(-1.44, 2);       // gradin 1 (diagonale, r≈7.64)
   expect(await gh(page, 5.8, 5.8)).toBeCloseTo(-0.96, 2);       // gradin 2 (r≈8.20)
   expect(await gh(page, 6.3, 6.3)).toBeCloseTo(-0.48, 2);       // gradin 3 (r≈8.91)
@@ -60,7 +61,7 @@ test('204 joueur : spawn utopia au fond de l\'amphithéâtre, y suit le sol via 
   await toUtopia(page);
   const p = await page.evaluate(() => window.__game.position());
   expect(Math.hypot(p.x - 0, p.z - 3)).toBeLessThan(0.6);                 // spawn (0,3)
-  expect(await page.evaluate(() => window.__game.debug.playerFootY())).toBeCloseTo(-1.92, 1);
+  expect(await page.evaluate(() => window.__game.debug.playerFootY())).toBeCloseTo(-1.744, 1);   // #205 : sur le socle du médaillon
   await page.evaluate(() => window.__game.debug.setPos(12, 0));           // rive
   expect(await page.evaluate(() => window.__game.debug.playerFootY())).toBeCloseTo(0, 1);
   await page.evaluate(() => window.__game.debug.setPos(5.8, 5.8));        // gradin 2
@@ -97,7 +98,7 @@ test('204 joueur : saut depuis la rive vers la fosse atterrit sur une surface ba
 test('204 ennemis : spawn/moveEnemy suivent le sol', async ({ page }) => {
   await startPlaying(page);
   await toUtopia(page);
-  await page.evaluate(() => window.__game.debug.spawnEnemyTypeAt(0, 'shooter', 2, -2));
+  await page.evaluate(() => window.__game.debug.spawnEnemyTypeAt(0, 'shooter', 4, -4));
   expect((await page.evaluate(() => window.__game.debug.enemyPos(0))).y).toBeCloseTo(-1.92, 1);
   await page.evaluate(() => window.__game.debug.moveEnemy(0, 14, 0));
   expect((await page.evaluate(() => window.__game.debug.enemyPos(0))).y).toBeCloseTo(0, 1);
@@ -121,7 +122,7 @@ test('204 chien : le pet se pose sur le sol de la fosse et de la rive', async ({
   await page.waitForFunction(() => window.__game.debug.petVisible(), null, { timeout: 15000 });
   await page.evaluate(() => window.__game.debug.petSetPos(12, 0));
   const yRive = (await page.evaluate(() => window.__game.debug.petPos())).y;
-  await page.evaluate(() => window.__game.debug.petSetPos(2, 2));
+  await page.evaluate(() => window.__game.debug.petSetPos(4, 4));   // fond nu (le socle #205 couvre r≤3.44)
   const yFond = (await page.evaluate(() => window.__game.debug.petPos())).y;
   expect(yRive - yFond).toBeCloseTo(1.92, 1);
 });
@@ -131,9 +132,9 @@ test('204 chien : le pet se pose sur le sol de la fosse et de la rive', async ({
 test('204 objets : pack de soin et zone de poison posés au fond de la fosse', async ({ page }) => {
   await startPlaying(page);
   await toUtopia(page);
-  await page.evaluate(() => window.__game.debug.spawnHealthPack(2, -2));
+  await page.evaluate(() => window.__game.debug.spawnHealthPack(4, -4));
   expect(await page.evaluate(() => window.__game.debug.healthPackY(0))).toBeLessThan(-1.5);
-  await page.evaluate(() => window.__game.debug.spawnPoisonZoneAt(2, -2));
+  await page.evaluate(() => window.__game.debug.spawnPoisonZoneAt(4, -4));
   expect(await page.evaluate(() => window.__game.debug.poisonZoneMeshY())).toBeCloseTo(-1.87, 1);
 });
 
@@ -144,4 +145,40 @@ test('204 objets : sur portal, packs et zones restent au niveau 0 (régression)'
   expect(y).toBeGreaterThan(-0.1); expect(y).toBeLessThan(0.2);
   await page.evaluate(() => window.__game.debug.spawnPoisonZoneAt(2, -2));
   expect(await page.evaluate(() => window.__game.debug.poisonZoneMeshY())).toBeCloseTo(0.05, 2);
+});
+
+// ====== Tranche #205 : map utopia complète (bornes, ponts en arche, collines, rivière) ======
+
+test('205 groundHeight : ponts en arche et collines en grilles', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  const apex = await gh(page, 45.39, 0);                    // sommet du pont Central
+  expect(apex).toBeGreaterThan(0.7); expect(apex).toBeLessThan(1.0);
+  const end = await gh(page, 40.6, 0);                      // proche de l'extrémité ouest du tablier
+  expect(end).toBeGreaterThan(0.1); expect(end).toBeLessThan(0.45);
+  const hill = await gh(page, -32, 69.6);                   // cœur de la colline SO (grille)
+  expect(hill).toBeGreaterThan(3);
+  expect(await gh(page, -32, 40)).toBe(0);                  // esplanade hors grille
+  expect(await gh(page, 57.6, 0)).toBeCloseTo(0.176, 2);    // médaillon plat du rond-point est
+});
+
+test('205 rivière : eau infranchissable hors ponts, tablier libre, vitres collidées', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(48.17, -20.8))).toBe(true); // eau (segment du méandre)
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(45.39, 0))).toBe(false);    // tablier du pont Central
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(45.39, 1.8))).toBe(true);   // garde-corps vitré du pont
+});
+
+test('205 bornes par map : utopia large (clampé), portal historique', async ({ page }) => {
+  await startPlaying(page);
+  expect((await page.evaluate(() => window.__game.debug.mapBoundsGet())).maxX).toBe(24);
+  await page.evaluate(() => window.__game.debug.setMapId('utopia'));
+  expect(await page.evaluate(() => window.__game.debug.mapBoundsGet()))
+    .toEqual({ minX: -76.3, maxX: 76.3, minZ: -92.3, maxZ: 92.3 });
+  await page.evaluate(() => window.__game.debug.restart());
+  await page.evaluate(() => window.__game.debug.setPos(70, 0));            // rive est, au-delà de la rivière
+  expect(await page.evaluate(() => window.__game.debug.playerFootY())).toBeCloseTo(0, 1);
+  await page.evaluate(() => window.__game.debug.setPos(100, 0));           // hors bornes → clamp à la frame suivante
+  await page.waitForFunction(() => window.__game.position().x <= 76.31, null, { timeout: 5000 });
 });

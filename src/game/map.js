@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { UTOPIA_DATA } from './map-utopia-data.js';   // #205 : données générées depuis le blend (rivière/collines/colliders/ponts)
 
 export const MAP_HALF = 24;
 export const obstacles = [], obstacleMeshes = [];
@@ -14,6 +15,9 @@ export function inNoSpawnZone(x, z){ return noSpawnZones.some(b => x>=b.minX && 
 // (portal/urban/fallback) = sol plat 0 partout, comportement historique inchangé.
 export const groundZones = [];
 export const playerSpawn = { x:0, z:0 };   // point d'apparition du joueur (muté par les builds, ex. utopia (0,3))
+// #205 : bornes rectangulaires par map (mutées par les builds, reset ±MAP_HALF) — suivies par
+// le clamp joueur, randomSpawn, le clamp ennemi et le pet.
+export const MAP_BOUNDS = { minX:-MAP_HALF, maxX:MAP_HALF, minZ:-MAP_HALF, maxZ:MAP_HALF };
 export function groundHeight(x, z){
   for(const g of groundZones){
     if(g.kind === 'rect'){ if(x>=g.minX && x<=g.maxX && z>=g.minZ && z<=g.maxZ) return g.y; }
@@ -22,6 +26,24 @@ export function groundHeight(x, z){
         const c = (g.axis === 'x') ? x : z;
         const t = Math.max(0, Math.min(1, (c - g.c0) / (g.c1 - g.c0)));
         return g.y0 + (g.y1 - g.y0) * t;
+      }
+    }
+    else if(g.kind === 'arch'){                                   // #205 : pont en arche (parabole le long d'un axe)
+      if(x>=g.minX && x<=g.maxX && z>=g.minZ && z<=g.maxZ){
+        const c = (g.axis === 'x') ? x : z;
+        const t = Math.max(0, Math.min(1, (c - g.c0) / (g.c1 - g.c0)));
+        const u = 2*t - 1;
+        return g.yEnd + (g.yApex - g.yEnd) * (1 - u*u);
+      }
+    }
+    else if(g.kind === 'grid'){                                   // #205 : grille de hauteurs bilinéaire (collines)
+      if(x>=g.minX && x<=g.maxX && z>=g.minZ && z<=g.maxZ){
+        const fx = (x - g.minX) / (g.maxX - g.minX) * (g.nx - 1);
+        const fz = (z - g.minZ) / (g.maxZ - g.minZ) * (g.nz - 1);
+        const ix = Math.min(g.nx - 2, Math.floor(fx)), iz = Math.min(g.nz - 2, Math.floor(fz));
+        const tx = fx - ix, tz = fz - iz, D = g.data, n = g.nx;
+        return D[iz*n+ix]*(1-tx)*(1-tz) + D[iz*n+ix+1]*tx*(1-tz)
+             + D[(iz+1)*n+ix]*(1-tx)*tz + D[(iz+1)*n+ix+1]*tx*tz;
       }
     } else {                                                      // disk / ring (centrés sur g.x, g.z)
       const r = Math.hypot(x - g.x, z - g.z);
@@ -186,11 +208,6 @@ function fixGlassDepthWrite(mesh){
     for(const m of mats) if(m && m.transparent) m.depthWrite = true;
   });
 }
-const utopiaMat = {
-  marble: () => new THREE.MeshStandardMaterial({ color:0xe9edf4, roughness:0.4, metalness:0.05 }),
-  padDark:() => new THREE.MeshStandardMaterial({ color:0x2b3138, roughness:0.5, metalness:0.3 }),
-  neon:   () => new THREE.MeshStandardMaterial({ color:0x9fdcff, emissive:0x66ccff, emissiveIntensity:1.4, roughness:0.4 }),
-};
 // #204 : place-amphithéâtre enfoncée (mesures blend ×0.8) — fond −1.92, 3 gradins de 0.48,
 // trou/rive du sol dallé à r=9.18 (frontière moteur = frontière visuelle), 4 escaliers cardinaux
 // rendus praticables par des rampes lisses (le pas visuel de 0.24 ne mérite pas des marches moteur).
@@ -198,6 +215,8 @@ const AMPHI = { rFond:7.24, r1:7.92, r2:8.60, rHole:9.18, yFond:-1.92, y1:-1.44,
                 stairHw:1.36, stairIn:6.88, rampFrom:7.02 };
 function pushUtopiaGroundZones(){
   const Z = groundZones, A = AMPHI;
+  // Socle du médaillon central (place.glb v2) AVANT tout : +0.176 au-dessus du fond, r 3.44
+  Z.push({ kind:'disk', x:0, z:0, r:3.44, y:A.yFond + 0.176 });
   // 4 escaliers (rampes) AVANT les anneaux : dans leur rectangle, la rampe prime sur les gradins
   Z.push({ kind:'ramp', minX: A.stairIn, maxX: A.rHole, minZ:-A.stairHw, maxZ: A.stairHw, axis:'x', c0: A.rampFrom, c1: A.rHole, y0:A.yFond, y1:0 });
   Z.push({ kind:'ramp', minX:-A.rHole, maxX:-A.stairIn, minZ:-A.stairHw, maxZ: A.stairHw, axis:'x', c0:-A.rampFrom, c1:-A.rHole, y0:A.yFond, y1:0 });
@@ -207,75 +226,58 @@ function pushUtopiaGroundZones(){
   Z.push({ kind:'ring', x:0, z:0, r0:A.r1, r1:A.r2, y:A.y2 });
   Z.push({ kind:'ring', x:0, z:0, r0:A.r2, r1:A.rHole, y:A.y3 });
   Z.push({ kind:'disk', x:0, z:0, r:A.rFond, y:A.yFond });
-  // RdC des 4 bâtiments : dalle du blend à z=0.13 → terrasse +0.104 en jeu
-  for(const [bx, bz] of [[-16.64,-10.4],[-16.64,10.4],[16.64,-10.4],[16.64,10.4]])
+  // #205 : ponts en arche + collines (grilles) + médaillons plats des ronds-points
+  for(const b of UTOPIA_DATA.bridges)
+    Z.push({ kind:'arch', minX:b.minX, maxX:b.maxX, minZ:b.minZ, maxZ:b.maxZ, axis:b.axis, c0:b.c0, c1:b.c1, yEnd:b.yEnd, yApex:b.yApex });
+  for(const h of UTOPIA_DATA.hills)
+    Z.push({ kind:'grid', minX:h.minX, maxX:h.maxX, minZ:h.minZ, maxZ:h.maxZ, nx:h.nx, nz:h.nz, data:h.data });
+  for(const m of UTOPIA_DATA.medallions)
+    Z.push({ kind:'disk', x:m.x, z:m.z, r:m.r, y:0.176 });
+  // RdC des 8 bâtiments : dalle du blend à z=0.13 → terrasse +0.104 en jeu
+  for(const [bx, bz] of UTOPIA_DATA.buildings)
     Z.push({ kind:'rect', minX:bx-4.16, maxX:bx+4.16, minZ:bz-5.76, maxZ:bz+5.76, y:0.104 });
 }
 async function buildUtopiaArena(scene){
   sceneRef = scene;
   try {
     if(typeof window !== 'undefined' && window.__FORCE_DECOR_FAIL__) throw new Error('decor force-fail (test)');
-    // Bâtiments d'abord : sans eux la map n'a pas de sens → fallback si aucun ne charge
-    const bWN = await addProp('decor/utopia/building.glb', { x:-16.64, z:-10.4, scale:0.8 });
-    const bWS = await addProp('decor/utopia/building.glb', { x:-16.64, z: 10.4, scale:0.8 });
-    const bEN = await addProp('decor/utopia/building.glb', { x: 16.64, z:-10.4, scale:0.8, rotY:Math.PI });
-    const bES = await addProp('decor/utopia/building.glb', { x: 16.64, z: 10.4, scale:0.8, rotY:Math.PI });
-    if(!bWN && !bWS && !bEN && !bES) throw new Error('aucun batiment utopia charge');
-    for(const b of [bWN, bWS, bEN, bES]) if(b) fixGlassDepthWrite(b);
-    addUtopiaBuildingColliders(-16.64, -10.4, 1); addUtopiaBuildingColliders(-16.64, 10.4, 1);
-    addUtopiaBuildingColliders( 16.64, -10.4,-1); addUtopiaBuildingColliders( 16.64, 10.4,-1);
-    // #204 : amphithéâtre GLB (fond/gradins/escaliers/néons + stèle) — chargé AVANT le sol pour
-    // décider du perçage ; s'il manque (réseau), la map reste plate comme en #203 (résilience).
+    // #205 : bâtiments ×8 (mêmes GLB/colliders, 4 nouveaux à z=±31.2) — aucun chargé → fallback
+    let anyBuilding = null;
+    for(const [bx, bz, m] of UTOPIA_DATA.buildings){
+      const b = await addProp('decor/utopia/building.glb', { x:bx, z:bz, scale:0.8, rotY: m < 0 ? Math.PI : 0 });
+      if(b){ fixGlassDepthWrite(b); anyBuilding = b; }
+      addUtopiaBuildingColliders(bx, bz, m);
+    }
+    if(!anyBuilding) throw new Error('aucun batiment utopia charge');
+    // #205 : sol du blend (dalles + socle + rails + néons/inlays + médaillons plats) — remplace
+    // ENTIÈREMENT le sol code, les parapets d'enceinte v1 et la paroi de rive #204. Sans lui la
+    // map n'a pas de sol → fallback. Idem place.glb (sinon le trou d'amphithéâtre serait un puits nu).
+    const solGlb = await addProp('decor/utopia/sol.glb', { x:0, z:0, scale:0.8, shadow:false });
+    if(!solGlb) throw new Error('sol utopia manquant');
     const placeGlb = await addProp('decor/utopia/place.glb', { x:0, z:0, scale:0.8, shadow:false });
-    // Sol dallé clair avec trous au droit des canaux (l'eau des GLB est en contrebas)
-    const shape = new THREE.Shape();
-    shape.moveTo(-MAP_HALF, -MAP_HALF); shape.lineTo(MAP_HALF, -MAP_HALF);
-    shape.lineTo(MAP_HALF, MAP_HALF); shape.lineTo(-MAP_HALF, MAP_HALF); shape.closePath();
-    for(const [cx, cz, w, d] of UTOPIA_CANALS){
-      const h = new THREE.Path();
-      h.moveTo(cx-w/2, cz-d/2); h.lineTo(cx-w/2, cz+d/2); h.lineTo(cx+w/2, cz+d/2); h.lineTo(cx+w/2, cz-d/2); h.closePath();
-      shape.holes.push(h);
-    }
-    if(placeGlb){   // #204 : trou circulaire de l'amphithéâtre (la rive visuelle = frontière moteur)
-      const hole = new THREE.Path();
-      hole.absarc(0, 0, AMPHI.rHole, 0, Math.PI*2, true);
-      shape.holes.push(hole);
-    }
-    const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), utopiaMat.marble());
-    // y=0.0 (et plus 0.02) : le néon de rive du GLB est à y≈0.008, il doit rester apparent
-    floor.rotation.x = -Math.PI/2; floor.position.y = 0.0; floor.receiveShadow = true;
-    scene.add(floor); obstacleMeshes.push(floor);
-    // Enceinte : parapets de marbre blanc (même empreinte de collision que les autres maps)
-    for(const [cx, cz, w, d] of [[0,22,48,1.6],[0,-22,48,1.6],[22,0,1.6,48],[-22,0,1.6,48]]){
-      const p = new THREE.Mesh(new THREE.BoxGeometry(w, 2.5, d), utopiaMat.marble());
-      p.position.set(cx, 1.25, cz); p.castShadow = false; p.receiveShadow = true;
-      scene.add(p); obstacleMeshes.push(p); addCollider(cx, cz, w, d);
-    }
+    if(!placeGlb) throw new Error('amphitheatre utopia manquant');
+    // Zones de sol + colliders du cœur (v1) + stèle + spawn dans la fosse
+    pushUtopiaGroundZones();
+    addCollider(-0.2, 0, 2.8, 2.6);                 // stèle/terminal au centre du fond
+    playerSpawn.x = 0; playerSpawn.z = 3;
     for(const [cx, cz, w, d] of UTOPIA_CANALS) addCollider(cx, cz, w, d);
     for(const [cx, cz, w, d] of UTOPIA_PROPS_COLLIDERS) addCollider(cx, cz, w, d);
-    if(placeGlb){
-      // #204 : l'amphithéâtre est praticable — zones de sol + stèle solide + spawn au fond
-      pushUtopiaGroundZones();
-      addCollider(-0.2, 0, 2.8, 2.6);                 // stèle/terminal au centre du fond
-      playerSpawn.x = 0; playerSpawn.z = 3;           // le joueur apparaît dans la fosse, au sud de la stèle
-      // Paroi de rive : le mesh gradins du blend s'arrête à −0.60, on ferme −0.48→0 en code
-      // (4 arcs, ouvertures ±8.9° au droit des 4 escaliers ; theta=0 pointe vers +z, +x à π/2)
-      const gapHalf = 0.155;
-      for(let k = 0; k < 4; k++){
-        const wallArc = new THREE.Mesh(
-          new THREE.CylinderGeometry(AMPHI.rHole, AMPHI.rHole, 0.48, 48, 1, true,
-                                     k*Math.PI/2 + gapHalf, Math.PI/2 - 2*gapHalf),
-          new THREE.MeshStandardMaterial({ color:0xe9edf4, roughness:0.4, metalness:0.05, side:THREE.DoubleSide }));
-        wallArc.position.y = -0.24; wallArc.receiveShadow = true;
-        scene.add(wallArc); obstacleMeshes.push(wallArc);
-      }
-    } else {
-      // Fallback #203 (place.glb non chargé) : pad central lumineux code, map plate
-      const pad = new THREE.Mesh(new THREE.CircleGeometry(2.6, 48), utopiaMat.padDark());
-      pad.rotation.x = -Math.PI/2; pad.position.y = 0.035; scene.add(pad); obstacleMeshes.push(pad);
-      const ring = new THREE.Mesh(new THREE.RingGeometry(3.0, 3.35, 64), utopiaMat.neon());
-      ring.rotation.x = -Math.PI/2; ring.position.y = 0.04; scene.add(ring); obstacleMeshes.push(ring);
-    }
+    // #205 : rivière (segments troués aux ponts), garde-corps des ponts, colliders d'instance
+    for(const [cx, cz, w, d] of UTOPIA_DATA.river) addCollider(cx, cz, w, d);
+    for(const b of UTOPIA_DATA.bridges) for(const [cx, cz, w, d] of b.rails) addCollider(cx, cz, w, d);
+    for(const [cx, cz, w, d] of UTOPIA_DATA.colliders) addCollider(cx, cz, w, d);
+    // Bandes de façade fleuries des 4 nouveaux bâtiments (au cœur, le parterre les couvre déjà)
+    for(const [fx, fz] of [[-10.84, 31.2], [-10.84, -31.2], [10.84, 31.2], [10.84, -31.2]])
+      addCollider(fx, fz, 1.5, 8.4);
+    // #205 : bornes de la map complète (clamp joueur/ennemis/spawns/pet)
+    MAP_BOUNDS.minX = UTOPIA_DATA.bounds.minX; MAP_BOUNDS.maxX = UTOPIA_DATA.bounds.maxX;
+    MAP_BOUNDS.minZ = UTOPIA_DATA.bounds.minZ; MAP_BOUNDS.maxZ = UTOPIA_DATA.bounds.maxZ;
+    // #205 : le reste de l'esplanade (résilient : la map reste jouable sans ces visuels)
+    await addProp('decor/utopia/riviere.glb',    { x:0, z:0, scale:0.8, shadow:false });
+    await addProp('decor/utopia/collines.glb',   { x:0, z:0, scale:0.8, shadow:false });
+    await addProp('decor/utopia/vegetation.glb', { x:0, z:0, scale:0.8, shadow:false });
+    await addProp('decor/utopia/avenue.glb',     { x:0, z:0, scale:0.8, shadow:false });
+    await addProp('decor/utopia/tour.glb',       { x:0, z:0, scale:0.8, shadow:false });
     // Place fleurie + kiosques + lampadaires + canaux (GLB unique, déjà centré) — shadow:false (perf)
     await addProp('decor/utopia/plaza.glb', { x:0, z:0, scale:0.8, shadow:false });
     // Passerelles aériennes entre les toits (~10 m de haut : aucune collision au sol, décor pur)
@@ -314,6 +316,7 @@ export function clearArenaDecor(scene){
   for(const l of arenaLamps) scene.remove(l);
   obstacles.length = 0; obstacleMeshes.length = 0; arenaLamps.length = 0; noSpawnZones.length = 0;
   groundZones.length = 0; playerSpawn.x = 0; playerSpawn.z = 0;   // #204 : sol plat + spawn origine par défaut
+  MAP_BOUNDS.minX = -MAP_HALF; MAP_BOUNDS.maxX = MAP_HALF; MAP_BOUNDS.minZ = -MAP_HALF; MAP_BOUNDS.maxZ = MAP_HALF;   // #205
   decorPropCount_ = 0; decorBackdropCount_ = 0;
 }
 

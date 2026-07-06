@@ -20,8 +20,10 @@ const RETALIATE_DMG = 10;        // riposte de la cible si elle survit à l'atta
 
 export function initPet(ctx){
   const { THREE, scene, loader, getPlayerPos, enemies, damageEnemy,
-          obstacles, MAP_HALF, pushOutCircleAABB, groundHeight, registerFeature } = ctx;
+          obstacles, MAP_HALF, pushOutCircleAABB, groundHeight, MAP_BOUNDS, registerFeature } = ctx;
   const groundAt = (x, z) => groundHeight ? groundHeight(x, z) : 0;   // #204 (ctx optionnel : tests/apps sans map)
+  // #205 : bornes rectangulaires par map (repli ±MAP_HALF si ctx sans MAP_BOUNDS)
+  const bounds = MAP_BOUNDS || { minX:-MAP_HALF, maxX:MAP_HALF, minZ:-MAP_HALF, maxZ:MAP_HALF };
 
   let group = null, mixer = null, walkAction = null, attackAction = null;
   let clipNames = [];
@@ -119,8 +121,8 @@ export function initPet(ctx){
   }
 
   function resolveCollisions(x, z){
-    x = Math.max(-MAP_HALF, Math.min(MAP_HALF, x));
-    z = Math.max(-MAP_HALF, Math.min(MAP_HALF, z));
+    x = Math.max(bounds.minX, Math.min(bounds.maxX, x));   // #205 : bornes par map
+    z = Math.max(bounds.minZ, Math.min(bounds.maxZ, z));
     for(const b of obstacles){
       const o = pushOutCircleAABB(x, z, PET_R, b);
       x = o.x; z = o.z;
