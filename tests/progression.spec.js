@@ -1099,13 +1099,13 @@ test('#199 : casque + costume legendaires debloquent stylise, un seul ne suffit 
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(10000); });
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(false);
   // le succès n'est évalué qu'à la FIN d'une vague (checkWaveCleared) → il faut nettoyer une vague après chaque équipement
-  await page.evaluate(() => { __game.debug.shop.buyAccessory('helm:halo'); __game.debug.shop.selectAccessory('helmet', 'helm:halo'); });
+  await page.evaluate(() => { __game.debug.shop.buyAccessory('helm:skull-ram'); __game.debug.shop.selectAccessory('helmet', 'helm:skull-ram'); });
   await page.evaluate(() => __game.debug.killAllEnemies());
   await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(false);   // casque seul, pas assez
   await page.evaluate(() => __game.debug.forceNextWave());
   await page.waitForFunction(() => window.__game.debug.enemyAlive() > 0, null, { timeout:10000 });   // vague suivante active
-  await page.evaluate(() => { __game.debug.shop.buyAccessory('cost:wings'); __game.debug.shop.selectAccessory('costume', 'cost:wings'); });
+  await page.evaluate(() => { __game.debug.shop.buyAccessory('cost:bone'); __game.debug.shop.selectAccessory('costume', 'cost:bone'); });
   await page.evaluate(() => __game.debug.killAllEnemies());
   await page.waitForTimeout(50);
   expect(await page.evaluate(() => __game.debug.achievementUnlocked('stylise'))).toBe(true);

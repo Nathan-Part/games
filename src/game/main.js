@@ -93,10 +93,13 @@ function rarityBadge(key){ const r = rarityInfo(key);   // M-8 : le hex litéral
 function ico(name){ return `<svg class="ico" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function statBar(label, pct, text){ const p = Math.max(4, Math.min(100, Math.round(pct)));   // M-7 : pct numérique
   return `<div class="statbar"><span class="lbl">${label}</span><span class="trk"><i style="width:${p}%"></i></span><span class="val">${text}</span></div>`; }
-function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned,data}
+function itemCard(o){   // o:{rc,icon,name,rarity,sub,foot,on,owned,data,img}
+  // thumb : icône par défaut, recouverte par l'image `img` si fournie (onerror -> retire l'img, l'icône réapparaît)
+  const thumb = `<div class="thumb${o.img?' has-img':''}">${ico(o.icon)}`
+    + `${o.img?`<img class="thumb-img" src="${o.img}" alt="" loading="lazy" onerror="this.remove()">`:''}</div>`;
   return `<div class="icard${o.on?' on':''}"${o.data||''} style="--rc:${o.rc}">`
     + `${o.owned?`<span class="ribbon">${ico('check')}</span>`:''}`
-    + `<div class="thumb">${ico(o.icon)}</div><div class="nm">${o.name}</div>`
+    + thumb + `<div class="nm">${o.name}</div>`
     + `<div class="ic-meta">${rarityBadge(o.rarity)}${o.sub?`<span class="ic-sub">${o.sub}</span>`:''}</div>`
     + `<div class="ic-foot">${o.foot||''}</div></div>`; }
 
@@ -132,17 +135,45 @@ function buildCostumeWings(){ const g=new THREE.Group();
   const wL=new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.5),wing); wL.position.set(-0.2,0,-0.10); wL.rotation.set(0,0.6,0.2);
   const wR=wL.clone(); wR.position.x=0.2; wR.rotation.set(0,-0.6,-0.2); g.add(wL,wR);
   g.traverse(o=>{if(o.isMesh)o.castShadow=true;}); return g; }
+// Accessoires « vrais » (images PNG/JPG fournies dans artefact/accessory/). build:null pour l'instant
+// (pas d'accroche 3D — viendra plus tard). L'image de carte vient du champ `img`, la fiche des champs `desc`/`bonuses`.
 const HELMETS = [
-  { id:'helm:none',  name:'Aucun',    price:0,    rarity:'commun',     build:null },
-  { id:'helm:visor', name:'Visière',  price:300,  rarity:'rare',       build:buildHelmetVisor },
-  { id:'helm:crown', name:'Couronne', price:700,  rarity:'epique',     build:buildHelmetCrown },
-  { id:'helm:halo',  name:'Halo',     price:1200, rarity:'legendaire', build:buildHelmetHalo },
+  { id:'helm:none',  name:'Aucun',        price:0,    rarity:'commun',     build:null, img:null,
+    desc:'Visage à découvert. Rien à cacher, rien à craindre.', bonuses:[] },
+  { id:'helm:insect', name:'Insectoïde',  price:400,  rarity:'rare',       build:null,
+    img:'artefact/accessory/mask/insect-viber/insect-viber.png',
+    desc:'Masque de chasse aux reflets chitineux. Pour ceux qui frappent avant qu\'on les voie.',
+    bonuses:[ { icon:'eye',    name:'Vision de traque', desc:'Repère ta cible dans le chaos.' },
+              { icon:'sprint', name:'Instinct',         desc:'Réagis plus vite à la menace.' },
+              { icon:'target', name:'Précision',        desc:'Chaque tir vise juste.' } ] },
+  { id:'helm:skull-soldier', name:'Crâne Soldat', price:800, rarity:'epique', build:null,
+    img:'artefact/accessory/mask/skeleton-soldier/squelette-soldier.png',
+    desc:'La mort en uniforme. Un masque taillé pour hanter le champ de bataille.',
+    bonuses:[ { icon:'shield', name:'Intimidation', desc:'Ta seule présence fait reculer l\'ennemi.' },
+              { icon:'medal',  name:'Vétéran',      desc:'Le calme de ceux qui ont tout vu.' },
+              { icon:'flash',  name:'Frappe nette', desc:'Aucune hésitation au moment d\'agir.' } ] },
+  { id:'helm:skull-ram', name:'Crâne Bélier', price:1500, rarity:'legendaire', build:null,
+    img:'artefact/accessory/mask/skeleton-ram/squelette-belier.png',
+    desc:'Cornes d\'os et regard vide. Le symbole de ceux qui enfoncent les lignes.',
+    bonuses:[ { icon:'trophy', name:'Domination', desc:'Impose ton autorité dès ton apparition.' },
+              { icon:'sprint', name:'Charge',     desc:'Rien ne t\'arrête une fois lancé.' },
+              { icon:'heart',  name:'Terreur',    desc:'Une légende ne meurt jamais vraiment.' } ] },
 ];
 const COSTUMES = [
-  { id:'cost:none',  name:'Aucun',    price:0,    rarity:'commun',     build:null },
-  { id:'cost:plate', name:'Plastron', price:400,  rarity:'rare',       build:buildCostumePlate },
-  { id:'cost:cape',  name:'Cape',     price:800,  rarity:'epique',     build:buildCostumeCape },
-  { id:'cost:wings', name:'Ailes',    price:1500, rarity:'legendaire', build:buildCostumeWings },
+  { id:'cost:none',  name:'Aucun',         price:0,    rarity:'commun',     build:null, img:null,
+    desc:'Tenue standard. Sobre et fonctionnelle.', bonuses:[] },
+  { id:'cost:insect', name:'Carapace Insecte', price:700, rarity:'epique', build:null,
+    img:'artefact/accessory/suit/insect-viber/insect-viber.png',
+    desc:'Blindage biomimétique articulé. Léger, résistant, imprévisible.',
+    bonuses:[ { icon:'shield', name:'Carapace',  desc:'Encaisse là où les autres tombent.' },
+              { icon:'sprint', name:'Agilité',   desc:'Bouge comme si tu ne pesais rien.' },
+              { icon:'flash',  name:'Réflexes',  desc:'Esquive avant même de penser.' } ] },
+  { id:'cost:bone',  name:'Armure Ossuaire', price:1400, rarity:'legendaire', build:null,
+    img:'artefact/accessory/suit/skeleton-ram/skeleton-ram.png',
+    desc:'Plaques d\'os fossilisé serties sur l\'acier. L\'armure des seigneurs de guerre.',
+    bonuses:[ { icon:'trophy', name:'Prestige',   desc:'Affiche ton statut sur le champ de bataille.' },
+              { icon:'shield', name:'Forteresse', desc:'Un rempart que rien ne fait plier.' },
+              { icon:'medal',  name:'Légende',    desc:'Rien n\'égale un roi sur le terrain.' } ] },
 ];
 const ACCESSORY_SLOTS = { helmet:HELMETS, costume:COSTUMES };
 const ACCESSORY_BONE = { helmet:{ name:'Head', re:/head/i, off:{x:0,y:0.10,z:0.04} },
@@ -231,7 +262,7 @@ const app = document.getElementById('app');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a16);
 scene.fog = new THREE.Fog(0x0a0a16, 18, 60);
-const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog, SHOP_BG = new THREE.Color(0xdfe4f0); // fond clair pour la boutique (assorti au thème utopie)
+const SCENE_BG = new THREE.Color(0x0a0a16), SCENE_FOG = scene.fog;
 // #203 : visuels de match PAR MAP — bg devient la skybox équirectangulaire une fois chargée (utopia)
 const MAP_VISUALS = {
   portal: { bg:0x0a0a16, fog:[0x0a0a16,18,60],   grid:false, stars:true,  hemi:0.9, key:[0xfff2e0,2.4] },
@@ -340,19 +371,28 @@ function applyMapVisuals(mapId){   // #203 : ambiance de match par map (fond/fog
     });
   }
 }
-await buildArena(scene, save.settings.mapId);
-applyMapVisuals(save.settings.mapId);
-// NB : #boot-loading reste affiché jusqu'à la fin d'initLobby() (perso chargé + vitrine transparente),
-// sinon on voit flasher l'arène opaque entre le décor et le lobby (retour utilisateur 2026-07-05).
+// Décor de la map chargé À LA DEMANDE (retour Nathan 2026-07-06 : le boot ne doit plus attendre le
+// décor, seulement le lobby/perso — le décor (lourd sur utopia) se charge au clic sur "Déployer",
+// ou plus tôt si l'utilisateur change de map depuis le panneau avant même de jouer). `ensureArenaReady`
+// est idempotente (ne reconstruit pas si déjà prête) et dédoublonne les appels concurrents via la promesse.
+let arenaReady = false, arenaBuildPromise = null;
+async function ensureArenaReady(){
+  if(arenaReady) return;
+  if(!arenaBuildPromise) arenaBuildPromise = buildArena(scene, save.settings.mapId).then(() => {
+    applyMapVisuals(save.settings.mapId); arenaReady = true;
+  });
+  await arenaBuildPromise;
+}
 // Reconstruit la map à chaud (#201 multi-map) : retire le décor courant puis (re)construit la map choisie.
 // Le registre MAPS (map.js) est la seule source de vérité — ajouter une map = 1 entrée, pas de code ici à changer.
 async function switchMap(id){
   if(!MAPS.some(m => m.id === id) || id === save.settings.mapId) return false;
+  document.getElementById('boot-loading-msg').textContent = 'Chargement du décor…';
   document.getElementById('boot-loading').classList.remove('hidden');
   clearArenaDecor(scene);
   setSetting('mapId', id);
-  await buildArena(scene, id);
-  applyMapVisuals(id);
+  arenaReady = false; arenaBuildPromise = null;   // force la reconstruction pour la nouvelle map
+  await ensureArenaReady();
   updateShopScene();   // re-masque le décor fraîchement construit si on est encore dans la vitrine lobby
   document.getElementById('boot-loading').classList.add('hidden');
   return true;
@@ -586,7 +626,14 @@ async function startGame(){
   const char = characters[lobbyIndex]; if(!char) return;
   G.phase = 'loading';
   document.getElementById('lobby').classList.add('hidden');
-  updateShopScene();   // sortie de la vitrine lobby : fond opaque + décor d'arène restaurés
+  const showingBootForArena = !arenaReady;   // décor chargé à la demande (retour Nathan) : 1er "Déployer" seulement
+  if(showingBootForArena){
+    document.getElementById('boot-loading-msg').textContent = 'Chargement du décor…';
+    document.getElementById('boot-loading').classList.remove('hidden');
+  }
+  await ensureArenaReady();
+  if(showingBootForArena) document.getElementById('boot-loading').classList.add('hidden');
+  updateShopScene();   // sortie de la vitrine lobby : fond opaque + décor d'arène restaurés (décor déjà prêt ici)
   if(!model) await spawnModel(char);                            // sécurité (normalement déjà affiché)
   if(!anims.length){ await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); }
   if(G.phase !== 'loading') return;   // backToHome() appelé pendant le chargement → on n'écrase pas le lobby (HUD/cibles fantômes)
@@ -1063,6 +1110,27 @@ const WEAPONS = [
     stats:{ mag:1, cooldown:0.40, reload:0, dmgMult:5.0, recoil:0 }, build:() => buildKnifeMesh('phantom') },
 ];
 function weaponById(id){ return WEAPONS.find(w => w.id === id) || WEAPONS[0]; }
+// Fiches boutique (#207) : description + vignette du carrousel. Pour brancher une vraie image d'arme,
+// ajouter `img:'artefact/weapons/xxx.png'` à l'entrée correspondante (sinon la carte affiche une icône).
+const WEAPON_INFO = {
+  default:      { desc:"Fusil d'assaut polyvalent. Équilibré pour toutes les situations." },
+  raptor:       { desc:"Fusil d'assaut nerveux à cadence relevée. Fait pour la pression constante." },
+  cyclone:      { desc:"Fusil d'assaut d'élite. Cadence folle et dégâts qui ne pardonnent pas." },
+  smg:          { desc:"Mitraillette compacte et vive. Reine du combat rapproché." },
+  storm:        { desc:"PDW haut de gamme. Un mur de balles en une poignée de secondes." },
+  sniper:       { desc:"Fusil de précision. Un tir, une cible neutralisée à distance." },
+  phantom_sr:   { desc:"Sniper légendaire longue portée. La mort silencieuse venue de loin." },
+  shotgun:      { desc:"Pompe dévastatrice à courte portée. Efface tout ce qui approche." },
+  breacher:     { desc:"Fusil à pompe rapide. Ouvre le passage et nettoie les couloirs." },
+  pistol:       { desc:"Pistolet de secours fiable. Toujours prêt quand le chargeur est vide." },
+  jackal:       { desc:"Gros calibre semi-auto. Frappe fort, chaque balle compte." },
+  lmg:          { desc:"Mitrailleuse lourde légendaire. Feu nourri sans jamais faiblir." },
+  knife:        { desc:"Couteau de combat simple et fiable. Silencieux et mortel de dos." },
+  combat_knife: { desc:"Lame lourde à saigner. Elle tranche là où les autres griffent." },
+  phantom_blade:{ desc:"Lame spectrale ultra-rapide. Frappe avant qu'on la voie." },
+};
+function weaponDesc(id){ return (WEAPON_INFO[id] && WEAPON_INFO[id].desc) || 'Arme de combat.'; }
+function weaponThumb(id){ return (WEAPON_INFO[id] && WEAPON_INFO[id].img) || null; }   // PNG à fournir par arme
 // ====== Améliorations d'arme (#14) ======
 const UPGRADE_SPECS = {
   damage:   { name:'Dégâts',   max:5, baseCost:300, apply:(s,l)=>{ s.dmgMult *= 1 + 0.15*l; } },
@@ -1247,6 +1315,10 @@ async function buildCharDisplay(id){
   if(isFinite(lo)) m.position.y -= lo;
   const wrap = new THREE.Group(); wrap.add(m);
   // #52 : animation idle looping — retarget vers le squelette de CE perso (pas le joueur)
+  // chargement paresseux si la bibliothèque d'anims n'est pas encore prête (même repli que playLobbyIdle) —
+  // sans ça, ouvrir la boutique perso avant la fin du chargement laissait le modèle en T-pose pour de bon
+  // (le if(anims.length) sautait silencieusement, et rien ne revenait jamais réessayer).
+  if(!anims.length){ try { await loadAnims((await listDir(ANIM_DIR)).filter(isGlb)); } catch(e){} }
   if(anims.length){
     const clp = anims.find(a => /casual.*walk|walk.*casual/i.test(a.key))
       || anims.find(a => /walk/i.test(a.key))
@@ -1299,13 +1371,13 @@ function updateShopScene(){   // boutique => scène CLAIRE ; lobby => vitrine TR
   for(const l of arenaLamps) l.visible = !shopOpen && !lobbyView;       // lampes d'accent éteintes en vitrine
   shopLight.intensity = (studioView || lobbyView) ? 3.0 : 0; shopFill.intensity = (studioView || lobbyView) ? 1.7 : 0;
   hemi.intensity = (shopOpen || lobbyView) ? 2.3 : matchHemi_;
-  scene.background = shopOpen ? SHOP_BG : (lobbyView ? null : matchBg_);
+  scene.background = (shopOpen || lobbyView) ? null : matchBg_;   // boutique/lobby : canvas transparent, fond CSS lobby-bg.jpg de #app visible (pas d'asset de fond dédié à la boutique)
   scene.fog = (shopOpen || lobbyView) ? null : matchFog_;
   document.getElementById('lobby').classList.toggle('hidden', shopOpen || G.phase !== 'lobby');
 }
 function updateShopCamera(){
   if(shopOpen && shopTab === 'weapons'){ camera.position.set(0, 1.7, 5.4); camera.lookAt(0, 1.3, 0); }   // armes dans le haut, UI en bas
-  else if(shopOpen && shopTab === 'player'){ camera.position.set(0, 1.05, 5.4); camera.lookAt(0, 0.9, 0); }  // carrousel perso centré, pieds au sol (#25)
+  else if(shopOpen && shopTab === 'player'){ camera.position.set(0, 1.95, 6.8); camera.lookAt(0, 1.46, 0); }  // même caméra que le lobby (#25) : c'est la seule calée sur le podium du fond lobby-bg.jpg (retour Nathan : perso pas centré dessus)
   else if(shopOpen && (shopTab === 'accessories' || shopTab === 'boost')){ camera.position.set(0.6, 1.5, 4.0); camera.lookAt(-0.7, 1.0, 0); }  // perso à droite, bloc à gauche (#26/#28)
   else setLobbyCamera();
 }
@@ -1366,20 +1438,35 @@ function upgRow2(type, lvl, spec, cost, attr){   // C-4 : pips + vrai bouton dat
   return `<div class="upg-row"><span class="upg-name">${spec.name} ${pips}</span>${btn}</div>`;
 }
 function boostIcon(slot){ return slot==='vest'?'vest':slot==='boots'?'boot':'medal'; }
+// carte du carrousel d'armes (#207) : nom + rareté + vignette (image PNG si fournie, sinon icône) + niveau d'amélioration
+function weaponCard(w, active){
+  const rc = rarityInfo(w.rarity).color;
+  const owned = save.ownedWeapons.includes(w.id);
+  const lvl = Object.keys(UPGRADE_SPECS).reduce((a,t)=>a+upgradeLevel(w.id,t),0), lvlMax = Object.keys(UPGRADE_SPECS).length*5;
+  const thumb = weaponThumb(w.id);
+  return `<button class="wcard${active?' active':''}${owned?' owned':''}" data-wcard="${w.id}" style="--rc:${rc}" title="${w.name}">`
+    + `${active?`<span class="wcard-check">${ico('check')}</span>`:''}`
+    + `<div class="wcard-top"><span class="wcard-name">${w.name}</span><span class="wcard-rar">${rarityInfo(w.rarity).name}</span></div>`
+    + `<div class="wcard-thumb">${ico(w.melee?'target':'weapon')}${thumb?`<img class="thumb-img" src="${thumb}" alt="" loading="lazy" onerror="this.remove()">`:''}</div>`
+    + `<div class="wcard-foot"><span class="wcard-rating">★ ${lvl}/${lvlMax}</span>${owned?'':`<span class="wcard-lock" title="Non possédée">${ico('lock')}</span>`}</div>`
+    + `</button>`;
+}
 function renderShop(){
   const info = document.getElementById('shop-info'); if(!info) return;
   const mv = document.getElementById('shop-money-val'); if(mv) mv.textContent = save.money;
   let html = '';
   if(shopTab === 'weapons'){
-    // Sous-onglets catégorie (#49 : labels réels, catégorie LMG séparée)
+    // #207 : hero (nom/desc, haut-gauche) + panneau stats (droite) + glow rareté + carrousel d'armes (bas)
     const WCATS = { all:'Tout', assault:'Assaut', smg:'SMG', sniper:'Sniper', shotgun:'Pompe', pistol:'Pistol', lmg:'LMG', melee:'Mêlée' };
-    html += `<div class="subtabs">` + Object.entries(WCATS).map(([c,l]) =>
-      `<button class="subtab${shopWeaponCategory===c?' on':''}" data-wcat="${c}">${l}</button>`
-    ).join('') + `</div>`;
     const fw = filteredWeapons();
     const w = fw[shopWeaponIndex] || fw[0], owned = save.ownedWeapons.includes(w.id), equipped = save.selectedWeapon === w.id, s = weaponStats(w.id);
     const lvlTotal = Object.keys(UPGRADE_SPECS).reduce((a,t)=>a+upgradeLevel(w.id,t),0), lvlMax = Object.keys(UPGRADE_SPECS).length*5;
-    html += `<div class="shop-wname">${w.name} ${rarityBadge(w.rarity)} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`;
+    const rc = rarityInfo(w.rarity).color;
+    html += `<div class="shop-glow" style="--rc:${rc}"></div>`;
+    html += `<div class="shop-hero"><div class="eyebrow">// Arme</div>`
+      + `<div class="shop-wname">${w.name} ${rarityBadge(w.rarity)} <span class="shop-rating">★ ${lvlTotal}/${lvlMax}</span></div>`
+      + `<p class="shop-desc">${weaponDesc(w.id)}</p></div>`;
+    html += `<aside class="shop-stats-panel"><div class="sp-h">${ico('bars')} Statistiques</div>`;
     if(w.melee){
       const dmg = Math.round(PLAYER_MELEE_DAMAGE * s.dmgMult), spd = Math.round(1/s.cooldown*10)/10;
       html += `<div class="shop-statcards">`
@@ -1392,31 +1479,44 @@ function renderShop(){
         + statBar('Chargeur', s.mag/55*100, s.mag) + statBar('Stabilité', (3-s.recoil)/3*100, (3-s.recoil).toFixed(1))
         + statBar('Portée', (s.range??80)/200*100, s.range+'m') + `</div>`;
     }
-    html += `<div class="shop-btns">`;
-    if(equipped) html += `<div class="shop-badge">${ico('check')} Équipée</div>`;
-    else if(owned) html += `<button class="shop-cta" data-equip="${w.id}">Équiper</button>`;
-    else html += `<button class="shop-cta buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter ${ico('coin')}${w.price}</button>`;
-    if(owned) html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
-    html += `</div>`;
     if(owned && shopAmeliorerOpen){ html += `<div class="shop-upgrades">`;
       for(const t in UPGRADE_SPECS) html += upgRow2(t, upgradeLevel(w.id, t), UPGRADE_SPECS[t], upgradeCost(w.id, t), 'data-upg');
       html += `</div>`; }
-  } else if(shopTab === 'player'){   // vitrine carrousel : carte du perso centré (#25)
+    html += `<div class="sp-btns">`;
+    if(owned) html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
+    if(equipped) html += `<div class="shop-badge">${ico('check')} Équipée</div>`;
+    else if(owned) html += `<button class="shop-cta" data-equip="${w.id}">Équiper</button>`;
+    else html += `<button class="shop-cta buy" data-buy="${w.id}"${save.money >= w.price ? '' : ' disabled'}>Acheter ${ico('coin')}${w.price}</button>`;
+    html += `</div></aside>`;
+    html += `<div class="shop-bottombar"><div class="subtabs">`
+      + Object.entries(WCATS).map(([c,l]) => `<button class="subtab${shopWeaponCategory===c?' on':''}" data-wcat="${c}">${l}</button>`).join('')
+      + `</div><div class="shop-carousel">` + fw.map(x => weaponCard(x, x.id === w.id)).join('') + `</div></div>`;
+  } else if(shopTab === 'player'){   // #207 : hero + compétences (bas-gauche) + stats (bas-droite) + glow rareté
     const c = CHARACTERS[shopCharIndex];
     const owned = save.ownedCharacters.includes(c.id), eq = (save.selectedCharacterId || CHARACTERS[0].id) === c.id;
-    html += `<div class="shop-wname">${c.name} ${rarityBadge(c.rarity)}</div>`;
-    html += `<div class="shop-statcards">`
+    const rc = rarityInfo(c.rarity).color;
+    html += `<div class="shop-glow char" style="--rc:${rc}"></div>`;
+    html += `<div class="shop-hero"><div class="eyebrow">// Personnage</div>`
+      + `<div class="shop-wname">${c.name} ${rarityBadge(c.rarity)}</div>`
+      + `<p class="shop-desc">${c.desc || ''}</p></div>`;
+    html += `<div class="shop-char-panel">`;
+    html += `<div class="shop-skills"><div class="sp-h">${ico('gear')} Compétences</div>`
+      + (c.skills || []).map(sk => `<div class="skill-row"><span class="skill-ic">${ico(sk.icon)}</span>`
+          + `<div class="skill-txt"><span class="skill-nm">${sk.name}</span><span class="skill-de">${sk.desc}</span></div></div>`).join('')
+      + `</div>`;
+    html += `<aside class="shop-stats-panel char"><div class="shop-statcards">`
       + statBar('Vie', c.base.health/250*100, c.base.health) + statBar('Régén', c.base.regen/25*100, c.base.regen)
       + statBar('Vitesse', (c.base.speed-0.8)/0.5*100, c.base.speed.toFixed(2) + '×') + `</div>`;
-    html += `<div class="shop-btns">`;
-    if(eq) html += `<div class="shop-badge">${ico('check')} Équipé</div>`;
-    else if(owned) html += `<button class="shop-cta" data-selchar="${c.id}">Équiper</button>`;
-    else html += `<button class="shop-cta buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>Acheter ${ico('coin')}${c.price}</button>`;
-    html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
-    html += `</div>`;
     if(shopAmeliorerOpen){ html += `<div class="shop-sub2">Améliorations — toutes vos parties</div><div class="shop-upgrades">`;
       for(const t in PLAYER_UPGRADE_SPECS) html += upgRow2(t, playerUpgradeLevel(t), PLAYER_UPGRADE_SPECS[t], playerUpgradeCost(t), 'data-pupg');
       html += `</div>`; }
+    html += `<div class="sp-btns">`;
+    html += `<button id="shop-ameliorer" class="shop-cta ameliorer${shopAmeliorerOpen ? ' open' : ''}">★ Améliorer</button>`;
+    if(eq) html += `<div class="shop-badge">${ico('check')} Équipé</div>`;
+    else if(owned) html += `<button class="shop-cta" data-selchar="${c.id}">Équiper</button>`;
+    else html += `<button class="shop-cta buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>Acheter ${ico('coin')}${c.price}</button>`;
+    html += `</div></aside>`;
+    html += `</div>`;
   } else if(shopTab === 'boost'){   // onglet Boost (#28) : grille de cartes (C-3 : panneau gauche, perso visible)
     html += `<div class="shop-wname">Boost</div><div class="shop-grid">`;
     for(const bo of BOOSTS){
@@ -1446,16 +1546,16 @@ function renderShop(){
       html += itemCard({ rc:rarityInfo('commun').color, icon:c.icon, name:c.name, rarity:'commun', sub:`Possédé : ${owned}`, foot });
     }
     html += `</div>`;
-  } else {   // onglet Accessoires (#26/#27) : sous-onglets Casque / Costume / Danses
+  } else {   // #207 onglet Accessoires : entête + grille d'images (gauche) + panneau détail (bas-droite)
     const slot = shopAccSlot;
-    html += `<div class="shop-wname">Accessoires</div>`;
-    html += `<div class="subtabs"><button class="subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Masque</button>`
+    html += `<div class="shop-acc-head"><h2 class="shop-title">Accessoires</h2>`
+          + `<div class="subtabs"><button class="subtab${slot==='helmet'?' on':''}" data-accslot="helmet">Masque</button>`
           + `<button class="subtab${slot==='costume'?' on':''}" data-accslot="costume">Costume</button>`
           + `<button class="subtab${slot==='dance'?' on':''}" data-accslot="dance">Danses</button></div>`;
     if(slot === 'dance'){   // Danses (#27) : C-6 — TOUJOURS aperçu ▶, PUIS acheter (si !owned) SINON sélectionner
       const sel = save.selectedDances;
-      html += `<div class="shop-sub2">Aperçu ▶ libre · achète puis sélectionne 3 (touches 1/2/3) — ${sel.length}/3</div>`;
-      html += `<div class="shop-grid">`;
+      html += `<div class="shop-sub2">Aperçu ▶ libre · achète puis sélectionne 3 (touches 1/2/3) — ${sel.length}/3</div></div>`;
+      html += `<div class="shop-acc-list"><div class="shop-grid">`;
       for(const d of DANCES){
         const owned = save.ownedDances.includes(d.id), on = sel.includes(d.id);
         let foot = `<button class="icbtn" data-previewdance="${d.id}" title="Aperçu">${ico('play')}</button>`;
@@ -1463,22 +1563,39 @@ function renderShop(){
         else foot += `<button class="icbtn${on ? ' on' : ''}" data-seldance="${d.id}">${on ? 'Sélect.' : 'Choisir'}</button>`;
         html += itemCard({ rc:rarityInfo(d.rarity).color, icon:'emote', name:d.name, rarity:d.rarity, foot, on, owned });
       }
-      html += `</div>`;
+      html += `</div></div>`;
     } else {   // Masque / Costume — cliquer la carte = aperçu sur le perso (essayer avant d'acheter)
       const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot], prev = shopAccPreview[slot];
-      html += `<div class="shop-sub2">${ico('eye')} Clique un article pour l'essayer sur ton perso, puis achète</div><div class="shop-grid">`;
+      html += `<div class="shop-sub2">${ico('eye')} Clique un article pour l'essayer sur ton perso, puis achète</div></div>`;
+      html += `<div class="shop-acc-list"><div class="shop-grid">`;
       for(const a of cat){
         const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
         const on = prev ? (a.id === prev) : eq;
         const foot = eq ? `<span class="icbtn on">${ico('check')} Équipé</span>`
           : owned ? `<button class="icbtn" data-selacc="${a.id}">Équiper</button>`
           : `<button class="icbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>${ico('coin')}${a.price}</button>`;
-        html += itemCard({ rc:rarityInfo(a.rarity).color, icon:(slot==='helmet'?'helmet':'vest'), name:a.name, rarity:a.rarity, foot, on, owned, data:` data-prevacc="${a.id}"` });
+        html += itemCard({ rc:rarityInfo(a.rarity).color, icon:(slot==='helmet'?'helmet':'vest'), img:a.img||null, name:a.name, rarity:a.rarity, foot, on, owned, data:` data-prevacc="${a.id}"` });
       }
-      html += `</div>`;
+      html += `</div></div>`;
+      // panneau détail (bas-droite) : article survolé/essayé (preview) sinon équipé (si réel) sinon 1er non-"Aucun"
+      const focus = accessoryById(slot, prev) || cat.find(a => a.id === eqId && a.price > 0) || cat[1] || cat[0];
+      if(focus){
+        const owned = save.ownedAccessories.includes(focus.id), eq = eqId === focus.id, frc = rarityInfo(focus.rarity).color;
+        html += `<aside class="shop-acc-detail" style="--rc:${frc}"><div class="acc-detail-h"><span class="acc-detail-nm">${focus.name}</span>${rarityBadge(focus.rarity)}</div>`;
+        if(focus.desc) html += `<p class="acc-detail-desc">${focus.desc}</p>`;
+        html += `<div class="acc-detail-bonuses">` + (focus.bonuses || []).map(b =>
+            `<div class="skill-row"><span class="skill-ic">${ico(b.icon)}</span><div class="skill-txt"><span class="skill-nm">+ ${b.name}</span><span class="skill-de">${b.desc}</span></div></div>`).join('') + `</div>`;
+        html += `<div class="acc-detail-foot">`;
+        if(eq) html += `<div class="shop-badge">${ico('check')} Équipé</div>`;
+        else if(owned) html += `<button class="shop-cta" data-selacc="${focus.id}">Équiper</button>`;
+        else if(focus.price > 0) html += `<button class="shop-cta buy" data-buyacc="${focus.id}"${save.money >= focus.price ? '' : ' disabled'}>${ico('coin')}${focus.price} Acheter</button>`;
+        else html += `<button class="shop-cta" data-selacc="${focus.id}">Équiper</button>`;
+        html += `</div></aside>`;
+      }
     }
   }
-  info.classList.toggle('grid', shopTab === 'accessories' || shopTab === 'boost' || shopTab === 'consumables');   // C-3 : panneau docké à gauche (accessoires/boost/consommables), perso 3D visible à droite
+  info.className = 'shop-info'
+    + (shopTab === 'weapons' ? ' tab-weapons' : shopTab === 'player' ? ' tab-player' : shopTab === 'accessories' ? ' tab-acc' : ' grid');   // #207 layout par onglet ; boost/consommables gardent la grille dockée
   info.innerHTML = html;
   info.querySelectorAll('[data-wcat]').forEach(b => b.onclick = () => {
     shopWeaponCategory = b.dataset.wcat;   // #49 : reset index à 0 dans la nouvelle catégorie
@@ -1502,6 +1619,10 @@ function renderShop(){
   info.querySelectorAll('[data-buydance]').forEach(b => b.onclick = () => { if(buyDance(b.dataset.buydance)) renderShop(); });
   info.querySelectorAll('[data-previewdance]').forEach(b => b.onclick = () => { previewDance(b.dataset.previewdance); });   // aperçu live (même non possédée)
   info.querySelectorAll('[data-seldance]').forEach(b => b.onclick = () => { if(toggleDance(b.dataset.seldance)) renderShop(); });
+  info.querySelectorAll('[data-wcard]').forEach(b => b.onclick = () => {   // #207 : clic sur une carte du carrousel = arme héro
+    const fw = filteredWeapons(); const idx = fw.findIndex(x => x.id === b.dataset.wcard);
+    if(idx >= 0) setShopWeapon(idx);
+  });
   const am = document.getElementById('shop-ameliorer'); if(am) am.onclick = () => { shopAmeliorerOpen = !shopAmeliorerOpen; renderShop(); };
 }
 
@@ -3396,9 +3517,21 @@ G.health = maxHealth; G.maxHealth = maxHealth;
 // ====== Améliorations du perso (#15) ======
 // ====== Catalogue de personnages (achat ; stats de base par perso) ======
 const CHARACTERS = [
-  { id:'perso:blue-soldier', name:'Blue-Soldier', price:0,    rarity:'commun', base:{ health:100, regen:10, speed:1.00 } },
-  { id:'perso:guard',        name:'Sentinel',     price:1500, rarity:'rare',   base:{ health:135, regen:13, speed:1.00 } },
-  { id:'perso:robot',        name:'Cyborg',       price:3000, rarity:'epique', base:{ health:175, regen:17, speed:1.15 } },
+  { id:'perso:blue-soldier', name:'Blue-Soldier', price:0,    rarity:'commun', base:{ health:100, regen:10, speed:1.00 },
+    desc:'Soldat d\'élite polyvalent. Fiable au feu comme à la manœuvre.',
+    skills:[ { icon:'target', name:'Tireur confirmé', desc:'Entraînement au tir sans faille.' },
+             { icon:'shield', name:'Discipline',      desc:'Garde son sang-froid sous le feu.' },
+             { icon:'medal',  name:'Polyvalence',     desc:'À l\'aise dans toutes les situations.' } ] },
+  { id:'perso:guard', name:'Sentinel', price:1500, rarity:'rare', base:{ health:135, regen:13, speed:1.00 },
+    desc:'Garde lourd bardé de blindage. Une muraille qui avance.',
+    skills:[ { icon:'heart',  name:'Constitution', desc:'Réserve de vie supérieure à la moyenne.' },
+             { icon:'shield', name:'Blindage',     desc:'Encaisse les coups qui achèvent les autres.' },
+             { icon:'medal',  name:'Sentinelle',   desc:'Tient sa position coûte que coûte.' } ] },
+  { id:'perso:robot', name:'Cyborg', price:3000, rarity:'epique', base:{ health:175, regen:17, speed:1.15 },
+    desc:'Un être augmenté, conçu pour survivre dans toutes les conditions.',
+    skills:[ { icon:'heart',  name:'Système optimisé', desc:'Régénération de santé améliorée.' },
+             { icon:'sprint', name:'Surcharge',        desc:'Augmente temporairement la vitesse.' },
+             { icon:'shield', name:'Résistance',       desc:'Réduction des dégâts explosifs.' } ] },
 ];
 function characterById(id){ return CHARACTERS.find(c => c.id === id) || CHARACTERS[0]; }
 const PLAYER_UPGRADE_SPECS = {

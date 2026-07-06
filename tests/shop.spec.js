@@ -345,32 +345,30 @@ test('accessoires : catalogue casque/costume (none gratuit, prix croissants, rar
   }
 });
 
-test('accessoires : acheter+equiper un casque attache un mesh a la tete (persiste)', async ({ page }) => {
+test('accessoires : acheter+equiper un masque (persiste)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); });
-  expect(await page.evaluate(() => __game.debug.accessoryAttached('helmet'))).toBe(false);
-  expect(await page.evaluate(() => __game.debug.shop.buyAccessory('helm:visor'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:visor'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.accessoryAttached('helmet'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.playerAccessory('helmet'))).toBe('helm:visor');
+  expect(await page.evaluate(() => __game.debug.shop.buyAccessory('helm:insect'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:insect'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.playerAccessory('helmet'))).toBe('helm:insect');
   await page.reload(); await page.waitForFunction(() => window.__game?.booted);
-  expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:visor');
+  expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:insect');
 });
 
-test('accessoires : equiper un costume attache un mesh au torse ; retrait avec none', async ({ page }) => {
+test('accessoires : equiper un costume ; retrait avec none', async ({ page }) => {
   await startPlaying(page);
-  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); __game.debug.shop.buyAccessory('cost:plate'); });
-  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('costume','cost:plate'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.accessoryAttached('costume'))).toBe(true);
+  await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(2000); __game.debug.shop.buyAccessory('cost:insect'); });
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('costume','cost:insect'))).toBe(true);
+  expect(await page.evaluate(() => __game.debug.playerAccessory('costume'))).toBe('cost:insect');
   expect(await page.evaluate(() => __game.debug.shop.selectAccessory('costume','cost:none'))).toBe(true);
-  expect(await page.evaluate(() => __game.debug.accessoryAttached('costume'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.playerAccessory('costume'))).toBe('cost:none');
 });
 
 test('accessoires : achat refuse sans argent ; non possede non equipable', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(50); });
-  expect(await page.evaluate(() => __game.debug.shop.buyAccessory('helm:crown'))).toBe(false);
-  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:crown'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.buyAccessory('helm:skull-soldier'))).toBe(false);
+  expect(await page.evaluate(() => __game.debug.shop.selectAccessory('helmet','helm:skull-soldier'))).toBe(false);
 });
 
 // ====== Tranche 27 : danses / emotes ======
@@ -537,13 +535,13 @@ test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ p
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(3000); });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="accessories"]').click();
-  await expect(page.locator('#shop-info')).toContainText('Visière');                 // sous-onglet Masque par défaut
-  await page.locator('#shop-info [data-buyacc="helm:visor"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().ownedAccessories)).toContain('helm:visor');
-  await page.locator('#shop-info [data-selacc="helm:visor"]').click();
-  expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:visor');
+  await expect(page.locator('#shop-info')).toContainText('Insectoïde');              // sous-onglet Masque par défaut
+  await page.locator('#shop-info [data-buyacc="helm:insect"]').first().click();
+  expect(await page.evaluate(() => __game.debug.save.get().ownedAccessories)).toContain('helm:insect');
+  await page.locator('#shop-info [data-selacc="helm:insect"]').first().click();
+  expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:insect');
   await page.locator('#shop-info [data-accslot="costume"]').click();                 // sous-onglet Costume
-  await expect(page.locator('#shop-info')).toContainText('Plastron');
+  await expect(page.locator('#shop-info')).toContainText('Carapace Insecte');
 });
 
 test('skins : systeme retire (plus aucune reference)', async ({ page }) => {
@@ -575,7 +573,7 @@ test('rarete : chaque item de catalogue a une rarete connue', async ({ page }) =
     for (const it of list) expect(data.keys).toContain(it.rarity);
   expect(data.w.find(w => w.id === 'sniper').rarity).toBe('epique');
   expect(data.c.find(c => c.name === 'Cyborg').rarity).toBe('epique');
-  expect(data.h.find(a => a.id === 'helm:halo').rarity).toBe('legendaire');
+  expect(data.h.find(a => a.id === 'helm:skull-ram').rarity).toBe('legendaire');
 });
 
 test('rarete : le badge rend la couleur et le nom du palier', async ({ page }) => {
@@ -761,4 +759,57 @@ test('#53b boost run : unequipBoostRun desactive le bonus pour la partie, restar
   expect(disabledAfter).toBe(false);
   const bonusAfter = await page.evaluate((stat) => __game.debug.boostBonuses()[stat], bo.stat);
   expect(bonusAfter).toBe(bonusBefore);
+});
+
+// ====== Tranche #207 : refonte boutique (armes/perso/accessoires façon maquettes) ======
+
+test('#207 armes : hero (desc) + carrousel de cartes + glow de rareté', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('weapons'); });
+  // layout par onglet : #shop-info porte la classe tab-weapons
+  expect(await page.evaluate(() => document.getElementById('shop-info').classList.contains('tab-weapons'))).toBe(true);
+  // le carrousel a une carte par arme de la catégorie "Tout"
+  const nWeapons = await page.evaluate(() => __game.debug.shop.catalog().length);
+  const nCards = await page.evaluate(() => document.querySelectorAll('#shop-info .shop-carousel .wcard').length);
+  expect(nCards).toBe(nWeapons);
+  // description de l'arme héro (Viper-AR par défaut)
+  await expect(page.locator('#shop-info .shop-hero .shop-desc')).toContainText("Fusil d'assaut");
+  // lueur de rareté présente, teintée par la couleur de rareté (--rc)
+  expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-glow').length)).toBe(1);
+  expect(await page.evaluate(() => document.querySelector('#shop-info .shop-glow').style.getPropertyValue('--rc'))).toBeTruthy();
+});
+
+test('#207 armes : cliquer une carte du carrousel change l arme héro', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('weapons'); });
+  await page.locator('#shop-info .shop-carousel .wcard[data-wcard="sniper"]').click();
+  await expect(page.locator('#shop-info .shop-hero .shop-wname')).toContainText('Eclipse');
+  expect(await page.evaluate(() => __game.debug.shop.previewWeapon())).toBe('sniper');
+});
+
+test('#207 accessoires : la carte masque affiche l image PNG + panneau détail avec bonus', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('accessories'); });
+  expect(await page.evaluate(() => document.getElementById('shop-info').classList.contains('tab-acc'))).toBe(true);
+  // la carte "Insectoïde" affiche l'image réelle (mask/insect-viber)
+  const src = await page.evaluate(() => {
+    const card = document.querySelector('#shop-info .shop-acc-list [data-prevacc="helm:insect"] img.thumb-img');
+    return card ? card.getAttribute('src') : null;
+  });
+  expect(src).toContain('insect-viber');
+  // panneau détail présent avec au moins un bonus
+  await expect(page.locator('#shop-info .shop-acc-detail')).toBeVisible();
+  expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-acc-detail .acc-detail-bonuses .skill-row').length)).toBeGreaterThan(0);
+});
+
+test('#207 perso : hero desc + panneau compétences (3 skills)', async ({ page }) => {
+  await startPlaying(page);
+  await page.evaluate(() => __game.debug.backToHome());
+  await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('player'); });
+  expect(await page.evaluate(() => document.getElementById('shop-info').classList.contains('tab-player'))).toBe(true);
+  await expect(page.locator('#shop-info .shop-skills .sp-h')).toContainText('Compétences');
+  expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-skills .skill-row').length)).toBe(3);
 });
