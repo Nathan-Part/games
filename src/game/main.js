@@ -4,7 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { captureRest, captureRestWorld, boneOrder, retargetClipWorld as retargetClipWorldShared } from '../shared/retarget.js';
 import { worldPos, cameraRelative, locomotionState, resolveClipRole, pushOutCircleAABB } from './utils.js';
 import { ANIM_DIR, PERSO_DIR, iconFor, animKeyFromFile, prettyLabel, listDir, isGlb, isImg, seedPersosToGallery, loadCharactersFromGallery } from './assets.js';
-import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone } from './map.js';
+import { MAP_HALF, obstacles, obstacleMeshes, arenaLamps, addBox, addWall, addBuilding, pointInObstacle, buildArena, addProp, addBackdropProp, decorPropCount, decorBackdropCount, MAPS, clearArenaDecor, noSpawnZones, inNoSpawnZone, groundHeight, playerSpawn } from './map.js';
 import { updateFeatures, resetRunFeatures, lobbyFeatures, registerFeature } from './registry.js';
 import { initPet } from './pet.js';
 import { SAVE_KEY, save, persist, resetSave } from './save.js';
@@ -349,6 +349,8 @@ G.debug.testAddProp = (url, opts) => addProp(url, opts);
 G.debug.mapId = () => save.settings.mapId;
 G.debug.mapList = () => MAPS.map(m => m.id);
 G.debug.setMapId = (id) => switchMap(id);
+G.debug.groundHeightAt = (x, z) => groundHeight(x, z);                          // #204 (pur)
+G.debug.playerSpawnPoint = () => ({ x: playerSpawn.x, z: playerSpawn.z });      // #204
 G.debug.testAddBackdropProp = (url, opts) => addBackdropProp(url, opts);
 G.debug.decorPropCount = () => decorPropCount();
 G.debug.decorBackdropCount = () => decorBackdropCount();

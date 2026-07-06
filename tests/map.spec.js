@@ -136,11 +136,11 @@ test('mapList contient utopia et setMapId("utopia") bascule + persiste', async (
   expect(await page.evaluate(() => window.__game.debug.save.raw().settings.mapId)).toBe('utopia');
 });
 
-test('utopia : pad central et allee degages, canaux infranchissables', async ({ page }) => {
+test('utopia : stele collidee, spawn degage, canaux infranchissables', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => window.__game.debug.setMapId('utopia'));
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 0))).toBe(false);      // pad spawn
-  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 2))).toBe(false);      // allee centrale
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 0))).toBe(true);       // #204 : stele de l'amphitheatre au centre
+  expect(await page.evaluate(() => window.__game.debug.pointInObstacle(0, 3))).toBe(false);      // #204 : spawn joueur (0,3) degage
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(-12.8, -6.8))).toBe(true); // canal X nord-ouest
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(12.8, 6.8))).toBe(true);   // canal X sud-est
   expect(await page.evaluate(() => window.__game.debug.pointInObstacle(5.44, 12.8))).toBe(true);  // canal Y sud
