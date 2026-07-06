@@ -686,7 +686,9 @@ function renderMapPanel(){
   const el = document.getElementById('map-grid'); if(!el) return;
   el.innerHTML = MAPS.map(m => {
     const on = m.id === save.settings.mapId;
-    return `<button class="map-card${on ? ' on' : ''}" data-map="${m.id}">
+    // #206 : carte illustrée si la map fournit un visuel (MAPS[].img) — voile dégradé côté CSS
+    const img = m.img ? ` has-img" style="background-image:url('${m.img}')` : '';
+    return `<button class="map-card${on ? ' on' : ''}${img}" data-map="${m.id}">
       <span class="mc-ico"><svg class="ico"><use href="#i-map"></use></svg></span>
       <b>${m.label}</b><small>${on ? 'Terrain actuel' : 'Choisir ce terrain'}</small></button>`;
   }).join('');

@@ -171,7 +171,9 @@ async function buildPortalArena(scene){
 function addCollider(cx, cz, w, d){ obstacles.push({ minX:cx-w/2, maxX:cx+w/2, minZ:cz-d/2, maxZ:cz+d/2 }); }
 const UTOPIA_CANALS = [   // bassins/canaux infranchissables — aussi trous du sol dallé
   [-12.8,-6.8,10.9,2.3],[12.8,-6.8,10.9,2.3],[-12.8,6.8,10.9,2.3],[12.8,6.8,10.9,2.3],   // canaux X
-  [-5.44,-12.8,2.6,12.5],[5.44,-12.8,2.6,12.5],[-5.44,12.8,2.6,12.5],[5.44,12.8,2.6,12.5], // canaux Y
+  // canaux Y : bout proche du centre raccourci de 2,4 (cf. blend) pour ne plus empiéter sur le
+  // rebord de l'amphithéâtre (rHole 9.18) — le bout côté bâtiment ne bouge pas.
+  [-5.44,-14.0,2.6,10.1],[5.44,-14.0,2.6,10.1],[-5.44,14.0,2.6,10.1],[5.44,14.0,2.6,10.1],
 ];
 const UTOPIA_PROPS_COLLIDERS = [
   [-10.8,-11.2,6,4],[10.8,-11.2,6,4],[-10.8,11.2,6,4],[10.8,11.2,6,4],                    // parterres fleuris (cover)
@@ -307,7 +309,8 @@ async function buildUtopiaArena(scene){
 export const MAPS = [
   { id:'portal', label:'Portail des ruines', build:buildPortalArena },
   { id:'urban',  label:'Arène urbaine',      build:buildFallbackArena },
-  { id:'utopia', label:'Cité utopique',      build:buildUtopiaArena },
+  // img (#206) : visuel de la carte dans le panneau Map (optionnel — sans img, look icône)
+  { id:'utopia', label:'Cité utopique',      build:buildUtopiaArena, img:'decor/utopia/background.png' },
 ];
 const DEFAULT_MAP_ID = 'portal';
 

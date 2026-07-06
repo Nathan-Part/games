@@ -215,6 +215,17 @@ test('205 utopia complete : 8 lobbys, nouveau batiment BatG0 visitable, RdC a +0
   expect(await page.evaluate(() => window.__game.debug.inNoSpawnZone(-16.64, 31.2))).toBe(true);    // lobby BatG0 protege
 });
 
+// ====== #206 : tuile map illustree ======
+test('206 tuile map : la carte utopia porte background.png, pas les autres', async ({ page }) => {
+  await page.goto('/game.html#map');
+  await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
+  const utopia = page.locator('#map-grid [data-map="utopia"]');
+  await expect(utopia).toHaveClass(/has-img/);
+  expect(await utopia.evaluate(el => el.style.backgroundImage)).toContain('background.png');
+  const portal = page.locator('#map-grid [data-map="portal"]');
+  await expect(portal).not.toHaveClass(/has-img/);
+});
+
 test('205 utopia complete : fog/ombres/far par map, tour collidee, decor pose', async ({ page }) => {
   await startPlaying(page);
   expect(await page.evaluate(() => window.__game.debug.shadowHalfGet())).toBe(20);                  // portal : historique
