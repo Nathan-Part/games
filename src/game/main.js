@@ -1801,7 +1801,8 @@ function explodeGrenadeAt(x, y, z){
 function updateGrenades(dt){ const t = nowS();
   for(let i=grenadeProjs.length-1;i>=0;i--){ const g = grenadeProjs[i];
     g.vel.y -= GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel, dt);
-    if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
+    const ggy_ = groundHeight(g.mesh.position.x, g.mesh.position.z) + 0.12;   // #204 : rebond sur le sol local
+    if(g.mesh.position.y <= ggy_){ g.mesh.position.y = ggy_; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
     if(g.bounces < 2){ // rebond sur murs (#83)
       const px=g.mesh.position.x, pz=g.mesh.position.z, R=0.12;
       for(const b of obstacles){
@@ -1847,7 +1848,8 @@ function updateStickyGrenades(dt){ const t = nowS();
   for(let i=stickyProjs.length-1;i>=0;i--){ const s = stickyProjs[i];
     if(s.attachedEnemy && s.attachedEnemy.alive){ s.mesh.position.copy(s.attachedEnemy.root.position); s.mesh.position.y += 1.2; }
     else if(!s.attachedEnemy){ s.vel.y -= 9.81*dt; s.mesh.position.addScaledVector(s.vel, dt);
-      if(s.mesh.position.y <= 0.12){ s.mesh.position.y = 0.12; s.vel.set(0,0,0); } }
+      const stgy_ = groundHeight(s.mesh.position.x, s.mesh.position.z) + 0.12;   // #204 : collage au sol local
+      if(s.mesh.position.y <= stgy_){ s.mesh.position.y = stgy_; s.vel.set(0,0,0); } }
     if(t >= s.explodeAt){ const p = s.mesh.position;
       explodeGrenadeAt(p.x, p.y, p.z); // reuse grenade explosion with sticky params
       // override: apply sticky damage
@@ -1878,10 +1880,11 @@ function createGroundZone({ color, radius, dur, tick = 0, onTick = null }){
   const zones = [];
   return {
     spawn(x, z){
+      const gy = groundHeight(x, z);   // #204 : la zone épouse le sol local (fosse comprise)
       const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 24),
         new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.35, side:THREE.DoubleSide, depthWrite:false }));
-      mesh.rotation.x = -Math.PI/2; mesh.position.set(x, 0.05, z); scene.add(mesh);
-      zones.push({ mesh, x, z, expireAt: nowS() + dur, lastTick: nowS() });
+      mesh.rotation.x = -Math.PI/2; mesh.position.set(x, gy + 0.05, z); scene.add(mesh);
+      zones.push({ mesh, x, z, gy, expireAt: nowS() + dur, lastTick: nowS() });
     },
     update(){
       const t = nowS();
@@ -1891,18 +1894,22 @@ function createGroundZone({ color, radius, dur, tick = 0, onTick = null }){
     },
     clear(){ for(const z of zones) scene.remove(z.mesh); zones.length = 0; },
     active(){ return zones.length > 0; },
-    contains(x, z){ return zones.some(zz => Math.hypot(x - zz.x, z - zz.z) <= radius); },
+    meshY(){ return zones.length ? zones[0].mesh.position.y : null; },   // #204 (tests)
+    // #204 : garde verticale optionnelle — une zone sur la rive n'affecte pas une cible 1.9 m plus bas
+    contains(x, z, y){ return zones.some(zz => Math.hypot(x - zz.x, z - zz.z) <= radius
+      && (y === undefined || Math.abs(y - zz.gy) <= 1.6)); },
   };
 }
 const fireZone = createGroundZone({ color:0xff5500, radius:MOLOTOV_R, dur:MOLOTOV_ZONE_DUR, tick:MOLOTOV_TICK, onTick(z){
   for(const e of enemies){ if(!e.alive) continue;
-    if(Math.hypot(e.root.position.x-z.x, e.root.position.z-z.z) <= MOLOTOV_R) damageEnemy(e, MOLOTOV_TICK_DMG); }
+    if(Math.hypot(e.root.position.x-z.x, e.root.position.z-z.z) <= MOLOTOV_R
+       && Math.abs(e.root.position.y - z.gy) <= 1.6) damageEnemy(e, MOLOTOV_TICK_DMG); }   // #204 : garde verticale
 } });
-function igniteFireZone(x, z){ fireZone.spawn(x, z); spawnExplosionFx(new THREE.Vector3(x, 0.3, z)); }
+function igniteFireZone(x, z){ fireZone.spawn(x, z); spawnExplosionFx(new THREE.Vector3(x, groundHeight(x, z) + 0.3, z)); }   // #204
 function updateMolotovs(dt){
   for(let i=molotovProjs.length-1;i>=0;i--){ const p = molotovProjs[i];
     p.vel.y -= MOLOTOV_GRAV*dt; p.mesh.position.addScaledVector(p.vel, dt);
-    if(p.mesh.position.y <= 0.12){ igniteFireZone(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); molotovProjs.splice(i,1); } }
+    if(p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + 0.12){ igniteFireZone(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); molotovProjs.splice(i,1); } }   // #204
 }
 function updateFireZones(){ fireZone.update(); }
 function clearMolotovs(){ for(const p of molotovProjs) scene.remove(p.mesh); molotovProjs.length = 0; fireZone.clear(); }
@@ -1915,7 +1922,8 @@ G.debug.igniteFireZoneAt = (x,z) => igniteFireZone(x,z);
 // ====== #141 Ennemi toxique : nuage de poison au sol à sa mort (dégâts joueur) ======
 const POISON_R = 3, POISON_DUR = 4, POISON_TICK = 0.5, POISON_TICK_DMG = 8;
 const poisonZone = createGroundZone({ color:0x33cc33, radius:POISON_R, dur:POISON_DUR, tick:POISON_TICK, onTick(z){
-  if(model && Math.hypot(model.position.x-z.x, model.position.z-z.z) <= POISON_R) damagePlayer(POISON_TICK_DMG);
+  if(model && Math.hypot(model.position.x-z.x, model.position.z-z.z) <= POISON_R
+     && Math.abs((model.position.y - groundY) - z.gy) <= 1.6) damagePlayer(POISON_TICK_DMG);   // #204 : garde verticale
 } });
 function spawnPoisonZone(x, z){ poisonZone.spawn(x, z); }
 function updatePoisonZones(){ poisonZone.update(); }
@@ -1924,12 +1932,13 @@ G.debug.enemyIsToxic = (i) => { const e = enemies[i]; return !!e && e.type==='to
 G.debug.poisonZoneActive = () => poisonZone.active();
 G.debug.playerInPoisonZone = () => !!model && poisonZone.contains(model.position.x, model.position.z);
 G.debug.spawnPoisonZoneAt = (x,z) => spawnPoisonZone(x,z);
+G.debug.poisonZoneMeshY = () => poisonZone.meshY();   // #204
 // ====== #146 Ennemi cryo : zone de gel au sol à sa mort (ralentit le joueur, sans dégâts) ======
 const FROST_R = 3, FROST_DUR = 4, FROST_SLOW_MULT = 0.5;
 const frostZone = createGroundZone({ color:0x66ccff, radius:FROST_R, dur:FROST_DUR });
 function spawnFrostZone(x, z){ frostZone.spawn(x, z); }
 function updateFrostZones(){ frostZone.update(); }
-function playerSlowedByFrost(){ return !!model && frostZone.contains(model.position.x, model.position.z); }
+function playerSlowedByFrost(){ return !!model && frostZone.contains(model.position.x, model.position.z, model.position.y - groundY); }   // #204 : garde verticale
 function clearFrostZones(){ frostZone.clear(); }
 G.debug.enemyIsCryo = (i) => { const e = enemies[i]; return !!e && e.type==='cryo'; };
 G.debug.frostZoneActive = () => frostZone.active();
@@ -1967,7 +1976,7 @@ function triggerEmpBlast(x, z){
 function updateEmpProjs(dt){
   for(let i=empProjs.length-1;i>=0;i--){ const p = empProjs[i];
     p.vel.y -= EMP_GRAV*dt; p.mesh.position.addScaledVector(p.vel, dt);
-    if(p.mesh.position.y <= 0.12){ triggerEmpBlast(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); empProjs.splice(i,1); } }
+    if(p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + 0.12){ triggerEmpBlast(p.mesh.position.x, p.mesh.position.z); scene.remove(p.mesh); empProjs.splice(i,1); } }   // #204
 }
 function clearEmp(){ for(const p of empProjs) scene.remove(p.mesh); empProjs.length = 0; }
 G.debug.empStock = () => empStockCount;
@@ -2102,7 +2111,8 @@ function updateEnemyGrenades(dt){
   for(let i=enemyGrenadeProjs_.length-1;i>=0;i--){
     const g=enemyGrenadeProjs_[i];
     g.vel.y -= 14*dt; g.mesh.position.addScaledVector(g.vel, dt);
-    if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.35; g.vel.x *= 0.55; g.vel.z *= 0.55; }
+    const egy_ = groundHeight(g.mesh.position.x, g.mesh.position.z) + 0.12;   // #204
+    if(g.mesh.position.y <= egy_){ g.mesh.position.y = egy_; g.vel.y = -g.vel.y*0.35; g.vel.x *= 0.55; g.vel.z *= 0.55; }
     if(nowS() >= g.explodeAt){
       const px=g.mesh.position.x, py=g.mesh.position.y, pz=g.mesh.position.z;
       const pp=G.position ? G.position() : {x:0,y:1,z:0};
@@ -2313,7 +2323,8 @@ function updateGrenadeArc(){
   for(let i=0;i<ARC_STEPS;i++){
     pos.array[i*3]=px; pos.array[i*3+1]=py; pos.array[i*3+2]=pz;
     px+=vx*ARC_DT; py+=vy*ARC_DT; pz+=vz*ARC_DT; vy-=GRENADE_G*ARC_DT;
-    if(py < 0){ py=0; break; }
+    const agy = groundHeight(px, pz);   // #204 : l'arc s'arrête sur le sol local (fosse comprise)
+    if(py < agy){ py=agy; break; }
   }
   pos.needsUpdate = true;
 }
@@ -2616,8 +2627,9 @@ let moneyOrbs = [], orbTime = 0;
 const _orbGeo = new THREE.SphereGeometry(0.18, 8, 6);
 const _orbMat = new THREE.MeshBasicMaterial({color:0xffd700});
 function spawnMoneyOrb(x, z, amount){
-  const m = new THREE.Mesh(_orbGeo, _orbMat.clone()); m.position.set(x, 0.4, z);
-  scene.add(m); moneyOrbs.push({mesh:m, baseY:0.4, amount, t:Math.random()*Math.PI*2});
+  const by = groundHeight(x, z) + 0.4;   // #204 : flotte au-dessus du sol local
+  const m = new THREE.Mesh(_orbGeo, _orbMat.clone()); m.position.set(x, by, z);
+  scene.add(m); moneyOrbs.push({mesh:m, baseY:by, amount, t:Math.random()*Math.PI*2});
 }
 function updateMoneyOrbs(dt){
   orbTime += dt; const pp = G.position();
@@ -2740,7 +2752,7 @@ const _smGeo = new THREE.RingGeometry(0.8, 1.2, 24);
 const _smMat = new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
 function showSpawnMarker(x, z){
   const m = new THREE.Mesh(_smGeo, _smMat.clone());
-  m.rotation.x = -Math.PI/2; m.position.set(x, 0.05, z); scene.add(m);
+  m.rotation.x = -Math.PI/2; m.position.set(x, groundHeight(x, z) + 0.05, z); scene.add(m);   // #204
   spawnMarkers.push({mesh:m, t:0, dur:SPAWN_MARK_DUR});
 }
 function updateSpawnMarkers(dt){
@@ -2765,7 +2777,7 @@ function throwSmoke(){
   smokeProjs.push({mesh:p.mesh,vel:p.vel,explodeAt:nowS()+SMOKE_FUSE}); return true;
 }
 function explodeSmokeAt(x,z){
-  const cm=buildCloudMesh(SMOKE_R); cm.position.set(x,1,z); scene.add(cm);
+  const cm=buildCloudMesh(SMOKE_R); cm.position.set(x, groundHeight(x, z) + 1, z); scene.add(cm);   // #204
   smokeClouds.push({mesh:cm,expiresAt:nowS()+SMOKE_DUR,x,z});
 }
 function enemyInSmoke(i){ const e=enemies[i]; if(!e||!e.alive) return false;
@@ -2773,7 +2785,8 @@ function enemyInSmoke(i){ const e=enemies[i]; if(!e||!e.alive) return false;
 function updateSmokes(dt){ const t=nowS();
   for(let i=smokeProjs.length-1;i>=0;i--){ const g=smokeProjs[i];
     g.vel.y-=GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel,dt);
-    if(g.mesh.position.y<=0.12){g.mesh.position.y=0.12;g.vel.y=-g.vel.y*0.4;g.vel.x*=0.6;g.vel.z*=0.6;}
+    const sgy_=groundHeight(g.mesh.position.x,g.mesh.position.z)+0.12;   // #204
+    if(g.mesh.position.y<=sgy_){g.mesh.position.y=sgy_;g.vel.y=-g.vel.y*0.4;g.vel.x*=0.6;g.vel.z*=0.6;}
     if(t>=g.explodeAt){explodeSmokeAt(g.mesh.position.x,g.mesh.position.z);scene.remove(g.mesh);smokeProjs.splice(i,1);} }
   for(let i=smokeClouds.length-1;i>=0;i--){ const c=smokeClouds[i];
     if(t>=c.expiresAt){scene.remove(c.mesh);smokeClouds.splice(i,1);}
@@ -2850,14 +2863,14 @@ function placeMine(){
   if(G.phase !== 'playing' || mineStock <= 0 || !model) return false;
   mineStock--;
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
-  const pos = model.position.clone().addScaledVector(dir, 1.5); pos.y = 0.03;
+  const pos = model.position.clone().addScaledVector(dir, 1.5); pos.y = groundHeight(pos.x, pos.z) + 0.03;   // #204
   const mesh = buildMineMesh(); mesh.position.copy(pos); scene.add(mesh);
   mines.push({ mesh, armed:false, armAt: nowS() + 1.0 }); updateMineHud(); return true;
 }
 function placeMineFree(){   // #156 : variante loadout, ignore le stock (mineStock inchangé)
   if(G.phase !== 'playing' || !model) return false;
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
-  const pos = model.position.clone().addScaledVector(dir, 1.5); pos.y = 0.03;
+  const pos = model.position.clone().addScaledVector(dir, 1.5); pos.y = groundHeight(pos.x, pos.z) + 0.03;   // #204
   const mesh = buildMineMesh(); mesh.position.copy(pos); scene.add(mesh);
   mines.push({ mesh, armed:false, armAt: nowS() + 1.0 }); return true;
 }
@@ -3249,7 +3262,8 @@ function flashPlayerScreen(){
 function updateFlashbangs(dt){ const t = nowS();
   for(let i=flashbangProjs.length-1;i>=0;i--){ const g = flashbangProjs[i];
     g.vel.y -= GRENADE_GRAV*dt; g.mesh.position.addScaledVector(g.vel, dt);
-    if(g.mesh.position.y <= 0.12){ g.mesh.position.y = 0.12; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
+    const ggy_ = groundHeight(g.mesh.position.x, g.mesh.position.z) + 0.12;   // #204 : rebond sur le sol local
+    if(g.mesh.position.y <= ggy_){ g.mesh.position.y = ggy_; g.vel.y = -g.vel.y*0.4; g.vel.x *= 0.6; g.vel.z *= 0.6; }
     if(t >= g.explodeAt){ explodeFlashbangAt(g.mesh.position.x, g.mesh.position.y, g.mesh.position.z); scene.remove(g.mesh); flashbangProjs.splice(i,1); } }
 }
 function clearFlashbangs(){ for(const g of flashbangProjs) scene.remove(g.mesh); flashbangProjs.length = 0; }
@@ -3270,9 +3284,10 @@ function buildBarrelMesh(){ const g = new THREE.Group();
   const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.12,16), new THREE.MeshStandardMaterial({ color:0xf0c020, emissive:0x201803 })); stripe.position.y = 0.45;
   g.add(body, stripe); g.traverse(o=>{ if(o.isMesh) o.castShadow = true; }); return g; }
 function spawnBarrel(x, z){
-  const mesh = buildBarrelMesh(); mesh.position.set(x, 0, z); scene.add(mesh);
+  const gy = groundHeight(x, z);   // #204
+  const mesh = buildBarrelMesh(); mesh.position.set(x, gy, z); scene.add(mesh);
   const hb = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,1.8,8), new THREE.MeshBasicMaterial({ visible:false }));
-  hb.position.set(x, 0.9, z); hb.updateMatrixWorld(); scene.add(hb);
+  hb.position.set(x, gy + 0.9, z); hb.updateMatrixWorld(); scene.add(hb);
   barrels.push({ mesh, hitbox:hb, x, z }); return barrels.length-1;
 }
 function clearBarrels(){ for(const b of barrels){ scene.remove(b.mesh); scene.remove(b.hitbox); } barrels.length = 0; }
@@ -3655,14 +3670,14 @@ function buildAmmoPack(){
   const box = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.14,0.14), yel); box.position.y = 0.22;
   g.add(base, box); g.traverse(o => { if(o.isMesh) o.castShadow = true; }); return g;
 }
-function spawnAmmoPack(x, z){ const m = buildAmmoPack(); m.position.set(x, 0, z); scene.add(m);
-  ammoPacks.push({ mesh:m, x, z }); return ammoPacks.length - 1; }
+function spawnAmmoPack(x, z){ const m = buildAmmoPack(); const gy = groundHeight(x, z); m.position.set(x, gy, z); scene.add(m);
+  ammoPacks.push({ mesh:m, x, z, gy }); return ammoPacks.length - 1; }   // #204 : posé sur le sol local
 function clearAmmoPacks(){ for(const p of ammoPacks) scene.remove(p.mesh); ammoPacks.length = 0; }
 function maybeDropAmmo(e){ if(forceAmmoDrop_ || Math.random() < (activePower==='loot_master' ? AMMO_DROP_CHANCE*2 : AMMO_DROP_CHANCE)) spawnAmmoPack(e.root.position.x, e.root.position.z); }   // #188
 function updateAmmoPacks(dt){
   if(!model) return; const t = nowS();
   for(let i=ammoPacks.length-1;i>=0;i--){ const p = ammoPacks[i];
-    p.mesh.rotation.y += dt * 2.0; p.mesh.position.y = 0.05 * Math.sin(t*2.5 + i + 1);
+    p.mesh.rotation.y += dt * 2.0; p.mesh.position.y = (p.gy || 0) + 0.05 * Math.sin(t*2.5 + i + 1);   // #204 : bob autour du sol local
     const d = Math.hypot(model.position.x - p.x, model.position.z - p.z);
     if(d <= AMMO_PICKUP_R){ ammo = Math.min(curMag, ammo + Math.round(curMag * 0.5)); G.ammo = ammo; flashHeal(); playSound('reload');
       scene.remove(p.mesh); ammoPacks.splice(i, 1); } }
@@ -3681,7 +3696,7 @@ function buildCarePackageMesh(){
 }
 function spawnCarePackage(x, z){
   if(carePackage) return;
-  const m = buildCarePackageMesh(); m.position.set(x, 0, z); scene.add(m);
+  const m = buildCarePackageMesh(); m.position.set(x, groundHeight(x, z), z); scene.add(m);   // #204
   carePackage = { mesh:m, x, z };
 }
 function maybeSpawnCarePackage(w){
@@ -3730,14 +3745,14 @@ function buildHealthPack(){
   const h = new THREE.Mesh(new THREE.BoxGeometry(0.30,0.10,0.10), green); h.position.y = 0.30;
   g.add(base, v, h); g.traverse(o => { if(o.isMesh) o.castShadow = true; }); return g;
 }
-function spawnHealthPack(x, z){ const m = buildHealthPack(); m.position.set(x, 0, z); scene.add(m);
-  healthPacks.push({ mesh:m, x, z }); return healthPacks.length - 1; }
+function spawnHealthPack(x, z){ const m = buildHealthPack(); const gy = groundHeight(x, z); m.position.set(x, gy, z); scene.add(m);
+  healthPacks.push({ mesh:m, x, z, gy }); return healthPacks.length - 1; }   // #204 : posé sur le sol local
 function clearHealthPacks(){ for(const p of healthPacks) scene.remove(p.mesh); healthPacks.length = 0; }
 function maybeDropHealth(e){ if(forceHealthDrop || e.type === 'boss' || Math.random() < (activePower==='loot_master' ? HEALTH_DROP_CHANCE*2 : HEALTH_DROP_CHANCE)) spawnHealthPack(e.root.position.x, e.root.position.z); }   // #188
 function updateHealthPacks(dt){
   if(!model) return; const t = nowS();
   for(let i=healthPacks.length-1;i>=0;i--){ const p = healthPacks[i];
-    p.mesh.rotation.y += dt * 1.5; p.mesh.position.y = 0.06 * Math.sin(t*3 + i);
+    p.mesh.rotation.y += dt * 1.5; p.mesh.position.y = (p.gy || 0) + 0.06 * Math.sin(t*3 + i);   // #204
     const d = Math.hypot(model.position.x - p.x, model.position.z - p.z);
     if(d <= HEALTH_PICKUP_R && health < maxHealth){
       if(!hardcore_){ health = Math.min(maxHealth, health + HEALTH_PACK_AMOUNT); G.health = health; updateHealthHud(); flashHeal(); playSound('reload'); }
@@ -3745,6 +3760,7 @@ function updateHealthPacks(dt){
 }
 function flashHeal(){ const v = document.getElementById('heal-flash'); if(!v) return; v.classList.add('show'); clearTimeout(v.__t); v.__t = setTimeout(() => v.classList.remove('show'), 260); }
 G.debug.spawnHealthPack = (x,z) => spawnHealthPack(x,z);
+G.debug.healthPackY = (i=0) => healthPacks[i] ? healthPacks[i].mesh.position.y : null;   // #204
 G.debug.healthPackCount = () => healthPacks.length;
 G.debug.forceHealthDrop = (b) => { forceHealthDrop = !!b; };
 G.debug.nearestHealthPack = () => { if(!model||!healthPacks.length) return null; let best=null,bd=1e9;
@@ -3757,7 +3773,8 @@ const powerUps = []; let forcePowerDrop = false;
 function buildPowerOrb(color){ return new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),
   new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.9, roughness:0.3 })); }
 function spawnPowerUp(type, x, z){ if(!POWERUPS[type]) type='dmgx2'; const m = buildPowerOrb(POWERUPS[type].color);
-  m.castShadow = true; m.position.set(x, 0.6, z); scene.add(m); powerUps.push({ mesh:m, x, z, type }); return powerUps.length-1; }
+  const gy = groundHeight(x, z);   // #204
+  m.castShadow = true; m.position.set(x, gy + 0.6, z); scene.add(m); powerUps.push({ mesh:m, x, z, gy, type }); return powerUps.length-1; }
 function clearPowerUps(){ for(const p of powerUps) scene.remove(p.mesh); powerUps.length = 0; }
 function maybeDropPower(e){ if(forcePowerDrop || e.type==='boss' || Math.random() < (activePower==='loot_master' ? POWER_DROP_CHANCE*2 : POWER_DROP_CHANCE)){   // #188
   const ks = Object.keys(POWERUPS); spawnPowerUp(ks[Math.floor(Math.random()*ks.length)], e.root.position.x, e.root.position.z); } }
@@ -3778,7 +3795,7 @@ function activatePower(type){
 }
 function updatePowerUps(dt){ if(!model) return; const t = nowS();
   if(activePower && t >= powerExpireAt){ activePower = null; applyWeaponStats(); }
-  for(let i=powerUps.length-1;i>=0;i--){ const p = powerUps[i]; p.mesh.rotation.y += dt*2; p.mesh.position.y = 0.6 + 0.08*Math.sin(t*3+i);
+  for(let i=powerUps.length-1;i>=0;i--){ const p = powerUps[i]; p.mesh.rotation.y += dt*2; p.mesh.position.y = (p.gy || 0) + 0.6 + 0.08*Math.sin(t*3+i);   // #204
     if(Math.hypot(model.position.x-p.x, model.position.z-p.z) <= POWER_PICKUP_R){ activatePower(p.type); scene.remove(p.mesh); powerUps.splice(i,1); } }
   updatePowerHud(); }
 function updatePowerHud(){ const el = document.getElementById('power-hud'); if(!el) return;
