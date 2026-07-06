@@ -805,11 +805,12 @@ test('#207 accessoires : la carte masque affiche l image PNG + panneau détail a
   expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-acc-detail .acc-detail-bonuses .skill-row').length)).toBeGreaterThan(0);
 });
 
-test('#207 perso : hero desc + panneau compétences (3 skills)', async ({ page }) => {
+test('perso : hero desc + stats centrées (compétences retirées, retour Nathan)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => __game.debug.backToHome());
   await page.evaluate(() => { __game.debug.shop.open(); __game.debug.shop.tab('player'); });
   expect(await page.evaluate(() => document.getElementById('shop-info').classList.contains('tab-player'))).toBe(true);
-  await expect(page.locator('#shop-info .shop-skills .sp-h')).toContainText('Compétences');
-  expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-skills .skill-row').length)).toBe(3);
+  await expect(page.locator('#shop-info .shop-hero .shop-desc')).not.toBeEmpty();
+  expect(await page.evaluate(() => document.querySelector('#shop-info .shop-skills'))).toBeNull();
+  expect(await page.evaluate(() => document.querySelectorAll('#shop-info .shop-stats-panel.char .statbar').length)).toBe(3);
 });

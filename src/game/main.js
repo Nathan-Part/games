@@ -1212,9 +1212,12 @@ async function setShopChar(i){
   ]);
   if(seq !== shopCharSeq){ for(const o of [left, center, right]) scene.remove(o); return; }
   disposeShopObj(shopCharObj); disposeShopObj(shopCharL); disposeShopObj(shopCharR);
-  shopCharL = placeCharModel(left, 0.72, CHAR_SIDE_L);
-  shopCharObj = placeCharModel(center, 1.0, CHAR_CENTER_POS);
-  shopCharR = placeCharModel(right, 0.72, CHAR_SIDE_R);
+  // retour Nathan : perso trop petit (la caméra a été reculée pour s'aligner sur le podium du fond) —
+  // compensé en agrandissant les modèles eux-mêmes (les pieds restent à CHAR_*_POS, donc l'alignement
+  // podium n'est pas perdu : seule la taille apparente change, pas la position des pieds au sol).
+  shopCharL = placeCharModel(left, 1.05, CHAR_SIDE_L);
+  shopCharObj = placeCharModel(center, 1.45, CHAR_CENTER_POS);
+  shopCharR = placeCharModel(right, 1.05, CHAR_SIDE_R);
   applyShopVisibility();
 }
 G.debug.shopCharObjCount = () => [shopCharObj, shopCharL, shopCharR].filter(Boolean).length;
@@ -1491,7 +1494,7 @@ function renderShop(){
     html += `<div class="shop-bottombar"><div class="subtabs">`
       + Object.entries(WCATS).map(([c,l]) => `<button class="subtab${shopWeaponCategory===c?' on':''}" data-wcat="${c}">${l}</button>`).join('')
       + `</div><div class="shop-carousel">` + fw.map(x => weaponCard(x, x.id === w.id)).join('') + `</div></div>`;
-  } else if(shopTab === 'player'){   // #207 : hero + compétences (bas-gauche) + stats (bas-droite) + glow rareté
+  } else if(shopTab === 'player'){   // #207 : hero + stats (centrées, en bas) + glow rareté — compétences retirées (retour Nathan : perso trop petit/panneau surchargé)
     const c = CHARACTERS[shopCharIndex];
     const owned = save.ownedCharacters.includes(c.id), eq = (save.selectedCharacterId || CHARACTERS[0].id) === c.id;
     const rc = rarityInfo(c.rarity).color;
@@ -1499,11 +1502,6 @@ function renderShop(){
     html += `<div class="shop-hero"><div class="eyebrow">// Personnage</div>`
       + `<div class="shop-wname">${c.name} ${rarityBadge(c.rarity)}</div>`
       + `<p class="shop-desc">${c.desc || ''}</p></div>`;
-    html += `<div class="shop-char-panel">`;
-    html += `<div class="shop-skills"><div class="sp-h">${ico('gear')} Compétences</div>`
-      + (c.skills || []).map(sk => `<div class="skill-row"><span class="skill-ic">${ico(sk.icon)}</span>`
-          + `<div class="skill-txt"><span class="skill-nm">${sk.name}</span><span class="skill-de">${sk.desc}</span></div></div>`).join('')
-      + `</div>`;
     html += `<aside class="shop-stats-panel char"><div class="shop-statcards">`
       + statBar('Vie', c.base.health/250*100, c.base.health) + statBar('Régén', c.base.regen/25*100, c.base.regen)
       + statBar('Vitesse', (c.base.speed-0.8)/0.5*100, c.base.speed.toFixed(2) + '×') + `</div>`;
@@ -1516,7 +1514,6 @@ function renderShop(){
     else if(owned) html += `<button class="shop-cta" data-selchar="${c.id}">Équiper</button>`;
     else html += `<button class="shop-cta buy" data-buychar="${c.id}"${save.money >= c.price ? '' : ' disabled'}>Acheter ${ico('coin')}${c.price}</button>`;
     html += `</div></aside>`;
-    html += `</div>`;
   } else if(shopTab === 'boost'){   // onglet Boost (#28) : grille de cartes (C-3 : panneau gauche, perso visible)
     html += `<div class="shop-wname">Boost</div><div class="shop-grid">`;
     for(const bo of BOOSTS){
@@ -1564,17 +1561,27 @@ function renderShop(){
         html += itemCard({ rc:rarityInfo(d.rarity).color, icon:'emote', name:d.name, rarity:d.rarity, foot, on, owned });
       }
       html += `</div></div>`;
-    } else {   // Masque / Costume — cliquer la carte = aperçu sur le perso (essayer avant d'acheter)
+    } else {   // Masque / Costume — cliquer la tuile = aperçu sur le perso (essayer avant d'acheter)
+      // #retour Nathan : plus de nom/prix sur la carte (trop gros, images coupées) — tuiles compactes
+      // sans texte groupées par rareté (1 ligne par rareté, Commun en haut → Légendaire en bas) ;
+      // le détail (nom/desc/bonus/acheter) reste dans le panneau de droite (`focus`, inchangé).
       const cat = ACCESSORY_SLOTS[slot], eqId = save.equipped[slot], prev = shopAccPreview[slot];
       html += `<div class="shop-sub2">${ico('eye')} Clique un article pour l'essayer sur ton perso, puis achète</div></div>`;
-      html += `<div class="shop-acc-list"><div class="shop-grid">`;
-      for(const a of cat){
-        const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
-        const on = prev ? (a.id === prev) : eq;
-        const foot = eq ? `<span class="icbtn on">${ico('check')} Équipé</span>`
-          : owned ? `<button class="icbtn" data-selacc="${a.id}">Équiper</button>`
-          : `<button class="icbtn buy" data-buyacc="${a.id}"${save.money >= a.price ? '' : ' disabled'}>${ico('coin')}${a.price}</button>`;
-        html += itemCard({ rc:rarityInfo(a.rarity).color, icon:(slot==='helmet'?'helmet':'vest'), img:a.img||null, name:a.name, rarity:a.rarity, foot, on, owned, data:` data-prevacc="${a.id}"` });
+      html += `<div class="shop-acc-list"><div class="acc-rarity-rows">`;
+      for(const rk of RARITY_ORDER){
+        const items = cat.filter(a => a.rarity === rk);
+        if(!items.length) continue;
+        html += `<div class="acc-rrow" style="--rc:${rarityInfo(rk).color}">`
+          + `<span class="acc-rrow-label">${rarityInfo(rk).name}</span><div class="acc-rrow-items">`
+          + items.map(a => {
+              const owned = save.ownedAccessories.includes(a.id), eq = eqId === a.id;
+              const on = prev ? (a.id === prev) : eq;
+              return `<button class="acctile${on?' on':''}" data-prevacc="${a.id}" style="--rc:${rarityInfo(a.rarity).color}" title="${a.name}">`
+                + `${ico(slot==='helmet'?'helmet':'vest')}${a.img?`<img class="thumb-img" src="${a.img}" alt="" loading="lazy" onerror="this.remove()">`:''}`
+                + `${owned?`<span class="acctile-check">${ico('check')}</span>`:''}`
+                + `</button>`;
+            }).join('')
+          + `</div></div>`;
       }
       html += `</div></div>`;
       // panneau détail (bas-droite) : article survolé/essayé (preview) sinon équipé (si réel) sinon 1er non-"Aucun"

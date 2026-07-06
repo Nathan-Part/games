@@ -721,20 +721,15 @@
   .shop-hero .shop-wname{justify-content:flex-start}
   .shop-desc{margin:0;font-family:var(--font-ui);font-size:var(--t-md);line-height:1.42;color:var(--text-2);max-width:340px}
   /* --- PANNEAUX SOMBRES translucides (stats / compétences / détail accessoire) --- */
-  .shop-stats-panel,.shop-skills,.shop-acc-detail{z-index:2;display:flex;flex-direction:column;gap:12px;padding:16px 18px;color:#eef1f6;
+  .shop-stats-panel,.shop-acc-detail{z-index:2;display:flex;flex-direction:column;gap:12px;padding:16px 18px;color:#eef1f6;
     background:linear-gradient(158deg, rgba(22,24,36,.93), rgba(13,15,24,.9));box-shadow:0 20px 54px rgba(10,12,30,.5),inset 0 0 0 1px rgba(255,255,255,.06);
     --ch:14px;clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
   .tab-weapons .shop-stats-panel{position:absolute;right:28px;top:84px;width:min(27vw,326px)}
   /* maquette armes : Améliorer/Équiper empilés pleine largeur (contrairement au perso, où ils restent côte à côte) */
   .tab-weapons .sp-btns{flex-direction:column;align-items:stretch}
   .tab-weapons .sp-btns .shop-cta,.tab-weapons .sp-btns .shop-badge{width:100%;justify-content:center}
-  /* maquette perso : compétences + stats fondues dans UN SEUL panneau (2 colonnes), pas 2 cartes séparées */
-  .tab-player .shop-char-panel{position:absolute;left:36px;right:28px;bottom:26px;z-index:2;display:grid;grid-template-columns:1.15fr 1fr;
-    background:linear-gradient(158deg, rgba(22,24,36,.93), rgba(13,15,24,.9));box-shadow:0 20px 54px rgba(10,12,30,.5),inset 0 0 0 1px rgba(255,255,255,.06);
-    --ch:14px;clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
-  .tab-player .shop-char-panel .shop-skills,.tab-player .shop-char-panel .shop-stats-panel.char{
-    position:static;width:auto;background:none;box-shadow:none;clip-path:none;padding:20px 22px}
-  .tab-player .shop-char-panel .shop-skills{border-right:1px solid rgba(255,255,255,.1)}
+  /* maquette perso : compétences retirées (retour Nathan) — stats seules, centrées en bas */
+  .tab-player .shop-stats-panel.char{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:min(38vw,420px)}
   .sp-h{display:flex;align-items:center;gap:8px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:.1em;
     font-size:var(--t-sm);font-weight:700;color:var(--accent-2)}
   .sp-h .ico{width:16px;height:16px;color:var(--accent-2)}
@@ -787,6 +782,23 @@
   .tab-acc .shop-acc-list{position:absolute;left:30px;top:224px;bottom:24px;width:min(47vw,548px);z-index:2;overflow-y:auto;padding-right:6px}
   .tab-acc .shop-acc-list .shop-grid{grid-template-columns:repeat(2,1fr)}
   .tab-acc .shop-acc-detail{position:absolute;right:26px;bottom:24px;width:min(28vw,360px)}
+  /* masques/costumes (retour Nathan) : tuiles compactes SANS nom, groupées 1 ligne par rareté (Commun→Légendaire) */
+  .acc-rarity-rows{display:flex;flex-direction:column;gap:14px}
+  .acc-rrow{display:flex;align-items:center;gap:12px}
+  .acc-rrow-label{flex:0 0 76px;font-family:var(--font-display);font-weight:700;text-transform:uppercase;
+    font-size:11px;letter-spacing:.05em;color:var(--rc,var(--text-2))}
+  .acc-rrow-items{display:flex;flex-wrap:wrap;gap:8px}
+  .acctile{position:relative;width:58px;height:58px;flex:0 0 auto;padding:0;border:0;cursor:pointer;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;background:var(--bg-600);color:var(--rc,var(--accent));
+    box-shadow:inset 0 0 0 1px var(--line);transition:transform .15s,box-shadow .15s;--ch:7px;
+    clip-path:polygon(var(--ch) 0,100% 0,100% calc(100% - var(--ch)),calc(100% - var(--ch)) 100%,0 100%,0 var(--ch))}
+  .acctile .ico{width:24px;height:24px}
+  .acctile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center}
+  .acctile:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--rc,var(--accent))}
+  .acctile:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--rc,var(--accent))}
+  .acctile.on{box-shadow:inset 0 0 0 2px var(--rc,var(--accent)),0 6px 16px -4px color-mix(in srgb,var(--rc,var(--accent)) 55%,transparent)}
+  .acctile-check{position:absolute;top:2px;right:2px;width:14px;height:14px;color:var(--ok)}
+  .acctile-check .ico{width:14px;height:14px}
   .acc-detail-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .acc-detail-nm{font-family:var(--font-display);font-weight:800;text-transform:uppercase;font-size:var(--t-xl);letter-spacing:.02em;color:#fff}
   .acc-detail-desc{margin:0;font-size:13px;line-height:1.4;color:#9aa3b4}
