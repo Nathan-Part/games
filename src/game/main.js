@@ -3918,6 +3918,7 @@ function backToHome(){
   lobbyFeatures();   // hooks onLobby() des features enregistrées (registre étape 4)
   setView('third');                                            // bug d'affichage : si on quittait en 1re personne, le viewmodel FPS restait visible dans le lobby
   if(viewModel) viewModel.visible = false;                     // garantie : pas de mains/arme FPS sur la page d'accueil
+  if(armsVM) armsVM.visible = false;                           // idem pour les avant-bras bas-poly (mesh distinct de viewModel, meme bug — updateWeapon ne tourne plus au lobby donc sa visibilite n'etait jamais retombee)
   document.getElementById('scope-overlay')?.classList.remove('show'); // pas de viseur sniper résiduel sur l'accueil (#61)
   if(document.pointerLockElement) document.exitPointerLock?.();
   G.phase = 'lobby';
@@ -5196,6 +5197,7 @@ G.debug.forceEquipWeapon = (id) => { save.selectedWeapon = id; persist(); applyW
 G.debug.weapon = {
   held(){ return !!heldWeapon; }, handBone(){ return handBoneName; }, source(){ return weaponSource; },
   viewmodelVisible(){ return !!(viewModel && viewModel.visible); }, recoil(){ return weaponRecoil; },
+  armsVisible(){ return !!(armsVM && armsVM.visible); },
   aiming(){ return !!input.aim; }, adsProgress(){ return adsT; },
   sightVisible(){ return document.getElementById('sight').classList.contains('show'); },
   equippedId(){ return equippedWeaponId; }
