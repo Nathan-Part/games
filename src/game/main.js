@@ -2420,31 +2420,8 @@ function currentSpread(){
 }
 G.debug.currentSpread = () => currentSpread();
 G.debug.setSpreadOverride = (v) => { spreadOverride = v; };
-// ====== #91 Zone de danger ======
-const DZ_RADII = [20, 14, 9, 5], DZ_DMG = 5, DZ_WAVE_STEP = 3;
-let dzMesh = null, dzLastDmgT = 0;
-function dangerZoneRadius(){ const idx = Math.min(DZ_RADII.length-1, Math.floor(((wave||1)-1)/DZ_WAVE_STEP)); return DZ_RADII[idx]; }
-function playerInZone(){ if(!model) return true; return Math.hypot(model.position.x, model.position.z) <= dangerZoneRadius(); }
-function dangerZoneDamage(){ return DZ_DMG; }
-function buildDangerZone(){
-  if(dzMesh) return;
-  const geo = new THREE.RingGeometry(dangerZoneRadius()-0.3, dangerZoneRadius()+0.3, 64);
-  const mat = new THREE.MeshBasicMaterial({color:0xff2222, transparent:true, opacity:0.5, side:THREE.DoubleSide, depthWrite:false});
-  dzMesh = new THREE.Mesh(geo, mat); dzMesh.rotation.x=-Math.PI/2; dzMesh.position.y=0.05; scene.add(dzMesh);
-}
-function updateDangerZone(dt){
-  if(!dzMesh) buildDangerZone();
-  const r = dangerZoneRadius();
-  dzMesh.geometry.dispose(); dzMesh.geometry = new THREE.RingGeometry(r-0.3, r+0.3, 64);
-  if(G.phase === 'playing' && !playerInZone()){
-    const t = nowS(); if(t - dzLastDmgT >= 1){ damagePlayer(DZ_DMG); dzLastDmgT = t; }
-  }
-}
-function clearDangerZone(){ if(dzMesh){ scene.remove(dzMesh); dzMesh.geometry.dispose(); dzMesh.material.dispose(); dzMesh = null; } dzLastDmgT = 0; }   // #91 : retire l'anneau (sinon visible dans le lobby)
-G.debug.dzMeshActive = () => !!dzMesh && dzMesh.parent === scene;
-G.debug.dangerZoneRadius = () => dangerZoneRadius();
-G.debug.playerInZone = () => playerInZone();
-G.debug.dangerZoneDamage = () => dangerZoneDamage();
+// ====== #91 Zone de danger : RETIRÉE (#206) — le cercle rouge rétrécissant punissait
+// l'exploration des grandes maps (utopia 152×184) ; mécanique + anneau + dégâts supprimés. ======
 // ====== #90 Rang de fin de partie ======
 let rankKillsOvr = null, rankAccOvr = null, rankWaveOvr = null;
 function rankScore(){
@@ -4260,7 +4237,7 @@ async function buildEnemyAssets(playerChar){
   enemyClips = { idle:retargetRole('idle'), walk:retargetRole('walk'), run:retargetRole('run'), attack:retargetRole('attack'), dead:retargetRole('dead') };
   targetRest = sr; targetRestWorld = srw; targetBoneOrder = so;
 }
-function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearDangerZone(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); clearCarePackage(); clearFrostZones(); }
+function clearEnemies(){ for(const e of enemies){ scene.remove(e.root); scene.remove(e.hitbox); } enemies.length = 0; clearHealthPacks(); clearAmmoPacks(); clearGrenades(); clearFlashbangs(); clearSmokes(); clearSpawnMarkers(); clearImpactSparks(); clearMoneyOrbs(); clearShockwaves(); clearPowerUps(); clearBarrels(); clearMines(); clearSticky(); clearEnemyGrenades(); clearMolotovs(); clearTurret(); clearEmp(); clearPoisonZones(); clearCarePackage(); clearFrostZones(); }
 function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
   clearEnemies();
   for(let i=0;i<count;i++){
@@ -5289,7 +5266,7 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
-  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateDangerZone(dt); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updatePetHpBar(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); updateFeatures(dt); }
+  if(G.phase==='playing' && !paused){ updateController(dt); updateCombat(dt); updateEnemies(dt * enemyTimeScale()); updateWaves(dt); updateHealth(dt); updateHealthPacks(dt); updateGrenades(dt); updateFlashbangs(dt); updateSmokes(dt); updateSpawnMarkers(dt); updateImpactSparks(dt); updateMoneyOrbs(dt); updateShockwaves(dt); updatePowerUps(dt); updateAimAssist(dt); updateCamera(dt); updateWeapon(dt); updateSniperLaser(); updateRain(dt); updateOverheat(dt); updateGrenadeArc(); checkEnemyFlanks(); updateRadar(); updateKillstreak(); updateBurstFire(); updateMines(); updateEnemyHpBars(); updatePetHpBar(); updateShield(dt); updateFootsteps(dt); updateEnemyCountHud(); updateAmmoPacks(dt); updateStickyGrenades(dt); updateMedics(dt); updateDecoys(dt); updateEnemyGrenades(dt); updateMolotovs(dt); updateFireZones(dt); updateTurret(dt); updateEmpProjs(dt); updatePoisonZones(dt); updateCarePackage(dt); updateFrostZones(); updateFeatures(dt); }
   else if(G.phase==='lobby'){                                    // turntable : arme en vitrine, sinon perso
     if(shopOpen && shopTab==='weapons'){ if(shopWeaponObj) shopWeaponObj.rotation.y += dt*0.8; }
     else if(shopOpen && shopTab==='player'){ if(shopCharObj) shopCharObj.rotation.y += dt*0.7; }   // perso centré tourne (#25)

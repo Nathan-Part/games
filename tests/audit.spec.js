@@ -181,15 +181,6 @@ test('AUDIT #78 : le Jackal-45 est semi-auto par defaut (id catalogue reel)', as
   expect(auto).toBe(false);
 });
 
-test('AUDIT #91 : l\'anneau de zone de danger est retire au retour menu (pas dans le lobby)', async ({ page }) => {
-  await startPlaying(page);
-  await page.evaluate(() => __game.debug.dangerZoneRadius());              // force la construction via update
-  await page.waitForTimeout(120);
-  expect(await page.evaluate(() => __game.debug.dzMeshActive())).toBe(true);
-  await page.evaluate(() => __game.debug.backToHome());
-  expect(await page.evaluate(() => __game.debug.dzMeshActive())).toBe(false);
-});
-
 test('AUDIT fuite HUD : shield-bar et smoke-hud masques au retour menu', async ({ page }) => {
   await startPlaying(page);
   await expect(page.locator('#shield-bar')).toBeVisible();

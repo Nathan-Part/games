@@ -200,19 +200,15 @@ test('#76 countdown : waveCountdown > 0 apres fin de vague', async ({ page }) =>
   expect(cd).toBeGreaterThan(0);
 });
 
-// ====== #91 — Zone de danger ======
+// ====== #91 — Zone de danger : RETIRÉE (#206, demande explicite — le cercle rouge punissait
+// l'exploration des grandes maps). Régression : l'API debug ne doit plus exister. ======
 
-test('#91 zone : dangerZoneRadius() > 0 en jeu', async ({ page }) => {
+test('#206 zone de danger retirée : plus d\'anneau ni de dégâts hors zone', async ({ page }) => {
   await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.dangerZoneRadius())).toBeGreaterThan(0);
-});
-
-test('#91 zone : playerInZone() true au spawn (centre map)', async ({ page }) => {
-  await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.playerInZone())).toBe(true);
-});
-
-test('#91 zone : dangerZoneDamage() retourne 5', async ({ page }) => {
-  await startPlaying(page);
-  expect(await page.evaluate(() => __game.debug.dangerZoneDamage())).toBe(5);
+  const gone = await page.evaluate(() => ({
+    mesh: typeof __game.debug.dzMeshActive,
+    radius: typeof __game.debug.dangerZoneRadius,
+    dmg: typeof __game.debug.dangerZoneDamage,
+  }));
+  expect(gone).toEqual({ mesh: 'undefined', radius: 'undefined', dmg: 'undefined' });
 });
