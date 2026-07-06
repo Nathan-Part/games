@@ -420,23 +420,30 @@ async function loadAnims(animFiles) {
 }
 
 // idle dérivé : rapproche chaque pose de la pose de repos cible (repli si pas d'Alert)
+// Idle dérivé (repli quand le perso n'a aucun clip idle dédié) : jusqu'ici on gardait TOUTES les
+// keyframes du clip marche (amplitude réduite mais même rythme de foulée) → un idle qui rejoue en
+// boucle le cycle de marche, même atténué, se VOIT comme "il marche sur place en permanence" (bug
+// remonté par Nathan, repro en 3e personne car le corps entier n'est visible que dans cette vue).
+// Fix : figer sur UNE seule keyframe (1er instant du clip) au lieu de garder tout le cycle — une
+// vraie pose statique, pas un cycle de marche atténué.
 function deriveIdle(clip){
   const amp = 0.18;
   const tracks = clip.tracks.map(tr=>{
-    if(!tr.name.endsWith('.quaternion')) return tr.clone();
-    const boneName = tr.name.slice(0, tr.name.lastIndexOf('.'));
-    const rest = targetRest[boneName] && targetRest[boneName].q;
-    if(!rest) return tr.clone();
-    const v = Float32Array.from(tr.values);
-    const q = new THREE.Quaternion(), o = new THREE.Quaternion();
-    for(let i=0;i<v.length;i+=4){
-      q.set(v[i],v[i+1],v[i+2],v[i+3]);
-      o.copy(rest).slerp(q, amp);
-      v[i]=o.x; v[i+1]=o.y; v[i+2]=o.z; v[i+3]=o.w;
+    const size = tr.getValueSize ? tr.getValueSize() : tr.values.length / tr.times.length;
+    const first = Float32Array.from(tr.values.slice(0, size));   // fige sur la 1re keyframe : plus de cycle
+    if(tr.name.endsWith('.quaternion')){
+      const boneName = tr.name.slice(0, tr.name.lastIndexOf('.'));
+      const rest = targetRest[boneName] && targetRest[boneName].q;
+      if(rest){
+        const q = new THREE.Quaternion(first[0], first[1], first[2], first[3]);
+        const o = new THREE.Quaternion().copy(rest).slerp(q, amp);
+        first[0]=o.x; first[1]=o.y; first[2]=o.z; first[3]=o.w;
+      }
+      return new THREE.QuaternionKeyframeTrack(tr.name, [0], first);
     }
-    return new THREE.QuaternionKeyframeTrack(tr.name, Float32Array.from(tr.times), v);
+    return new tr.constructor(tr.name, [0], first);
   });
-  return new THREE.AnimationClip('idle_derived', clip.duration, tracks);
+  return new THREE.AnimationClip('idle_derived', 1, tracks);
 }
 
 const actions = { idle:null, walk:null, run:null };
@@ -583,7 +590,13 @@ async function startGame(){
   actions.idle = mixer.clipAction(retargetRole('idle'));
   const wc = retargetRole('walk'); actions.walk = wc ? mixer.clipAction(wc) : null;
   const rc = retargetRole('run');  actions.run  = rc ? mixer.clipAction(rc) : null;
+  // repli course→marche (retargetRole ré-utilise le clip marche quand aucun clip course dédié
+  // n'existe, même nom de clip conservé) : sans ceci, "courir" rejoue la marche à sa vitesse
+  // native → indiscernable de la marche à l'écran ("quand je cours il marche aussi"). On accélère
+  // la lecture au ratio des vitesses de déplacement pour au moins distinguer visuellement l'allure.
+  if(actions.run && actions.walk && rc.name === wc.name) actions.run.timeScale = RUN_SPEED / WALK_SPEED;
   G.clips = Object.keys(actions).filter(k=>actions[k]);
+  G.debug.locoClipInfo = () => ['idle','walk','run'].map(k => actions[k] ? { role:k, clip:actions[k].getClip().name, frames:actions[k].getClip().tracks[0]?.times.length, timeScale:actions[k].timeScale } : { role:k, clip:null });
   curLoco = 'idle'; actions.idle.play();
   setView(save.settings.defaultView);                          // vue de départ selon les réglages (#18 ; défaut 3e personne)
   G.character = { id:char.id, label:char.label };
