@@ -3894,6 +3894,9 @@ const ENEMY_COUNT = 3, DETECT_RADIUS = 12, LOSE_RADIUS = DETECT_RADIUS*1.5, LOSE
       ENEMY_WALK = 1.8, ENEMY_RUN = 4.0, ENEMY_HP = 100,
       ENEMY_R = 0.45, ENEMY_FLASH = 0.08, ENEMY_TURN = 8,
       SHOOT_RANGE = 9, ENEMY_FIRE_CD = 1.3, ENEMY_ACCURACY = 0.55, ENEMY_DAMAGE = 10;
+// anti-blocage mur : sonde périodique du déplacement réel pendant une poursuite, pour détecter un
+// ennemi plaqué contre un obstacle (trajectoire directe vers la cible bloquée par un mur/canal/bâtiment)
+const STUCK_CHECK_S = 0.35, STUCK_EPS = 0.12, STUCK_NUDGE_S = 0.7;
 const MAX_PER_WAVE = 7, WAVE_INTERMISSION = 2.5, BOSS_BONUS = 300;   // #31 : bonus à la mort d'un boss
 // ====== Types d'ennemis (#11) : rusher (mêlée rapide), shooter (tireur rafale), tank (lourd) ======
 // Table unique par type (étape 5) : stats + arme portée/lootable (#23) + couleur radar (#21) + armure (#114/#131).
@@ -4364,7 +4367,24 @@ function faceDir(e, vx, vz, dt){
   e.root.rotation.y = a + diff*Math.min(1, dt*ENEMY_TURN);
 }
 function moveToward(e, tx, tz, spd, dt){
-  const dx = tx - e.root.position.x, dz = tz - e.root.position.z;
+  // anti-blocage mur (#204) : si l'ennemi n'a quasi pas avancé depuis la dernière sonde alors qu'il
+  // se déplace, sa trajectoire directe est bloquée par un obstacle (mur/canal/façade) — la simple
+  // repousse AABB (clampEnemy) ne fait que le recoller au même point tant que la cible visée reste
+  // droit derrière l'obstacle. On dévie alors temporairement à 90° pour longer l'obstacle et le contourner.
+  e.stuckT_ = (e.stuckT_ || 0) + dt;
+  if(e.stuckT_ >= STUCK_CHECK_S){
+    const moved = Math.hypot(e.root.position.x - (e.stuckX_ ?? e.root.position.x), e.root.position.z - (e.stuckZ_ ?? e.root.position.z));
+    if(moved < STUCK_EPS) e.unstuckUntil_ = nowS() + STUCK_NUDGE_S;
+    e.stuckX_ = e.root.position.x; e.stuckZ_ = e.root.position.z; e.stuckT_ = 0;
+  }
+  let dx = tx - e.root.position.x, dz = tz - e.root.position.z;
+  if(e.unstuckUntil_ && nowS() < e.unstuckUntil_){
+    const side = e.flankSide || 1;
+    const perpX = -dz, perpZ = dx;   // perpendiculaire à la direction visée (longe l'obstacle)
+    dx += perpX * side; dz += perpZ * side;
+  } else if(e.unstuckUntil_){
+    e.unstuckUntil_ = 0;
+  }
   const len = Math.hypot(dx, dz) || 1;
   e.root.position.x += (dx/len)*spd*dt;
   e.root.position.z += (dz/len)*spd*dt;
