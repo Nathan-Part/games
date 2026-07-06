@@ -20,7 +20,8 @@ const RETALIATE_DMG = 10;        // riposte de la cible si elle survit à l'atta
 
 export function initPet(ctx){
   const { THREE, scene, loader, getPlayerPos, enemies, damageEnemy,
-          obstacles, MAP_HALF, pushOutCircleAABB, registerFeature } = ctx;
+          obstacles, MAP_HALF, pushOutCircleAABB, groundHeight, registerFeature } = ctx;
+  const groundAt = (x, z) => groundHeight ? groundHeight(x, z) : 0;   // #204 (ctx optionnel : tests/apps sans map)
 
   let group = null, mixer = null, walkAction = null, attackAction = null;
   let clipNames = [];
@@ -86,7 +87,7 @@ export function initPet(ctx){
   function placeNearPlayer(){
     if(!group) return;
     const p = getPlayerPos();
-    group.position.set(p.x + 1.2, groundY, p.z + 1.2);
+    group.position.set(p.x + 1.2, groundY + groundAt(p.x + 1.2, p.z + 1.2), p.z + 1.2);   // #204
   }
 
   // Invocation (#156 loadout, touche 4) : appelée par summon() ci-dessous, ou différée si le GLB
@@ -142,6 +143,7 @@ export function initPet(ctx){
       const moved = Math.hypot(cand.x - group.position.x, cand.z - group.position.z);
       if(moved >= step * 0.4){
         group.position.x = cand.x; group.position.z = cand.z;
+        group.position.y = groundY + groundAt(cand.x, cand.z);   // #204 : posé sur le sol local
         group.rotation.y = a;                      // tête vers +Z → face à la direction du pas
         return;
       }
@@ -231,7 +233,7 @@ export function initPet(ctx){
     pos: () => group ? { x: group.position.x, y: group.position.y, z: group.position.z } : { x:0, y:0, z:0 },
     state: () => state,
     attackCount: () => attackCount,
-    setPos: (x, z) => { if(group) group.position.set(x, groundY, z); },
+    setPos: (x, z) => { if(group) group.position.set(x, groundY + groundAt(x, z), z); },   // #204
     clips: () => clipNames.slice(),
     summon: () => summon(),                         // invocation loadout (#156, touche 4)
     heightM: () => group ? new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3()).y : 0,

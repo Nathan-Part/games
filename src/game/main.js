@@ -2056,7 +2056,7 @@ function spawnDecoyNear(sourceEnemy){
     m.transparent = true; m.opacity = 0.22; m.color.setHex(0xff3333); // rouge fantôme
   }});
   const sp = { x: src.root.position.x + (Math.random()-0.5)*3, z: src.root.position.z + (Math.random()-0.5)*3 };
-  root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
+  root.position.set(sp.x, ENEMY_FOOT_Y + groundHeight(sp.x, sp.z), sp.z);   // #204
   const mixer = new THREE.AnimationMixer(root);
   const actions = {}; if(enemyClips.walk) actions.walk = mixer.clipAction(enemyClips.walk);
   actions.walk?.play();
@@ -2564,8 +2564,9 @@ function spawnSingleEnemy(sp, type, hp){
   const mixer = new THREE.AnimationMixer(root);
   const actions = {}; for(const k of ['idle','walk','run','attack','dead']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
   const hbY = 0.9 * spec.scale; const hitbox = makeHitbox(spec.scale);
-  root.position.set(sp.x, ENEMY_FOOT_Y, sp.z); showSpawnMarker(sp.x, sp.z);
-  hitbox.position.set(sp.x, ENEMY_FOOT_Y+hbY, sp.z); hitbox.updateMatrixWorld();
+  const rgy_ = ENEMY_FOOT_Y + groundHeight(sp.x, sp.z);   // #204 : renfort posé sur le sol local
+  root.position.set(sp.x, rgy_, sp.z); showSpawnMarker(sp.x, sp.z);
+  hitbox.position.set(sp.x, rgy_+hbY, sp.z); hitbox.updateMatrixWorld();
   const ehp = Math.round(hp * spec.hpMult);
   const id = enemies.length;
   const e = { id, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
@@ -4145,8 +4146,8 @@ G.debug.spawnEnemyTypeAt = (i, type, x, z) => {
   e.type = spec.id; e.spec = spec; e.burstLeft = spec.burst || 1; e.meleeCd = 0; e.weaponId = weaponIdForType(spec.id);  // type invalide (ex. 'ghost' supprimé) → vrai type du spec (shooter)
   e.hp = Math.round(enemyHpForWave(wave || 1) * spec.hpMult); e.maxHp = e.hp;
   e.alive = true; e.state = 'patrol'; e.loco = 'idle'; e.lostFor = 0; e.target = null;
-  e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0, 0, 0);
-  e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
+  e.root.position.set(x, ENEMY_FOOT_Y + groundHeight(x, z), z); e.root.rotation.set(0, 0, 0);   // #204
+  e.hitbox.position.set(x, ENEMY_FOOT_Y + groundHeight(x, z) + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
   // réapplique l'apparence du type (#107 ghost translucide + glow coloré) — sinon un type changé via debug garderait l'apparence d'origine
   if(spec.glow != null){ for(const m of (e.mats||[])){ m.mat.emissive.setHex(spec.glow); m.base = m.mat.emissive.clone(); } }
   if(spec.opacity != null){ e.root.traverse(o => { if(o.isMesh){ const mm = Array.isArray(o.material)?o.material:[o.material]; mm.forEach(mat => { mat.transparent = true; mat.opacity = spec.opacity; }); } }); }
@@ -4254,9 +4255,10 @@ function createEnemies(count = ENEMY_COUNT, hp = ENEMY_HP, comp = null){
     for(const k of ['idle','walk','run','attack','dead']) if(enemyClips[k]) actions[k] = mixer.clipAction(enemyClips[k]);
     const hbY = 0.9 * spec.scale;
     const hitbox = makeHitbox(spec.scale);
-    const sp = randomSpawn(); root.position.set(sp.x, ENEMY_FOOT_Y, sp.z);
+    const sp = randomSpawn(); const sgy = ENEMY_FOOT_Y + groundHeight(sp.x, sp.z);   // #204
+    root.position.set(sp.x, sgy, sp.z);
     showSpawnMarker(sp.x, sp.z); // marqueur visuel (#70)
-    hitbox.position.set(sp.x, ENEMY_FOOT_Y + hbY, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
+    hitbox.position.set(sp.x, sgy + hbY, sp.z); hitbox.updateMatrixWorld(); // prêt au raycast dès la 1re frame
     const ehp = Math.round(hp * spec.hpMult);
     const e = { id:i, type, spec, root, mixer, actions, hitbox, mats, hp:ehp, maxHp:ehp, hbY, state:'patrol', alive:true,
                 loco:'idle', target:null, lostFor:0, flashUntil:0, weaponId:weaponIdForType(type), looted:false,
@@ -4294,7 +4296,7 @@ function updateEnemies(dt){
       e.root.updateMatrixWorld(true);
       let lo = Infinity; const bp = new THREE.Vector3();
       e.root.traverse(o => { if(o.isBone){ o.getWorldPosition(bp); if(bp.y < lo) lo = bp.y; } });
-      if(isFinite(lo)) e.root.position.y += (ENEMY_FOOT_Y + 0.05 - lo);
+      if(isFinite(lo)) e.root.position.y += (ENEMY_FOOT_Y + groundHeight(e.root.position.x, e.root.position.z) + 0.05 - lo);   // #204 : cadavre posé sur le sol local (fosse comprise)
       continue;
     }
     if(e.frenzyVisualOn && nowS() >= e.frenzyUntil) endFrenzyVisual(e); // #129 : fin du frenzy → couleur/glow normaux restaurés (plus de rouge bloqué)
@@ -4352,6 +4354,16 @@ function updateEnemies(dt){
         moveToward(e, e.target.x, e.target.z, ENEMY_WALK*spec.speedMult, dt); desired = 'walk'; }
     }
     clampEnemy(e);
+    // #204 : suivi du sol — marche trop haute = mur (revert vers ex/ez de début de frame, la
+    // déviation anti-blocage fera longer la paroi) ; montée ≤ STEP_UP_MAX instantanée ;
+    // descente lissée à ENEMY_DESCENT_SPEED (pas de gravité ennemie, suffisant pour 1.92 m).
+    let egh = ENEMY_FOOT_Y + groundHeight(e.root.position.x, e.root.position.z);
+    if(egh - e.root.position.y > STEP_UP_MAX){
+      e.root.position.x = ex; e.root.position.z = ez;
+      egh = ENEMY_FOOT_Y + groundHeight(ex, ez);
+    }
+    if(egh >= e.root.position.y) e.root.position.y = egh;
+    else e.root.position.y = Math.max(egh, e.root.position.y - ENEMY_DESCENT_SPEED*dt);
     setEnemyLoco(e, desired);
     e.hitbox.position.set(e.root.position.x, e.root.position.y + (e.hbY || 0.9), e.root.position.z);
     e.hitbox.updateMatrixWorld();
@@ -4438,12 +4450,12 @@ function setEnemyLoco(e, state){
 }
 G.debug.spawnEnemyAt = (x, z) => {
   const e = enemies[0]; if(!e) return null;
-  e.root.position.set(x, ENEMY_FOOT_Y, z); e.root.rotation.set(0,0,0);
+  e.root.position.set(x, ENEMY_FOOT_Y + groundHeight(x, z), z); e.root.rotation.set(0,0,0);   // #204
   e.hp = ENEMY_HP; e.alive = true; e.state='patrol'; e.loco='idle'; e.lostFor=0; e.target=null;
-  e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
+  e.hitbox.position.set(x, ENEMY_FOOT_Y + groundHeight(x, z) + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld();
   return e.id;
 };
-G.debug.moveEnemy = (i, x, z) => { const e = enemies[i]; if(e){ e.root.position.set(x, ENEMY_FOOT_Y, z); e.state='patrol'; e.lostFor=0; e.hitbox.position.set(x, ENEMY_FOOT_Y + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld(); } };
+G.debug.moveEnemy = (i, x, z) => { const e = enemies[i]; if(e){ const gy = ENEMY_FOOT_Y + groundHeight(x, z); e.root.position.set(x, gy, z); e.state='patrol'; e.lostFor=0; e.hitbox.position.set(x, gy + (e.hbY || 0.9), z); e.hitbox.updateMatrixWorld(); } };   // #204
 
 function setEnemyEmissive(e, on){
   for(const m of e.mats) m.mat.emissive.copy(on ? FLASH_COLOR : m.base);
@@ -5222,6 +5234,7 @@ const pet = initPet({
   getPlayerPos: () => model ? model.position : { x:0, y:0, z:0 },
   enemies, damageEnemy,
   obstacles, MAP_HALF, pushOutCircleAABB,
+  groundHeight,   // #204 : le chien suit le sol à hauteur variable
   registerFeature,
 });
 G.debug.petLoaded = () => pet.loaded();
