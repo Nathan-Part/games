@@ -580,15 +580,16 @@ test('#156 : les barres loadout sont masquees au retour au menu', async ({ page 
   expect(await page.evaluate(() => document.getElementById('ls-turret-hud').classList.contains('hidden'))).toBe(true);
 });
 
-test('#156 : le panneau loadout s ouvre depuis le lobby et affiche 4 cartes', async ({ page }) => {
+test('#156 : le panneau loadout s ouvre depuis le lobby et affiche 5 cartes', async ({ page }) => {
   await page.addInitScript(() => { window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
   await page.evaluate(() => document.getElementById('btn-loadout').click());
   const hidden = await page.evaluate(() => document.getElementById('loadout-panel').classList.contains('hidden'));
   expect(hidden).toBe(false);
+  // #201 : le chien de guerre est devenu le 5e bonus de loadout (LOADOUT_BONUSES)
   const cardCount = await page.evaluate(() => document.querySelectorAll('#loadout-panel .icard[data-loadout]').length);
-  expect(cardCount).toBe(4);
+  expect(cardCount).toBe(5);
 });
 
 test('#156 : cliquer une carte du panneau loadout appelle toggleLoadoutBonus et persiste', async ({ page }) => {

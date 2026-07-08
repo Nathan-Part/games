@@ -93,9 +93,10 @@ test('la direction suit le lacet caméra', async ({ page }) => {
   await page.evaluate(() => { __game.debug.setYaw(Math.PI/2); __game.debug.setInput({forward:true}); });
   await page.waitForFunction(() => window.__game.locomotion === 'walk', null, {timeout:5000});
   const p0 = await page.evaluate(() => __game.position());
-  await page.waitForTimeout(800);
+  // scrute l'état atteint plutôt qu'un délai fixe (temps simulé plafonné à 50ms/frame sous SwiftShader,
+  // peut prendre du retard sur le temps réel si le FPS s'effondre — cf. tests/helpers.js)
+  await page.waitForFunction(p0 => __game.position().x - p0.x > 0.3, p0, { timeout: 15000 });
   const p1 = await page.evaluate(() => __game.position());
-  expect(p1.x - p0.x).toBeGreaterThan(0.3);
   expect(Math.abs(p1.z - p0.z)).toBeLessThan(Math.abs(p1.x - p0.x));
 });
 
@@ -467,21 +468,25 @@ test('reglages : le panneau a des controles relies a la sauvegarde', async ({ pa
 
 // ====== Tranche 19 : vraie map / niveau ======
 
+// Le décor (obstacles/colliders) n'est construit qu'à la demande depuis #206 (ensureArenaReady,
+// déclenché par startGame) — plus au simple boot du lobby. Ces 3 tests doivent donc démarrer une
+// partie (startPlaying) avant d'interroger obstacleCount/pointInObstacle/hasLineOfSight, sinon le
+// décor n'existe pas encore et toute assertion sur les obstacles est trivialement fausse ou vide.
 test('map : niveau enrichi avec un perimetre et des batiments', async ({ page }) => {
-  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.obstacleCount())).toBeGreaterThanOrEqual(10);
   expect(await page.evaluate(() => __game.debug.pointInObstacle(0,22))).toBe(true);   // mur nord
 });
 
 test('map : les zones de jeu critiques restent degagees', async ({ page }) => {
-  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.pointInObstacle(0,0))).toBe(false);     // spawn
   expect(await page.evaluate(() => __game.debug.pointInObstacle(0,3))).toBe(false);     // couloir +Z
   expect(await page.evaluate(() => __game.debug.hasLineOfSight(0,0, 0,6))).toBe(true);  // LOS couloir
 });
 
 test('map : un batiment bloque la ligne de vue', async ({ page }) => {
-  await page.goto('/game.html'); await page.waitForFunction(() => window.__game?.booted);
+  await startPlaying(page);
   expect(await page.evaluate(() => __game.debug.pointInObstacle(16,8))).toBe(true);          // bâtiment est
   expect(await page.evaluate(() => __game.debug.hasLineOfSight(10,8, 22,8))).toBe(false);    // vue coupée au travers
 });
@@ -517,9 +522,8 @@ test('pause : gele la partie puis reprend', async ({ page }) => {
   const p1 = await page.evaluate(() => __game.position());
   expect(Math.hypot(p1.x-p0.x, p1.z-p0.z)).toBeLessThan(0.05);
   await page.evaluate(() => __game.debug.setPaused(false));
-  await page.waitForTimeout(500);
-  const p2 = await page.evaluate(() => __game.position());
-  expect(Math.hypot(p2.x-p0.x, p2.z-p0.z)).toBeGreaterThan(0.3);
+  // scrute l'état atteint plutôt qu'un délai fixe (cf. note direction/lacet caméra ci-dessus)
+  await page.waitForFunction(p0 => Math.hypot(__game.position().x-p0.x, __game.position().z-p0.z) > 0.3, p0, { timeout: 15000 });
 });
 
 test('pause : le menu permet de revenir a l accueil', async ({ page }) => {
@@ -565,7 +569,8 @@ test('#56 stamina : sans sprint la stamina regenere', async ({ page }) => {
   // Arrêter le sprint
   await page.evaluate(() => __game.debug.setInput({forward:false, sprint:false}));
   const s1 = await page.evaluate(() => __game.debug.stamina());
-  await page.waitForFunction(v => __game.debug.stamina() > v + 5, s1, {timeout:5000});
+  // budget temps simulé requis (0.33s) trop juste face à 5s reels sous SwiftShader charge — cf. note ci-dessus
+  await page.waitForFunction(v => __game.debug.stamina() > v + 5, s1, {timeout:20000});
   const s2 = await page.evaluate(() => __game.debug.stamina());
   expect(s2).toBeGreaterThan(s1);
 });
@@ -1044,7 +1049,9 @@ test('chute : une vraie chute depuis une grande hauteur inflige les degats a l a
   await page.evaluate(() => __game.debug.setShield(0));   // le bouclier absorbe sinon (memoire projet)
   const before = await page.evaluate(() => __game.debug.playerHealth());
   await page.evaluate(() => __game.debug.forceFallFrom(15));
-  await page.waitForTimeout(1500);   // laisse la gravite ramener le joueur au sol
+  // scrute l'atterrissage réel (dt simulé plafonné à 50ms/frame — 1.5s réelles ne suffisent pas
+  // toujours à couvrir les ~1.29s simulées requises sous charge SwiftShader) plutôt qu'un délai fixe
+  await page.waitForFunction(b => __game.debug.playerHealth() < b, before, { timeout: 15000 });
   const after = await page.evaluate(() => __game.debug.playerHealth());
   expect(after).toBeLessThan(before);
 });

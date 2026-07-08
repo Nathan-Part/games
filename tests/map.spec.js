@@ -41,9 +41,12 @@ test('addBackdropProp charge un modele mais n\'ajoute jamais de collider', async
 });
 
 test('si le chargement du decor echoue totalement, l\'arene de secours prend le relais', async ({ page }) => {
-  await page.addInitScript(() => { window.__FORCE_DECOR_FAIL__ = true; });
+  await page.addInitScript(() => { window.__FORCE_DECOR_FAIL__ = true; window.__FAST_WEAPON__ = true; });
   await page.goto('/game.html');
   await page.waitForFunction(() => window.__game?.characters?.length >= 1, null, {timeout:20000});
+  // le décor n'est construit qu'à la demande (ensureArenaReady, déclenché par startGame) depuis #206
+  await page.evaluate(() => __game.debug.start(0));
+  await page.waitForFunction(() => window.__game.phase === 'playing', null, {timeout:20000});
   const obstacleCount = await page.evaluate(() => window.__game.debug.obstacleCount());
   expect(obstacleCount).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__game.debug.mapHalf)).toBe(24);
@@ -124,7 +127,8 @@ test('setMapId("portal") revient au decor thematique (grille masquee)', async ({
 test('le choix de map est persiste (save.settings.mapId)', async ({ page }) => {
   await startPlaying(page);
   await page.evaluate(() => window.__game.debug.setMapId('urban'));
-  expect(await page.evaluate(() => window.__game.debug.save.raw().settings.mapId)).toBe('urban');
+  // save.raw() renvoie la chaine JSON brute de localStorage (pas un objet) — .get() la parse déjà
+  expect(await page.evaluate(() => window.__game.debug.save.get().settings.mapId)).toBe('urban');
 });
 
 // ====== #203 map utopia (cite utopique, derivee de map_utopia.blend) ======
@@ -133,7 +137,7 @@ test('mapList contient utopia et setMapId("utopia") bascule + persiste', async (
   expect(await page.evaluate(() => window.__game.debug.mapList())).toContain('utopia');
   expect(await page.evaluate(() => window.__game.debug.setMapId('utopia'))).toBe(true);
   expect(await page.evaluate(() => window.__game.debug.mapId())).toBe('utopia');
-  expect(await page.evaluate(() => window.__game.debug.save.raw().settings.mapId)).toBe('utopia');
+  expect(await page.evaluate(() => window.__game.debug.save.get().settings.mapId)).toBe('utopia');
 });
 
 test('utopia : stele collidee, spawn degage, canaux infranchissables', async ({ page }) => {

@@ -842,8 +842,12 @@ addEventListener('keyup', e => { if(CODE[e.code]) input[CODE[e.code]]=false;
 G.debug.setInput = (s={}) => { input.forward=!!s.forward; input.back=!!s.back;
   input.left=!!s.left; input.right=!!s.right; input.sprint=!!s.sprint;
   input.fire=!!s.fire; input.aim=!!s.aim; };
-G.debug.setYaw = (r) => { camYaw = r; };
-G.debug.setView = (v) => setView(v);
+// updateCamera(0) resynchronise immédiatement camera.position/lookAt — sans ça, la caméra ne reflète
+// le nouveau camYaw/camPitch/view qu'à la prochaine frame animate() ; un test qui enchaîne ces setters
+// puis setPaused(true) dans le même evaluate() synchrone gèle donc la boucle AVANT que cette frame
+// n'ait jamais tourné, et le raycast de tir part d'une caméra encore désaxée (bug trouvé sur #150 piercing).
+G.debug.setYaw = (r) => { camYaw = r; updateCamera(0); };
+G.debug.setView = (v) => { setView(v); updateCamera(0); };
 G.debug.toggleView = () => toggleView();
 G.debug.modelVisible = () => !!(model && model.visible);
 G.debug.jump = () => { if(G.phase!=='playing') return;
@@ -5007,7 +5011,7 @@ G.debug.enemyLowestY = (i) => { const e = enemies[i]; if(!e) return null; e.root
 G.debug.enemyEmissiveIsBase = (i) => { const e = enemies[i]; if(!e || !e.mats[0]) return null;
   return e.mats[0].mat.emissive.getHex() === e.mats[0].base.getHex(); };
 G.debug.enemyHitboxActive = (i) => !!(enemies[i] && enemies[i].hitbox && enemies[i].hitbox.parent);
-G.debug.setPitch = (p) => { camPitch = p; clampPitch(); };
+G.debug.setPitch = (p) => { camPitch = p; clampPitch(); updateCamera(0); };   // resync immédiate (cf. setYaw)
 G.debug.spawnEnemyInFront = (dist=8) => {
   _ray.setFromCamera({ x:0, y:0 }, camera);
   const p = _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(dist));

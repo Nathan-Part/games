@@ -74,12 +74,12 @@ test('204 joueur : descente à pied rive→fond par paliers, remontée par la ra
   // avant = (sin(yaw), cos(yaw)) : yaw -PI/2 = vers -x (le centre depuis la rive est)
   await page.evaluate(() => { const d = window.__game.debug;
     d.setPos(11, 0); d.setYaw(-Math.PI/2); d.setInput({ forward: true }); });
-  await page.waitForFunction(() => window.__game.debug.playerFootY() < -1.8, null, { timeout: 8000 });
+  await page.waitForFunction(() => window.__game.debug.playerFootY() < -1.8, null, { timeout: 20000 });
   await page.evaluate(() => window.__game.debug.setInput({ forward: false }));
   // remontée : du fond vers l'est par la rampe (yaw +PI/2 = vers +x)
   await page.evaluate(() => { const d = window.__game.debug;
     d.setPos(2, 0); d.setYaw(Math.PI / 2); d.setInput({ forward: true }); });
-  await page.waitForFunction(() => window.__game.debug.playerFootY() > -0.1, null, { timeout: 8000 });
+  await page.waitForFunction(() => window.__game.debug.playerFootY() > -0.1, null, { timeout: 20000 });
   await page.evaluate(() => window.__game.debug.setInput({ forward: false }));
 });
 
@@ -89,7 +89,7 @@ test('204 joueur : saut depuis la rive vers la fosse atterrit sur une surface ba
   await page.evaluate(() => { const d = window.__game.debug;
     d.setPos(10, 3); d.setYaw(-Math.PI/2); d.setInput({ forward: true }); d.jump(); });
   await page.waitForFunction(() => window.__game.debug.playerFootY() < -0.4
-    && window.__game.debug.velY() === 0, null, { timeout: 8000 });        // retombé sur une surface basse
+    && window.__game.debug.velY() === 0, null, { timeout: 20000 });        // retombé sur une surface basse
   await page.evaluate(() => window.__game.debug.setInput({ forward: false }));
 });
 

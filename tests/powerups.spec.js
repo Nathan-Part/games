@@ -199,18 +199,19 @@ test('#127 speed_boost : speedBoostTimeLeft > 0 quand actif', async ({ page }) =
 
 test('#127 speed_boost : la vitesse effective est doublee (x2) quand actif', async ({ page }) => {
   await startPlaying(page);
-  // vitesse normale (marche, sans boost)
+  // vitesse normale (marche, sans boost) — playerMoveSpeed() n'est mis à jour que dans updateController(),
+  // appelé une fois par frame RAF ; un délai fixe peut retomber avant qu'une frame n'ait tourné sous
+  // SwiftShader chargé, donc on scrute l'état plutôt que de deviner un délai (cf. tests/helpers.js)
   await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.setInput({ forward: true }); });
-  await page.waitForTimeout(200);
+  await page.waitForFunction(() => __game.debug.playerMoveSpeed() > 0, null, { timeout: 10000 });
   const baseSpeed = await page.evaluate(() => __game.debug.playerMoveSpeed());
   await page.evaluate(() => __game.debug.setInput({}));
   expect(baseSpeed).toBeGreaterThan(0);
   // activer le boost puis re-mesurer
   await page.evaluate(() => { __game.debug.spawnSpeedBoost(0, 0); __game.debug.setPos(0, 0); });
-  await page.waitForTimeout(300); // pickup
-  expect(await page.evaluate(() => __game.debug.speedBoostActive())).toBe(true);
+  await page.waitForFunction(() => __game.debug.speedBoostActive() === true, null, { timeout: 10000 }); // pickup
   await page.evaluate(() => { __game.debug.setPos(0, 0); __game.debug.setInput({ forward: true }); });
-  await page.waitForTimeout(200);
+  await page.waitForFunction(() => __game.debug.playerMoveSpeed() > 0, null, { timeout: 10000 });
   const boostedSpeed = await page.evaluate(() => __game.debug.playerMoveSpeed());
   await page.evaluate(() => __game.debug.setInput({}));
   // ratio exactement 2 (même mode de marche, seul le boost change)

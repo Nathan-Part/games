@@ -535,13 +535,15 @@ test('accessoires : onglet boutique (sous-onglets) achete et equipe', async ({ p
   await page.evaluate(() => { __game.debug.save.reset(); __game.debug.save.addMoney(3000); });
   await page.locator('#btn-shop').click();
   await page.locator('.shop-tab[data-tab="accessories"]').click();
-  await expect(page.locator('#shop-info')).toContainText('Insectoïde');              // sous-onglet Masque par défaut
-  await page.locator('#shop-info [data-buyacc="helm:insect"]').first().click();
+  // #207 : tuiles compactes sans texte visible (nom porté par l'attribut title) — sous-onglet Masque par défaut
+  await expect(page.locator('#shop-info [data-prevacc="helm:insect"]')).toHaveAttribute('title', /Insectoïde/);
+  await page.locator('#shop-info [data-prevacc="helm:insect"]').click();             // focus/aperçu de la tuile
+  await page.locator('#shop-info [data-buyacc="helm:insect"]').click();              // bouton acheter dans l'acc-buy-bar
   expect(await page.evaluate(() => __game.debug.save.get().ownedAccessories)).toContain('helm:insect');
-  await page.locator('#shop-info [data-selacc="helm:insect"]').first().click();
+  await page.locator('#shop-info [data-selacc="helm:insect"]').click();
   expect(await page.evaluate(() => __game.debug.save.get().equipped.helmet)).toBe('helm:insect');
   await page.locator('#shop-info [data-accslot="costume"]').click();                 // sous-onglet Costume
-  await expect(page.locator('#shop-info')).toContainText('Carapace Insecte');
+  await expect(page.locator('#shop-info [data-prevacc="cost:insect"]')).toHaveAttribute('title', /Carapace Insecte/);
 });
 
 test('skins : systeme retire (plus aucune reference)', async ({ page }) => {
