@@ -18,14 +18,43 @@ export function animKeyFromFile(fname) {
 export const prettyLabel = k => k.replace(/[_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
 
 // ====== Découverte par listing de dossier (serveur HTTP) ======
+// 1) listing HTML du serveur (Apache, python -m http.server) ;
+// 2) repli sur asset-manifest.json (généré par scripts/build-asset-manifest.mjs) pour les
+//    hébergeurs statiques sans listing de dossiers, comme GitHub Pages.
+let manifestPromise = null;
+function loadAssetManifest() {
+  if (!manifestPromise) {
+    manifestPromise = fetch(new URL('asset-manifest.json', document.baseURI))
+      .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  }
+  return manifestPromise;
+}
+function manifestKey(url) {
+  const root = new URL('./', document.baseURI).href;
+  const abs = new URL(url, document.baseURI).href;
+  if (!abs.startsWith(root)) return null;
+  let rel = decodeURIComponent(abs.slice(root.length));
+  if (rel && !rel.endsWith('/')) rel += '/';
+  return rel;
+}
 export async function listDir(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Listing indisponible pour ' + url + ' (HTTP ' + res.status + ')');
-  const html = await res.text();
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  return [...doc.querySelectorAll('a')]
-    .map(a => a.getAttribute('href'))
-    .filter(h => h && !h.startsWith('/') && !h.startsWith('?') && !h.includes('://') && h !== '../');
+  let status = 'erreur réseau';
+  try {
+    const res = await fetch(url);
+    status = 'HTTP ' + res.status;
+    if (res.ok) {
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const links = [...doc.querySelectorAll('a')]
+        .map(a => a.getAttribute('href'))
+        .filter(h => h && !h.startsWith('/') && !h.startsWith('?') && !h.includes('://') && h !== '../');
+      if (links.length) return links;
+    }
+  } catch (e) { /* pas de listing : on tente le manifeste */ }
+  const manifest = await loadAssetManifest();
+  const key = manifestKey(url);
+  if (manifest && key !== null && Array.isArray(manifest[key])) return manifest[key];
+  throw new Error('Listing indisponible pour ' + url + ' (' + status + ', absent du manifeste)');
 }
 export const isGlb = h => /\.glb$/i.test(h);
 export const isImg = h => /\.(png|jpe?g|webp|gif)$/i.test(h);
