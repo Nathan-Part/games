@@ -10,7 +10,7 @@ Web version · [Unity version for mobile →](https://github.com/Nathan-Part/FPS
 
 A Call of Duty-style FPS built with Three.js and no build step. Survive escalating waves of enemy types and bosses, earn money, and spend it in a 3D shop on weapons, characters, accessories and upgrades. The repo also ships two tools to import and preview characters and animations.
 
-[**Play the live demo**](https://nathan-part.github.io/games/) · [Two versions](#two-versions-of-the-game) · [Features](#features) · [Installation](#installation) · [Under the hood](#under-the-hood) · [Tech stack](#tech-stack) · [Built with AI](#built-with-ai-assistance) · [Project structure](#project-structure)
+[**Play the live demo**](https://nathan-part.github.io/operation-survival-web/) · [Two versions](#two-versions-of-the-game) · [Features](#features) · [Installation](#installation) · [Under the hood](#under-the-hood) · [Tech stack](#tech-stack) · [Built with AI](#built-with-ai-assistance) · [Project structure](#project-structure)
 
 ![Three.js](https://img.shields.io/badge/Three.js-r160-000000?logo=threedotjs&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES_modules-f7df1e?logo=javascript&logoColor=black)
@@ -28,7 +28,7 @@ A Call of Duty-style FPS built with Three.js and no build step. Survive escalati
   <img src="docs/screenshots/game-over.jpg" alt="End-of-run report with stats, grade and local leaderboard" width="49%" />
 </p>
 
-> **[Play it now in your browser](https://nathan-part.github.io/games/)**, no installation needed (a desktop browser with a mouse and keyboard is recommended). The interface is in French, where the game is called *Opération Survie*.
+> **[Play it now in your browser](https://nathan-part.github.io/operation-survival-web/)**, no installation needed (a desktop browser with a mouse and keyboard is recommended). The interface is in French, where the game is called *Opération Survie*.
 
 ## Two versions of the game
 
@@ -36,11 +36,11 @@ Operation Survival exists in two versions that share the same design, the same b
 
 | | Web version (this repository) | Unity version |
 | --- | --- | --- |
-| Repository | [Nathan-Part/games](https://github.com/Nathan-Part/games) | [Nathan-Part/FPS](https://github.com/Nathan-Part/FPS) |
+| Repository | [Nathan-Part/operation-survival-web](https://github.com/Nathan-Part/operation-survival-web) | [Nathan-Part/FPS](https://github.com/Nathan-Part/FPS) |
 | Platform | Any modern desktop browser | Android and iOS, also playable in the Unity editor with mouse and keyboard |
 | Tech | Three.js r160, vanilla JavaScript, no build step | Unity 6, C#, URP, UI Toolkit |
 | Status | Complete solo game, the reference implementation | Port in progress: solo game complete, online co-op core started |
-| Try it | [Live demo](https://nathan-part.github.io/games/) or a local server | Open the project in Unity |
+| Try it | [Live demo](https://nathan-part.github.io/operation-survival-web/) or a local server | Open the project in Unity |
 
 **How they relate.** The web version came first and serves as the reference. All of its gameplay data (weapons, enemies, waves, economy, power-ups, achievements, daily contracts) was extracted into JSON files in [`unity-spec/`](unity-spec/). The Unity version imports these same files into ScriptableObjects, so both versions use exactly the same numbers, and it reuses the same characters, animations and Utopia map. The Unity version then adds what a browser cannot easily offer: native mobile performance, touch controls and, later, online multiplayer.
 
@@ -72,13 +72,13 @@ In short: **play the web version** to try the game in seconds, **open the Unity 
 
 ## Installation
 
-To simply play, use the [live demo](https://nathan-part.github.io/games/): your progress is saved in your browser. The first load downloads the 3D models, so it can take a little while.
+To simply play, use the [live demo](https://nathan-part.github.io/operation-survival-web/): your progress is saved in your browser. The first load downloads the 3D models, so it can take a little while.
 
 To run it locally, you need a modern browser, internet access (Three.js is loaded from a CDN) and a local HTTP server. The game discovers characters and animations by reading the `perso/` and `animation/` folder listings: Python's built-in server and Apache (WAMP, XAMPP...) provide them out of the box. With a server that doesn't list folders, run `node scripts/build-asset-manifest.mjs` once first.
 
 ```bash
-git clone https://github.com/Nathan-Part/games.git
-cd games
+git clone https://github.com/Nathan-Part/operation-survival-web.git
+cd operation-survival-web
 python -m http.server 8000
 ```
 
