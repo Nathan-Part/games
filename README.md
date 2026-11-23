@@ -8,7 +8,7 @@
 
 A Call of Duty-style FPS built with Three.js and no build step. Survive escalating waves of enemy types and bosses, earn money, and spend it in a 3D shop on weapons, characters, accessories and upgrades. The repo also ships two tools to import and preview characters and animations.
 
-[Features](#features) · [Under the hood](#under-the-hood) · [Tech stack](#tech-stack) · [Getting started](#getting-started) · [Built with AI](#built-with-ai-assistance) · [Project structure](#project-structure)
+[Features](#features) · [**Installation**](#installation) · [Under the hood](#under-the-hood) · [Tech stack](#tech-stack) · [Built with AI](#built-with-ai-assistance) · [Project structure](#project-structure)
 
 ![Three.js](https://img.shields.io/badge/Three.js-r160-000000?logo=threedotjs&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES_modules-f7df1e?logo=javascript&logoColor=black)
@@ -52,29 +52,7 @@ A Call of Duty-style FPS built with Three.js and no build step. Survive escalati
 - `studio.html`: import, tune and preview characters and animations, and flag which characters are playable in the game.
 - `app.html`: the original animation retargeting tool.
 
-## Under the hood
-
-- **No build step**: native ES modules with an import map that loads Three.js `0.160.0` from a CDN. Serving the folder over HTTP is enough.
-- **Data-driven design**: enemy types, weapon and shop catalogues, timed power-ups and maps live in tables, and a small feature registry (`registry.js`) calls per-feature `update`, `resetRun` and `onLobby` hooks from the game loop.
-- **Single run reset**: all per-run state is cleared in one `resetRunState()` used by both start and restart, which removed a recurring class of asymmetry bugs.
-- **Animations retargeted at runtime**: clips are retargeted onto each character's skeleton in world space, with in-place locomotion driven by code. Character and weapon sizes are normalized from the skeleton height rather than the bounding box.
-- **Ground height engine**: `groundHeight(x, z)` combines analytic zones (disk, ring, rectangle, ramp, arch, grid) per map, and the player and enemies follow it with step-up limits.
-- **Persistence**: progress is saved in `localStorage`, and the shared character gallery lives in IndexedDB.
-- **Test hook**: the game exposes `window.__game` with a debug API that the end-to-end tests drive.
-- **Ready for a port**: `unity-spec/` holds all the gameplay data (weapons, enemies, waves, economy...) as JSON. It is the source of truth used by the [Unity version](https://github.com/Nathan-Part/FPS), and `docs/migration-unity.md` describes the porting plan.
-
-## Tech stack
-
-| Area | Choice |
-| --- | --- |
-| Rendering | Three.js r160 (GLTF and Draco-compressed models) |
-| Language | Vanilla JavaScript (ES modules), HTML, CSS |
-| Audio | Web Audio API synthesis |
-| Storage | `localStorage` and IndexedDB |
-| Tests | Playwright (Chromium headless with software rendering) |
-| 3D assets | Characters, weapons and animations in GLB; scenery credited in `decor/CREDITS.md` |
-
-## Getting started
+## Installation
 
 Requires a modern browser, internet access (Three.js is loaded from a CDN) and a local HTTP server **that lists directory contents**, because the game discovers characters and animations by reading the `perso/` and `animation/` folder listings. Python's built-in server and Apache (WAMP, XAMPP...) both do this.
 
@@ -119,6 +97,28 @@ The Playwright config starts its own server on port 8123 and runs the tests sequ
 | `Esc` | Pause |
 
 Keys are bound with `event.code`, so the layout is AZERTY.
+
+## Under the hood
+
+- **No build step**: native ES modules with an import map that loads Three.js `0.160.0` from a CDN. Serving the folder over HTTP is enough.
+- **Data-driven design**: enemy types, weapon and shop catalogues, timed power-ups and maps live in tables, and a small feature registry (`registry.js`) calls per-feature `update`, `resetRun` and `onLobby` hooks from the game loop.
+- **Single run reset**: all per-run state is cleared in one `resetRunState()` used by both start and restart, which removed a recurring class of asymmetry bugs.
+- **Animations retargeted at runtime**: clips are retargeted onto each character's skeleton in world space, with in-place locomotion driven by code. Character and weapon sizes are normalized from the skeleton height rather than the bounding box.
+- **Ground height engine**: `groundHeight(x, z)` combines analytic zones (disk, ring, rectangle, ramp, arch, grid) per map, and the player and enemies follow it with step-up limits.
+- **Persistence**: progress is saved in `localStorage`, and the shared character gallery lives in IndexedDB.
+- **Test hook**: the game exposes `window.__game` with a debug API that the end-to-end tests drive.
+- **Ready for a port**: `unity-spec/` holds all the gameplay data (weapons, enemies, waves, economy...) as JSON. It is the source of truth used by the [Unity version](https://github.com/Nathan-Part/FPS), and `docs/migration-unity.md` describes the porting plan.
+
+## Tech stack
+
+| Area | Choice |
+| --- | --- |
+| Rendering | Three.js r160 (GLTF and Draco-compressed models) |
+| Language | Vanilla JavaScript (ES modules), HTML, CSS |
+| Audio | Web Audio API synthesis |
+| Storage | `localStorage` and IndexedDB |
+| Tests | Playwright (Chromium headless with software rendering) |
+| 3D assets | Characters, weapons and animations in GLB; scenery credited in `decor/CREDITS.md` |
 
 ## Built with AI assistance
 
